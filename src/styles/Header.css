@@ -1,0 +1,58 @@
+.header-container {
+    background-color: var(--surface);
+    padding: 0px 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    border-bottom: 1px solid var(--line);
+
+}
+
+
+.theme-pill {
+    background-color: var(--chip);
+    border-radius: var(--bd-pill);
+    padding: 4px;
+    border: 1px solid var(--line);
+
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+
+}
+
+.theme-toggle-button {
+    background-color: var(--chip);
+    border-radius: var(--bd-pill);
+    gap: var(--space-8);
+    border: none;
+
+    color: var(--ink);
+    font-weight: 600;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 13px;
+    cursor: pointer;
+
+}
+
+.theme-toggle-button.cur-act {
+    background-color: var(--surface);
+    border-radius: var(--bd-pill);
+    color: var(--ink);
+    gap: var(--space-4);
+    border: 1px solid var(--line);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    cursor: pointer;
+
+    /* disable button */
+    pointer-events: none;
+    cursor: not-allowed;
+}

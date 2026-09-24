@@ -1,0 +1,8 @@
+.product-list-main {
+    background-color: var(--bg);
+    flex-grow: 1;
+    padding: 36px 48px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}

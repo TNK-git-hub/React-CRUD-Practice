@@ -54,6 +54,9 @@
   --fw-card-title: 600;
   --fw-others: 400;
 
+  /* Font color */
+  --fc-text: var(--ink);
+
   /*  Button input and state */
   --button-default: var(--accent);
   --button-hover: var(--bt-hover-color);
@@ -69,7 +72,6 @@
 
   --page-bt-default: var(--surface);
   --page-bt-hover-color: var(--accent);
-
   --page-bt-hover-bg: var(--focus-ring-color);
   --page-bt-hover-border: var(--accent);
   --page-bt-hover-text: var(--accent);
