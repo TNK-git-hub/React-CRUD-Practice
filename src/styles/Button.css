@@ -1,0 +1,12 @@
+.button-container {
+    height: 40px;
+    padding: 0px 20px;
+    border: 0px;
+    border-radius: var(--bd-control);
+    background: var(--accent);
+    color: var(--surface);
+    font-family: var(--typeface-body);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-card-title);
+    cursor: pointer;
+}

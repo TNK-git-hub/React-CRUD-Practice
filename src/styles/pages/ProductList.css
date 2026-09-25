@@ -20,19 +20,12 @@
     gap: 6px;
 }
 
-.search-filter-container {
-    background-color: red;
-    height: 68px;
+.search-sorting-container {
+    background-color: lightblue;
+
 }
 
-.search-div {
-    width: 380px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0px 14px;
-    border: 1px solid var(--line);
-    border-radius: var(--bd-control);
-    background: var(--surface);
+.product-route-badge {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
