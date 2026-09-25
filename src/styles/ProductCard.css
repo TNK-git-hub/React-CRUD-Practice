@@ -1,0 +1,101 @@
+﻿.product-card-container {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--bd-card);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.product-image-block {
+    height: 164px;
+    background: var(--chip);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.discount-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: var(--accent);
+    color: var(--surface);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 3px 8px;
+    border-radius: var(--bd-pill);
+
+}
+
+.replace-img-text {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-size: 46px;
+    line-height: 1;
+    color: rgb(135, 126, 112);
+}
+
+.product-card-detail {
+    padding: 13px 14px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex-grow: 1;
+}
+
+
+.category-and-brand {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.product-title {
+    font-size: var(--fs-card-title);
+    font-weight: var(--fw-card-title);
+    line-height: 1.35;
+    color: var(--ink);
+    text-decoration: none;
+
+}
+
+.rating {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.rating-point {
+    font-size: 11.5px;
+    font-weight: var(--fw-card-title);
+    color: var(--ink);
+}
+
+.rating-count {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+
+.price-div {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-8);
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.price {
+    font-size: var(--fs-price);
+    font-weight: var(--fw-price);
+    color: var(--ink);
+}
+
+.previous-price {
+    font-size: 11.5px;
+    color: var(--muted);
+    text-decoration: line-through;
+}

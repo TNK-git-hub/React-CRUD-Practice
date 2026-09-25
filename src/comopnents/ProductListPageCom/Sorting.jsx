@@ -1,4 +1,4 @@
-import "../styles/Sorting.css";
+import "../../styles/Sorting.css";
 
 function Sorting() {
     return (
