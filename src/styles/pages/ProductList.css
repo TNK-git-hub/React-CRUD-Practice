@@ -1,0 +1,38 @@
+.product-list-main {
+    background-color: var(--bg);
+    flex-grow: 1;
+    padding: 36px 48px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+
+}
+
+.pro-intro {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+.pro-intro-first-div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.search-filter-container {
+    background-color: red;
+    height: 68px;
+}
+
+.search-div {
+    width: 380px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--bd-control);
+    background: var(--surface);
+}

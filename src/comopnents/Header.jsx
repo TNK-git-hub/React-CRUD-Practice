@@ -1,11 +1,10 @@
 import "../styles/Header.css"
-import { useState } from "react";
 
 function Header({ theme, toggleTheme }) {
 
     return (
         <header className="header-container">
-            <span><h2>ReactDummy</h2></span>
+            <h2>ReactDummy</h2>
 
             <div className="theme-pill">
                 <button className={`theme-toggle-button ${theme === "light" ? "cur-act" : ""}`} onClick={toggleTheme} >
