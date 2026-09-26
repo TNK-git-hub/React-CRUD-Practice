@@ -1,19 +1,12 @@
 import "../../styles/ProList.css";
 import ProductCard from "./ProductCard";
 
-function ProList() {
+function ProList({ products }) {
     return (
         <div className='pro-list-container'>
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
-            <ProductCard />
+            {/* map từng product vào mỗi card */}
+            {products.map(product => <ProductCard key={product.id} product={product} />)}
+
         </div>
     )
 }

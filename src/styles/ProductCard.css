@@ -16,6 +16,12 @@
     position: relative;
 }
 
+.product-image-block img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .discount-badge {
     position: absolute;
     top: 10px;
@@ -47,6 +53,7 @@
 
 
 .category-and-brand {
+    font-family: var(--typeface-card-title);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.09em;
@@ -55,12 +62,13 @@
 }
 
 .product-title {
+    font-family: var(--typeface-card-title);
     font-size: var(--fs-card-title);
     font-weight: var(--fw-card-title);
     line-height: 1.35;
     color: var(--ink);
     text-decoration: none;
-
+    text-transform: capitalize;
 }
 
 .rating {
@@ -71,6 +79,7 @@
 
 .rating-point {
     font-size: 11.5px;
+    font-family: var(--typeface-card-title);
     font-weight: var(--fw-card-title);
     color: var(--ink);
 }
@@ -89,6 +98,7 @@
 }
 
 .price {
+    font-family: var(--typeface-price);
     font-size: var(--fs-price);
     font-weight: var(--fw-price);
     color: var(--ink);
@@ -96,6 +106,8 @@
 
 .previous-price {
     font-size: 11.5px;
+    font-family: var(--typeface-price);
+
     color: var(--muted);
     text-decoration: line-through;
 }

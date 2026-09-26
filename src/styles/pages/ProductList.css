@@ -29,3 +29,8 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
+
+.display-page-div {
+    margin-top: auto;
+    padding-top: 6px;
+}

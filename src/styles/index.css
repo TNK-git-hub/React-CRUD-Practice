@@ -17,7 +17,6 @@ body,
 :root {
   /* Chỗ lưu design tokens */
   /* Default light theme */
-
   --bg: #FBFAF8;
   --surface: #FFFFFF;
   --ink: #17160F;

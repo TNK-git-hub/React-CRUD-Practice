@@ -1,12 +1,17 @@
 ﻿import { useState } from 'react';
+import { useProducts } from '../hooks/useProducts';
+
+import '../styles/pages/ProductList.css';
+
 import SearchBar from '../comopnents/ProductListPageCom/SearchBar';
 import Button from '../comopnents/Button';
 import Sorting from '../comopnents/ProductListPageCom/Sorting';
-import '../styles/pages/ProductList.css';
+
 import ProList from '../comopnents/ProductListPageCom/ProList';
 
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
+    const { products } = useProducts({ page, limit: 10 });
 
     return (
         <main className="product-list-main">
@@ -20,13 +25,15 @@ function ProductList() {
             <div className='search-sorting-container'>
                 <form action="">
                     <SearchBar />
-                    <Button />
+                    <Button text="Search" />
                     <div style={{ flexGrow: 1 }}></div>
                     <Sorting />
                 </form>
             </div>
-            <ProList />
+            <ProList products={products} />
+            <div className='display-page-div'>
 
+            </div>
         </main>
     )
 }

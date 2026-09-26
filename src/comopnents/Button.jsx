@@ -1,8 +1,8 @@
 import "../styles/Button.css"
-function Button() {
+function Button({ text }) {
     return (
         <button className="button-container">
-            Search
+            {text}
         </button>
     )
 }
