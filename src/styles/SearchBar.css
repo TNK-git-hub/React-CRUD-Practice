@@ -9,3 +9,16 @@
     border-radius: var(--bd-control);
     background: var(--surface);
 }
+
+.search-div-focus {
+    width: 380px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0px 14px;
+    border: 1px solid var(--accent);
+    box-shadow: rgb(247, 234, 225) 0px 0px 0px 3px;
+    border-radius: var(--bd-control);
+    background: var(--surface);
+}

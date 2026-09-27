@@ -4,7 +4,7 @@ import apiFetch from "./client";
 // get Products
 // Thông tin product items
 // - giảm giá
-// - ảnh đồ
+// - ảnh đồ// api ko có
 // - category
 // - brand
 // - title

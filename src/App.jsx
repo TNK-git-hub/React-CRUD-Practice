@@ -22,9 +22,9 @@ function App() {
   return (
     <>
       <Header theme={theme} toggleTheme={toggleTheme} />
-      <main>
-        <ProductList />   {/* đây là cả trang mặc định */}
-      </main>
+
+      <ProductList />   {/* đây là cả trang mặc định */}
+
     </>
   )
 }

@@ -21,11 +21,15 @@
 }
 
 .search-sorting-container {
-    background-color: lightblue;
+    /* background-color: lightblue; */
 
 }
 
 .product-route-badge {
+    font-size: var(--fs-cap-meta);
+    font-weight: var(--fw-card-title);
+    color: var(--muted);
+
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
@@ -33,4 +37,22 @@
 .display-page-div {
     margin-top: auto;
     padding-top: 6px;
+}
+
+.display-page-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.page-buttons-div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.display-product-indexs {
+    font-family: var(--typeface-cap-meta);
+    font-size: var(--fs-cap-meta);
+    color: var(--muted);
 }

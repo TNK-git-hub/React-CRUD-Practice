@@ -19,12 +19,8 @@ h2 {
 span {
   font-family: var(--typeface-cap-meta);
   font-size: var(--fs-cap-meta);
-  font-weight: var(--fw-card-title);
-
   color: var(--muted);
 
-  font-size: 12px;
-  font-weight: 600;
 }
 
 p {

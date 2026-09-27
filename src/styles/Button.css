@@ -10,3 +10,8 @@
     font-weight: var(--fw-card-title);
     cursor: pointer;
 }
+
+.button-container:hover {
+    background-color: #8e3f15;
+
+}

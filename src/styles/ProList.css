@@ -3,7 +3,7 @@
     grid-template-columns: repeat(5, minmax(0px, 1fr));
     gap: 20px;
 
-    background-color: lightblue;
+    /* background-color: lightblue; */
     /* height: 48px; */
 }
 
