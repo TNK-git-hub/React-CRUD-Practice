@@ -7,7 +7,7 @@ import SearchBar from '../comopnents/ProductListPageCom/SearchBar';
 import Button from '../comopnents/ProductListPageCom/Button';
 import Sorting from '../comopnents/ProductListPageCom/Sorting';
 import ProList from '../comopnents/ProductListPageCom/ProList';
-import PageNav from '../comopnents/ProductListPageCom/Pagenav';
+import PageNav from '../comopnents/ProductListPageCom/PageNav';
 import PageButton from '../comopnents/ProductListPageCom/PageButton';
 
 
