@@ -1,8 +1,9 @@
 import "../../styles/PageButton.css";
-function PageButton({ text, disabled }) {
+function PageButton({ text, disabled, onClick }) {
     return (
         <button className="page-button-container-default"
-            disabled={disabled}>
+            disabled={disabled}
+            onClick={onClick}>
             {text}
         </button>
     )
