@@ -16,3 +16,9 @@
     cursor: pointer;
 
 }
+
+/* tách dù không tạn dụng :disabled do còn casc cái như hover */
+.page-button-container-default:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

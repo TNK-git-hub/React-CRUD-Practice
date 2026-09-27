@@ -6,6 +6,8 @@ function genPageArray() {
 
 }
 
+
+
 export default function PageNav({ totalPage, currentPage, setPage }) {
 
     return (
@@ -14,7 +16,9 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                 <PageButton
                     text="Previous"
                     disabled={currentPage === 1}
-                    onClick={() => setPage(currentPage - 1)} />
+                    onClick={() => setPage(currentPage - 1)}
+
+                />
 
                 {/*  map các nút còn lại */}
                 {
@@ -25,7 +29,8 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                 <PageButton
                     text="Next"
                     disabled={currentPage === totalPage}
-                    onClick={() => setPage(currentPage + 1)} />
+                    onClick={() => setPage(currentPage + 1)}
+                />
             </>
         </div>
     )
