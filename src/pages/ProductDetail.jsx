@@ -27,12 +27,14 @@ function ProductDetail() {
                 <div className="product-images-display">
                     <div className="product-main-img"></div>
                     <div className="product-sub-imgs-containter">
-                        <button className="sub-img"></button>
+                        <button className="sub-img"></button> {/* ko viết fix cứng, map từ "images"*/}
                         <button className="sub-img"></button>
                         <button className="sub-img"></button>
                     </div>
                 </div>
-                <div className="product-data-display"></div>
+                <div className="product-data-display">
+
+                </div>
             </div>
         </main>
     )
