@@ -9,7 +9,7 @@ import ProductList from './pages/ProductList'
 function App() {
   const [theme, setTheme] = useState('light')
 
-  // bắt sự thay đổi của state light và dark rồi đổi <html data-them="dark/light"></html>
+  // bắt sự thay đổi của state light và dark rồi đổi <html data-theme="dark/light"></html>
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme])
@@ -20,12 +20,16 @@ function App() {
   }
 
   return (
-    <>
+    <BrowserRouter>
       <Header theme={theme} toggleTheme={toggleTheme} />
 
-      <ProductList />   {/* đây là cả trang mặc định */}
+      <Routes>
+        <Route path="/" element={<ProductList />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+      </Routes>
 
-    </>
+      <ProductList />   {/* đây là cả trang mặc định */}
+    </BrowserRouter>
   )
 }
 
