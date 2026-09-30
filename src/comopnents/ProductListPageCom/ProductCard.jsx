@@ -18,6 +18,7 @@ function ProductCard({ product }) {
     const rating = product.rating;
     const price = product.price;
     const discountPercentage = product.discountPercentage;
+    const thumbnail = product.thumbnail;
 
     // Tính toán các giá trị hiển thị
     const discount = Math.round(discountPercentage);
@@ -27,7 +28,7 @@ function ProductCard({ product }) {
         <article className='product-card-container'>
             <div className="product-image-block">
                 <span className="discount-badge">-{discount}%</span>
-                <img alt="product pic" src={defaultProductImg} />
+                <img alt="product pic" src={thumbnail} />
             </div>
             <div className="product-card-detail">
                 <div className="category-and-brand">{`${category} - ${brand}`}</div>

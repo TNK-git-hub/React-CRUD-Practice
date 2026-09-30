@@ -3,7 +3,7 @@
     padding: 26px 48px 36px;
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 22;
     background-color: var(--bg);
 }
 
@@ -22,6 +22,8 @@
 }
 
 .return-to-product {
+    font-family: var(--typeface-cap-meta);
     color: var(--accent);
     text-decoration: none;
+    font-weight: var(--fw-card-title);
 }
