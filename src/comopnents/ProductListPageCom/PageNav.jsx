@@ -1,10 +1,7 @@
 import '../../styles/PageNav.css';
 import PageButton from './PageButton';
+import genPageArray from '../../utils/genPageArray'
 
-function genPageArray() {
-    const MaxDisplay = 6;
-
-}
 
 
 
