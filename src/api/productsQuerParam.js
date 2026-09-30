@@ -14,6 +14,11 @@ export function getProducts({ limit = 10, skip = 0 } = {}) {
     return apiFetch(`/products?limit=${limit}&skip=${skip}&select=discountPercentage,category,brand,title,rating,price`)
 }
 
+// dùng cho product detail
+export function getProductById(id) {
+    return apiFetch(`/products/${id}`)
+}
+
 
 
 

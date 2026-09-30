@@ -20,12 +20,13 @@ function App() {
   }
 
   return (
-    <>
+    <BrowserRouter>
       <Header theme={theme} toggleTheme={toggleTheme} />
-
-      <ProductList />   {/* đây là cả trang mặc định */}
-
-    </>
+      <Routes>
+        <Route path="/" element={<ProductList />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
