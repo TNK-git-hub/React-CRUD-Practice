@@ -77,6 +77,7 @@ body,
   --fw-others: 400;
 
   /* Font color */
+  --fc-muted: var(--muted);
   --fc-text: var(--ink);
 
   /*  Button input and state */
@@ -117,6 +118,56 @@ body,
   --bd-card: 14px;
   --bd-control: 10px;
   --bd-badge: 7px;
+
+  /* typography */
+  .typo-h1 {
+    font-family: var(--typeface-dis-h1);
+    font-size: var(--fs-dis-h1);
+    font-weight: var(--fw-others);
+    color: var(--fc-text);
+  }
+
+  .typo-h2 {
+    font-family: var(--typeface-h2);
+    font-size: var(--fs-h2);
+    font-weight: var(--fw-others);
+    color: var(--fc-text);
+  }
+
+  .typo-body {
+    font-family: var(--typeface-body);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-others);
+    color: var(--fc-text);
+  }
+
+  .typo-card-title {
+    font-family: var(--typeface-card-title);
+    font-size: var(--fs-card-title);
+    font-weight: var(--fw-card-title);
+    color: var(--fc-text);
+  }
+
+  .typo-price {
+    font-family: var(--typeface-price);
+    font-size: var(--fs-price);
+    font-weight: var(--fw-price);
+    color: var(--fc-text);
+  }
+
+  .typo-cap-meta {
+    font-family: var(--typeface-cap-meta);
+    font-size: var(--fs-cap-meta);
+    font-weight: var(--fw-others);
+    color: var(--fc-muted);
+  }
+
+  .typo-overline {
+    font-family: var(--typeface-overline);
+    font-size: var(--fs-overline);
+    font-weight: var(--fw-others);
+    color: var(--fc-text);
+  }
 
 }
 
