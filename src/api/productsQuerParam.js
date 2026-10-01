@@ -15,7 +15,7 @@ export function getProducts({ limit = 10, skip = 0 } = {}) {
 }
 
 // dùng cho search (xử lí sau)
-export function searhProduct(query) {
+export function searchProduct(query) {
     return apiFetch(`/products/search?q=${query}`)
 }
 
