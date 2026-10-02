@@ -8,18 +8,23 @@ import Button from '../comopnents/ProductListPageCom/Button';
 import Sorting from '../comopnents/ProductListPageCom/Sorting';
 import ProList from '../comopnents/ProductListPageCom/ProList';
 import PageNav from '../comopnents/ProductListPageCom/PageNav';
-import PageButton from '../comopnents/ProductListPageCom/PageButton';
-
 
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
-    const { products, total } = useProducts({ page, limit: 10 });
+    const [searchInput, setSearchInput] = useState("");
+    const [query, setQuery] = useState("");
+    const { products, total } = useProducts({ page, limit: 10, query });
 
     const totalPage = Math.ceil(total / 10); /* tính sô page để truyền vào PageNav */
 
     const firstProIdx = (page - 1) * 10 + 1;
     const lastProIdx = Math.min(page * 10, total); // so để phòng hờ trang cuối không tròn 10
 
+    const handleSearchSubmit = (e) => {
+        e.preventDefault();
+        setQuery(searchInput.trim());
+        setPage(1);
+    }
 
     return (
         <main className="product-list-main">
@@ -31,9 +36,9 @@ function ProductList() {
                 <div><span className='product-route-badge'>/PRODUCTS</span></div>
             </div>
             <div className='search-sorting-container'>
-                <form action="">
-                    <SearchBar />
-                    <Button text="Search" />
+                <form onSubmit={handleSearchSubmit}>
+                    <SearchBar value={searchInput} onChange={setSearchInput} />
+                    <Button text="Search" type="submit" />
                     <div style={{ flexGrow: 1 }}></div>
                     <Sorting />
                 </form>
