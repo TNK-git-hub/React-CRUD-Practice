@@ -39,6 +39,11 @@ body,
   --focus-ring-color: #f7eae1;
   --focus-ring-error-color: #9a2c1e;
 
+  /* màu nền ảnh chọn sản phẩm */
+  --media-bg: #f3f1ea;
+
+  /* màu nền pill trên badge của product detail */
+  --accent-soft: #F7EAE1;
 
   /* --- Typography --- */
   /*  Typeface*/
@@ -183,4 +188,6 @@ body,
   --chip: #25231D;
   --ok-bg: #1C2A21;
   --danger-bg: #2C1B18;
+
+  --accent-soft: #2a211b;
 }
