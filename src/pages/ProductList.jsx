@@ -11,14 +11,14 @@ import PageNav from '../comopnents/ProductListPageCom/PageNav';
 
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
-    const [searchInput, setSearchInput] = useState("");
+    const [searchInput, setSearchInput] = useState(""); // Track Search input hiện tại
     const [query, setQuery] = useState("");
-    const { products, total } = useProducts({ page, limit: 10, query });
+    const { products, total, status } = useProducts({ page, limit: 10, query });
 
     const totalPage = Math.ceil(total / 10); /* tính sô page để truyền vào PageNav */
 
     const firstProIdx = (page - 1) * 10 + 1;
-    const lastProIdx = Math.min(page * 10, total); // so để phòng hờ trang cuối không tròn 10
+    const lastProIdx = Math.min(page * 10, total); // so Min để phòng hờ trang cuối không tròn 10
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
@@ -43,10 +43,14 @@ function ProductList() {
                     <Sorting />
                 </form>
             </div>
-            <ProList products={products} />
+            {status === 'error'
+                ? <p>Không tải được danh sách sản phẩm.</p>
+                : <ProList products={products} isLoading={status === 'loading'} />}
             <div className='display-page-div'>
                 <nav className='display-page-nav'>
-                    <span className='display-product-indexs'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+                    {status === 'success' &&
+                        <span className='display-product-indexs'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+                    }
                     <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
                 </nav>
             </div>

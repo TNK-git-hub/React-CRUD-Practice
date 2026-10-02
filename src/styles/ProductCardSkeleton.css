@@ -1,0 +1,58 @@
+.skeleton-image {
+    height: 164px;
+    /* same as .product-image-block, so nothing jumps when data arrives */
+    background: var(--skeleton);
+}
+
+.skeleton-card-detail {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skeleton-category-and-brand,
+.skeleton-product-title,
+.skeleton-rating,
+.skeleton-price-div {
+    border-radius: var(--bd-pill);
+    background: var(--skeleton);
+}
+
+/* Each bar has its own size, matching the design */
+.skeleton-category-and-brand {
+    width: 46%;
+    height: 8px;
+}
+
+.skeleton-product-title {
+    width: 88%;
+    height: 11px;
+}
+
+.skeleton-rating {
+    width: 60%;
+    height: 11px;
+}
+
+.skeleton-price-div {
+    width: 38%;
+    height: 14px;
+}
+
+/* Optional: soft pulse so it feels alive */
+.skeleton-card {
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.55;
+    }
+}

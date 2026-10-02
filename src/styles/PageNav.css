@@ -3,3 +3,8 @@
     align-items: center;
     gap: 6px;
 }
+
+.page-dots {
+    padding: 0 4px;
+    user-select: none;
+}

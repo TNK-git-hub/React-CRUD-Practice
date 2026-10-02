@@ -45,6 +45,9 @@ body,
   /* màu nền pill trên badge của product detail */
   --accent-soft: #F7EAE1;
 
+  /* màu nền skeleton */
+  --skeleton: #edeae2;
+
   /* --- Typography --- */
   /*  Typeface*/
   --typeface-dis-h1: "Instrument Serif",

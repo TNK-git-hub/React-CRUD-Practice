@@ -1,11 +1,15 @@
 import "../../styles/ProList.css";
 import ProductCard from "./ProductCard";
+import ProductCardSkeleton from "./ProductCardSkeleton";
 
-function ProList({ products }) {
+function ProList({ products, isLoading }) {
     return (
         <div className='pro-list-container'>
             {/* map từng product vào mỗi card */}
-            {products.map(product => <ProductCard key={product.id} product={product} />)}
+            {isLoading
+                ? Array.from({ length: 10 }, (_, i) => <ProductCardSkeleton key={i} />)
+                : products.map(product => <ProductCard key={product.id} product={product} />)}
+            {/* <ProductCardSkeleton /> testing */}
 
         </div>
     )

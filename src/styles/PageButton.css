@@ -22,3 +22,8 @@
     opacity: 0.5;
     cursor: default;
 }
+
+.page-button-container-default.active {
+    background-color: var(--accent);
+    color: var(--surface);
+}
