@@ -44,10 +44,10 @@ function ProductList() {
                 </form>
             </div>
             {status === 'error'
-                ? <p>Không tải được danh sách sản phẩm.</p>
+                ? <p>Không tải được danh sách sản phẩm.</p> /* tạm, còn thiết kế lại*/
                 : <ProList products={products} isLoading={status === 'loading'} />}
             <div className='display-page-div'>
-                <nav className='display-page-nav'>
+                <nav className={'display-page-nav' + (status === 'loading' ? ' shift-right' : '')}>
                     {status === 'success' &&
                         <span className='display-product-indexs'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
                     }

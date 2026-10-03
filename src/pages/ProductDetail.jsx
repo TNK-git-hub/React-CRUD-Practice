@@ -3,6 +3,10 @@ import "../styles/pages/ProductDetail.css";
 import { Link, useParams } from "react-router-dom";
 import { useProduct } from "../hooks/useProduct";
 import ImageGallery from "../comopnents/ProductDetail/ImageGallery";
+import StarRating from "../comopnents/ProductDetail/StarRating";
+import PriceBlock from "../comopnents/ProductDetail/PriceBlock";
+import StockStatus from "../comopnents/ProductDetail/StockStatus";
+import SpecGrid from "../comopnents/ProductDetail/SpecGrid";
 
 function ProductDetail() {
     const { id } = useParams();
@@ -33,6 +37,13 @@ function ProductDetail() {
                         <span className="detail-sku">{product.sku}</span>
                     </div>
                     <h1 className="detail-title typo-h1">{product.title}</h1>
+                    <StarRating rating={product.rating} ratingCount={product.reviews.length} />
+                    <PriceBlock price={product.price} discountPercentage={product.discountPercentage} />
+                    <StockStatus status={product.availabilityStatus} stock={product.stock} minimum={product.minimumOrderQuantity} />
+                    <p className="product-detail-description typo-body">{product.description}</p>
+                    <SpecGrid />
+
+
                 </div>
             </div>
         </main>

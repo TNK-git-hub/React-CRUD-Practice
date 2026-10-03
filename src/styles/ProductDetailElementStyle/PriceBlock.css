@@ -1,0 +1,29 @@
+.price-block {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 14px 0px 2px;
+}
+
+.current-price {
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
+
+.pre-price {
+    font-size: 15px;
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.discount-pill {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--surface);
+
+}

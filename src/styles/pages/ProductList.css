@@ -45,6 +45,10 @@
     justify-content: space-between;
 }
 
+.display-page-nav.shift-right {
+    justify-content: flex-end;
+}
+
 .page-buttons-div {
     display: flex;
     align-items: center;

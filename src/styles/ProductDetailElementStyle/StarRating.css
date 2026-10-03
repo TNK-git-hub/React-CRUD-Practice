@@ -1,0 +1,39 @@
+.star-rating-container {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.star-rating {
+    display: flex;
+    gap: 2px;
+}
+
+
+
+/* số sao được filled dựa trên rating */
+.star {
+    width: 15px;
+    height: 15px;
+}
+
+.star.empty {
+    fill: var(--star-empty);
+}
+
+.star.filled {
+    fill: var(--accent);
+}
+
+/*  */
+
+.rating-num {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.rating-count {
+    font-size: 13px;
+    color: var(--muted);
+}
