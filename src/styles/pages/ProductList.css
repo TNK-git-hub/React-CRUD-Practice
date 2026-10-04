@@ -39,6 +39,10 @@
     padding-top: 6px;
 }
 
+.display-page-div.vanish {
+    display: none;
+}
+
 .display-page-nav {
     display: flex;
     align-items: center;

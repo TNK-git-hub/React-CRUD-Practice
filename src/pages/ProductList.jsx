@@ -71,7 +71,7 @@ function ProductList() {
                 <span className='display-product-indexs mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
             }
             {renderContent()}
-            <div className='display-page-div'>
+            <div className={`display-page-div ${status === 'error' || (products.length === 0) ? 'vanish' : ''}`}>
                 <nav className={'display-page-nav' + (status === 'loading' ? ' shift-right' : '')}>
                     {status === 'success' &&
                         <span className='display-product-indexs vanish-in-mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
