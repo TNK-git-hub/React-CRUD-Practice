@@ -60,3 +60,18 @@
     font-size: var(--fs-cap-meta);
     color: var(--muted);
 }
+
+@media (max-width: 400px) {
+    .product-list-main {
+        flex-grow: 1;
+        padding: 18px 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        overflow-x: clip;
+    }
+
+    .vanish-in-mobile {
+        display: none;
+    }
+}

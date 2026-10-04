@@ -8,3 +8,32 @@
     padding: 0 4px;
     user-select: none;
 }
+
+.previous-arrow-svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.previous-arrow-path {
+    d: path("M 15 5 l -6 7 l 6 7");
+}
+
+.next-arrow-svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+}
+
+.next-arrow-path {
+    d: path("M 9 5 l 6 7 l -6 7");
+}

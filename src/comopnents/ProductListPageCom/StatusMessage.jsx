@@ -22,6 +22,13 @@ function returnIcon(icon) {
             </span>
         );
     }
+    if (icon === "404") {
+        return (
+            <span className="four04-container">
+                404
+            </span>
+        );
+    }
     return null;
 }
 
@@ -32,11 +39,14 @@ function returnTextBtn(icon) {
     if (icon === "magnifier") {
         return "Xoá từ khoá";
     }
+    if (icon === "404") {
+        return "← Về danh sách";
+    }
     return null;
 }
 
 function returnBtnStyle(icon) {
-    if (icon === "exclamation") {
+    if (icon === "exclamation" || icon === "404") {
         return "accent-btn";
     }
     if (icon === "magnifier") {
@@ -47,12 +57,15 @@ function returnBtnStyle(icon) {
 
 export default function StatusMessage({ icon, title, description, code, action }) {
     return (
-        <div className="status-message-container">
-            {returnIcon(icon)}
-            <p className="status-title">{title}</p>
-            <p className="status-desc">{description}</p>
-            {code && <code className="status-code">{code}</code>}
-            <button className={returnBtnStyle(icon)} onClick={action}>{returnTextBtn(icon)}</button>
+        <div className="status-message-outer-container">
+            <div className="status-message-container">
+                {returnIcon(icon)}
+                <p className="status-title">{title}</p>
+                <p className="status-desc">{description}</p>
+                {code && <code className="status-code">{code}</code>}
+                <button className={returnBtnStyle(icon)} onClick={action}>{returnTextBtn(icon)}</button>
+            </div>
         </div>
+
     );
 }

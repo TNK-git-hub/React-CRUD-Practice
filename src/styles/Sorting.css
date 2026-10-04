@@ -17,3 +17,9 @@
     font-weight: 500;
     font-family: "Public Sans", system-ui, sans-serif;
 }
+
+@media (max-width: 400px) {
+    .sorting-container {
+        display: none;
+    }
+}

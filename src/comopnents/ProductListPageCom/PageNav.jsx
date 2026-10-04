@@ -9,11 +9,15 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
         <div className="page-nav-div">
             <>
                 <PageButton
-                    text="Previous"
+
                     disabled={currentPage === 1}
                     onClick={() => setPage(currentPage - 1)}
-
-                />
+                >
+                    <svg className='previous-arrow-svg' viewBox="0 0 24 24">
+                        <path className='previous-arrow-path'></path>
+                    </svg>
+                    Previous
+                </PageButton>
 
                 {/*  map các nút còn lại */}
 
@@ -23,7 +27,7 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                             <span key={`dots-${index}`} className="page-dots">...</span>
                         ) : (
                             <PageButton
-                                text={item}
+                                children={item}
                                 onClick={() => setPage(item)}
                                 className={item === currentPage ? 'active' : ''}
                             />
@@ -32,10 +36,14 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                 }
 
                 <PageButton
-                    text="Next"
                     disabled={currentPage === totalPage}
                     onClick={() => setPage(currentPage + 1)}
-                />
+                >
+                    Next
+                    <svg className='next-arrow-svg' viewBox="0 0 24 24">
+                        <path className='next-arrow-path'></path>
+                    </svg>
+                </PageButton>
             </>
         </div>
     )

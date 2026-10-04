@@ -58,3 +58,10 @@
     pointer-events: none;
     cursor: not-allowed;
 }
+
+@media (max-width: 400px) {
+    .header-container {
+        height: 58px;
+        padding: 0px 18px;
+    }
+}

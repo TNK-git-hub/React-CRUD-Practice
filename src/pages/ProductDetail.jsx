@@ -1,6 +1,6 @@
 import "../styles/pages/ProductDetail.css";
 
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useProduct } from "../hooks/useProduct";
 import ImageGallery from "../comopnents/ProductDetail/ImageGallery";
 import StarRating from "../comopnents/ProductDetail/StarRating";
@@ -9,14 +9,27 @@ import StockStatus from "../comopnents/ProductDetail/StockStatus";
 import SpecGrid from "../comopnents/ProductDetail/SpecGrid";
 import TagsContainer from "../comopnents/ProductDetail/TagsContainer";
 import CommentsContainer from "../comopnents/ProductDetail/CommentsContainer";
+import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 
 function ProductDetail() {
     const { id } = useParams();
     const { product, status } = useProduct(id)
+    const navigate = useNavigate(); // hook của react router dom, trả về một hàm navigate chuyển trang theo tham số đường dẫn 
+
+    const returnToProductPage = () => navigate("/");
 
     if (status === "loading") return <main className="product-detail-main"></main>;// tạm
-    if (status === "error") return <main className="product-detail-main"></main>; //tạm 
-
+    if (status === "error") return <StatusMessage // TH: lỗi API
+        icon="exclamation"
+        title="Không tải dược danh sách sản phẩm"
+        description="Yêu cầu tới DummyJSON thất bại. Kiểm tra kết nối mạng rồi thử lại."
+        code={`HTTP ${error.status} · /${error.path}`}
+        action={retry} />;
+    if (status === "notfound") return <StatusMessage // TH: ko tìm thấy sp
+        icon="404"
+        title="Sản phẩm không tồn tại"
+        description={<>DummyJSON trả về <code className="four04-code-style">404</code> cho id này. Hiển thị màn hình trống kèm lối quay lại danh sách</>}
+        action={returnToProductPage} />;
     return (
         // <h1>Product {id}</h1>;
         <main className="product-detail-main">

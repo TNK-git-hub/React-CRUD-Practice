@@ -57,9 +57,9 @@ function ProductList() {
             <div className='pro-intro'>
                 <div className='pro-intro-first-div'>
                     <h1>Products</h1>
-                    <p>Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
+                    <p className='vanish-in-mobile'>Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
                 </div>
-                <div><span className='product-route-badge'>/PRODUCTS</span></div>
+                <div className='vanish-in-mobile'><span className='product-route-badge'>/PRODUCTS</span></div>
             </div>
             <div className='search-sorting-container'>
                 <form onSubmit={handleSearchSubmit}>
@@ -78,7 +78,6 @@ function ProductList() {
                     <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
                 </nav>
             </div>
-
         </main>
     )
 }

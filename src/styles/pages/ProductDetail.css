@@ -88,3 +88,8 @@ h2 .num-of-reviews {
     font-size: inherit;
     color: var(--muted);
 }
+
+.four04-code-style {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+}
