@@ -46,6 +46,10 @@ body,
   /* màu nền pill trên badge của product detail */
   --accent-soft: #F7EAE1;
 
+  /* màu nền status pill tại product detail data chỗ "in stock" */
+  --status-pill: #e6f0e8;
+  --status-pill-text: #2f6b42;
+
   /* màu nền skeleton */
   --skeleton: #edeae2;
 
@@ -197,4 +201,6 @@ body,
   --danger-bg: #2C1B18;
 
   --accent-soft: #2a211b;
+  --status-pill: #1c2a21;
+  --status-pill-text: #8fcfa3;
 }

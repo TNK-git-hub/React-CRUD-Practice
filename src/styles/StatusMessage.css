@@ -1,0 +1,113 @@
+.status-message-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    padding: 8px 0px;
+}
+
+.exclamation-container {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--bd-pill);
+    background: var(--chip);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+}
+
+.exclamation-svg {
+    width: 26px;
+    height: 26px;
+    fill: none;
+    stroke: rgb(154, 44, 30);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+}
+
+.exclamation-circle {
+    cx: 12;
+    cy: 12;
+    r: 9;
+}
+
+.exclamation-path {
+    d: path("M 12 7.5 v 5.2 M 12 16.3 v 0.2");
+}
+
+.magnifier-container {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--bd-pill);
+    background: var(--chip);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.magnifier-svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+}
+
+.magnifier-circle {
+    cx: 10.5;
+    cy: 10.5;
+    r: 6.5;
+}
+
+.magnifier-path {
+    d: path("M 20 20 l -4.6 -4.6 M 8 10.5 h 5");
+}
+
+.status-title {
+    font-family: var(--typeface-card-title);
+    margin: 0px;
+    font-size: 15px;
+    font-weight: var(--fw-card-title);
+    color: var(--ink);
+}
+
+.status-desc {
+    font-family: var(--typeface-body);
+    font-weight: var(--fw-others);
+    margin: 0px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--muted);
+    max-width: 330px;
+}
+
+.surface-btn {
+    margin-top: 4px;
+    height: 38px;
+    padding: 0px 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.accent-btn {
+    margin-top: 4px;
+    height: 38px;
+    padding: 0px 18px;
+    border: 0px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--surface);
+    font-family: "Public Sans", system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}

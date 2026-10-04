@@ -7,13 +7,15 @@ import StarRating from "../comopnents/ProductDetail/StarRating";
 import PriceBlock from "../comopnents/ProductDetail/PriceBlock";
 import StockStatus from "../comopnents/ProductDetail/StockStatus";
 import SpecGrid from "../comopnents/ProductDetail/SpecGrid";
+import TagsContainer from "../comopnents/ProductDetail/TagsContainer";
+import CommentsContainer from "../comopnents/ProductDetail/CommentsContainer";
 
 function ProductDetail() {
     const { id } = useParams();
     const { product, status } = useProduct(id)
 
-    if (status === "loading") return <p>Loading...</p>;// tạm
-    if (status === "error") return <p>Không tìm thấy sản phẩm</p>; //tạm 
+    if (status === "loading") return <main className="product-detail-main"></main>;// tạm
+    if (status === "error") return <main className="product-detail-main"></main>; //tạm 
 
     return (
         // <h1>Product {id}</h1>;
@@ -28,7 +30,7 @@ function ProductDetail() {
                 </nav>
                 <span className="product-route-badge">{`/products/${product.id}`}</span>
             </div>
-            <div className="product-display-container"> {/* checkpoint */}
+            <div className="product-display-container"> {/* phần thông tin phía trên */}
                 <ImageGallery key={product.id} images={product.images} title={product.title} />
                 <div className="product-data-display">
                     <div className="detail-badges">
@@ -41,11 +43,25 @@ function ProductDetail() {
                     <PriceBlock price={product.price} discountPercentage={product.discountPercentage} />
                     <StockStatus status={product.availabilityStatus} stock={product.stock} minimum={product.minimumOrderQuantity} />
                     <p className="product-detail-description typo-body">{product.description}</p>
-                    <SpecGrid />
-
-
+                    <SpecGrid
+                        weight={product.weight}
+                        dimensions={product.dimensions}
+                        warrantyInformation={product.warrantyInformation}
+                        shippingInformation={product.shippingInformation}
+                        returnPolicy={product.returnPolicy}
+                        barcode={product.meta.barcode}
+                    />
+                    <TagsContainer tags={product.tags} />
                 </div>
             </div>
+            <section className="product-bottom-section">
+                <h2>Đánh giá
+                    <span className="num-of-reviews">
+                        {` (${product.reviews.length})`}
+                    </span>
+                </h2>
+                <CommentsContainer reviews={product.reviews} />
+            </section>
         </main>
     )
 }

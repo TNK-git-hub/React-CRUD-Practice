@@ -24,7 +24,7 @@ function ProductCard({ product }) {
 
     // Tính toán các giá trị hiển thị
     const discount = Math.round(discountPercentage);
-    const previousPrice = getPreviousPrice(price, discountPercentage); // dịch sang hàm tại utils, để tái sử dụng
+    const previousPrice = getPreviousPrice(price, discountPercentage); // dịch chuyển sang hàm tại utils, để tái sử dụng
 
     return (
         <article className='product-card-container'>

@@ -12,8 +12,8 @@ export function useProduct(id) {
                 setProduct(data);
                 setStatus('success');
             })
-            .catch(() => {
-                setStatus('error');
+            .catch((err) => {
+                setStatus(err.status === 404 ? 'notfound' : 'error');
             })
     }, [id])
 

@@ -7,13 +7,16 @@ import SearchBar from '../comopnents/ProductListPageCom/SearchBar';
 import Button from '../comopnents/ProductListPageCom/Button';
 import Sorting from '../comopnents/ProductListPageCom/Sorting';
 import ProList from '../comopnents/ProductListPageCom/ProList';
+import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import PageNav from '../comopnents/ProductListPageCom/PageNav';
+
+
 
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
     const [searchInput, setSearchInput] = useState(""); // Track Search input hiện tại
-    const [query, setQuery] = useState("");
-    const { products, total, status } = useProducts({ page, limit: 10, query });
+    const [query, setQuery] = useState(""); // track query gửi đi
+    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query });
 
     const totalPage = Math.ceil(total / 10); /* tính sô page để truyền vào PageNav */
 
@@ -25,6 +28,29 @@ function ProductList() {
         setQuery(searchInput.trim());
         setPage(1);
     }
+
+    const clearSearch = () => {
+        setQuery("");
+        setSearchInput("");
+        setPage(1);
+    }
+
+    const renderContent = () => { // hàm logic track state render phần prolist
+        if (status === 'error') return <StatusMessage // TH: lỗi API
+            icon="exclamation"
+            title="Không tải dược danh sách sản phẩm"
+            description="Yêu cầu tới DummyJSON thất bại. Kiểm tra kết nối mạng rồi thử lại."
+            code={`HTTP ${error.status} · /${error.path}`}
+            action={retry} />;
+        if (status === 'loading') return <ProList isLoading />; // TH: loading
+        if (products.length === 0) return <StatusMessage // TH: không serch được ra sản phẩm
+            icon="magnifier"
+            title="Không tìm thấy sản phẩm nào"
+            description={<>Không có kết quả cho từ khoá “<strong>{query}</strong>”.Thử từ khoá ngắn hơn hoặc xoá bộ lọc.</>}
+            action={clearSearch} />;
+        return <ProList products={products} /> // TH: tìm ra danh sách bình thường;
+    };
+
 
     return (
         <main className="product-list-main">
@@ -43,9 +69,7 @@ function ProductList() {
                     <Sorting />
                 </form>
             </div>
-            {status === 'error'
-                ? <p>Không tải được danh sách sản phẩm.</p> /* tạm, còn thiết kế lại*/
-                : <ProList products={products} isLoading={status === 'loading'} />}
+            {renderContent()}
             <div className='display-page-div'>
                 <nav className={'display-page-nav' + (status === 'loading' ? ' shift-right' : '')}>
                     {status === 'success' &&

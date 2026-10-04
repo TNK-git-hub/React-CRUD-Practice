@@ -75,3 +75,16 @@
     line-height: 1.1;
     color: var(--ink);
 }
+
+.product-bottom-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 2px;
+}
+
+h2 .num-of-reviews {
+    font-family: inherit;
+    font-size: inherit;
+    color: var(--muted);
+}

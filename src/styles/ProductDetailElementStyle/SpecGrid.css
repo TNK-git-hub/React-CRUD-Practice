@@ -1,0 +1,6 @@
+.spec-grid-container {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0px, 1fr));
+    gap: 0px 28px;
+    margin-top: 6px;
+}

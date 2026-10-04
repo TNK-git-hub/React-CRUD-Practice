@@ -1,0 +1,21 @@
+.spec-div-container {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 11px 0px;
+    border-bottom: 1px solid var(--line);
+}
+
+.spec-name {
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.spec-value {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+}

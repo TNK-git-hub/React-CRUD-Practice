@@ -1,0 +1,23 @@
+.tags-div-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: var(--space-8);
+}
+
+.tags-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.tag-span {
+    font-size: var(--fs-card-title);
+    font-weight: var(--fw-card-title);
+    padding: 4px 10px;
+    border-radius: var(--bd-badge);
+    background: var(--chip);
+    color: var(--ink);
+}

@@ -8,8 +8,13 @@ export function useProducts({ page, limit, query = "" }) {
     const [total, setTotal] = useState() // track cho "trong .... sản phẩm" góc trái dưới màn hình
     const [status, setStatus] = useState("loading"); // track 3 trạng thái
 
+    // track error state và cho thử lại
+    const [error, setError] = useState(null); // có đang error ko
+    const [reloadKey, setReloadKey] = useState(0); // mỗi lần reload
+
     useEffect(() => {
         setStatus('loading');
+        setError(null)
         const request = query
             ? searchProduct(query, { limit, skip }) // check xem là search hay là lấy danh sách full
             : getProducts({ limit, skip });
@@ -20,8 +25,9 @@ export function useProducts({ page, limit, query = "" }) {
                 setTotal(data.total);
                 setStatus('success');
             })
-            .catch(() => setStatus('error'));
-    }, [page, limit, query])
+            .catch(err => { setError(err); setStatus('error'); });
+    }, [page, limit, query, reloadKey])
 
-    return { products, total, status }
+    const retry = () => setReloadKey(k => k + 1);
+    return { products, total, status, error, retry }
 }
