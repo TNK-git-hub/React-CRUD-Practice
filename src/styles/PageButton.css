@@ -23,6 +23,12 @@
     cursor: default;
 }
 
+.page-button-container-default:hover {
+    border: 1px solid var(--accent);
+    background: #f7eae1;
+    color: var(--accent);
+}
+
 .page-button-container-default.active {
     background-color: var(--accent);
     color: var(--surface);

@@ -30,7 +30,7 @@
     gap: var(--space-8);
     border: none;
 
-    color: var(--ink);
+    color: var(--muted);
     font-weight: 600;
 
     display: inline-flex;
@@ -57,6 +57,33 @@
     /* disable button */
     pointer-events: none;
     cursor: not-allowed;
+}
+
+.sun-icon {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.sun-icon.cur-act {
+    stroke: var(--ink);
+}
+
+.moon-icon {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.moon-icon.cur-act {
+    stroke: var(--ink);
 }
 
 @media (max-width: 400px) {

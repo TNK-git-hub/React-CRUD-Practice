@@ -10,8 +10,6 @@ import ProList from '../comopnents/ProductListPageCom/ProList';
 import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import PageNav from '../comopnents/ProductListPageCom/PageNav';
 
-
-
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
     const [searchInput, setSearchInput] = useState(""); // Track Search input hiện tại
@@ -63,17 +61,20 @@ function ProductList() {
             </div>
             <div className='search-sorting-container'>
                 <form onSubmit={handleSearchSubmit}>
-                    <SearchBar value={searchInput} onChange={setSearchInput} />
+                    <SearchBar value={searchInput} onChange={setSearchInput} isError={status === 'error'} />
                     <Button text="Search" type="submit" />
                     <div style={{ flexGrow: 1 }}></div>
                     <Sorting />
                 </form>
             </div>
+            {status === 'success' &&
+                <span className='display-product-indexs mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+            }
             {renderContent()}
             <div className='display-page-div'>
                 <nav className={'display-page-nav' + (status === 'loading' ? ' shift-right' : '')}>
                     {status === 'success' &&
-                        <span className='display-product-indexs'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+                        <span className='display-product-indexs vanish-in-mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
                     }
                     <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
                 </nav>

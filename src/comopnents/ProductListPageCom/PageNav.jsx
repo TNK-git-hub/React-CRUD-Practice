@@ -16,7 +16,7 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                     <svg className='previous-arrow-svg' viewBox="0 0 24 24">
                         <path className='previous-arrow-path'></path>
                     </svg>
-                    Previous
+                    <span className='page-nav-label'>Previous</span>
                 </PageButton>
 
                 {/*  map các nút còn lại */}
@@ -39,7 +39,9 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                     disabled={currentPage === totalPage}
                     onClick={() => setPage(currentPage + 1)}
                 >
-                    Next
+                    {/* className chủ yếu để hiển thị mobile */}
+                    <span className='page-nav-label'>Next</span>
+
                     <svg className='next-arrow-svg' viewBox="0 0 24 24">
                         <path className='next-arrow-path'></path>
                     </svg>
