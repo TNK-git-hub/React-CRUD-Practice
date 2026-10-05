@@ -3,6 +3,7 @@ import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 
 function ProList({ products, isLoading }) {
+    console.log("prolist rendered");
     return (
         <div className='pro-list-container'>
             {/* map từng product vào mỗi card */}

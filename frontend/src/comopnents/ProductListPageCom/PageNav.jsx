@@ -27,6 +27,7 @@ export default function PageNav({ totalPage, currentPage, setPage }) {
                             <span key={`dots-${index}`} className="page-dots">...</span>
                         ) : (
                             <PageButton
+                                key={item}
                                 children={item}
                                 onClick={() => setPage(item)}
                                 className={item === currentPage ? 'active' : ''}
