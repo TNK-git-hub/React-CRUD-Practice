@@ -4,6 +4,8 @@
   "packageManager": "pnpm@12.9.1",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
+    "db:up": "docker compose --env-file backend/.env up -d",
+    "db:down": "docker compose --env-file backend/.env down",
     "dev:fe": "pnpm --filter frontend dev",
     "dev:be": "pnpm --filter backend dev",
     "build": "pnpm -r build",
