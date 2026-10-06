@@ -6,7 +6,8 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "nest start",
-    "start:prod": "node dist/main"
+    "start:prod": "node dist/main",
+    "seed": "nest build && node --use-system-ca dist/seed"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.2",
