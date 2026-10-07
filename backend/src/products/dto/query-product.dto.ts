@@ -9,6 +9,8 @@ import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 @Type(): query param value must be of the given type
 */
 
+// Define type for query params  
+// GET /products?q=<string>&limit=10&skip=0
 export class QueryProductDto {
     @IsOptional()
     @IsString()

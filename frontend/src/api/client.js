@@ -1,5 +1,6 @@
 // chỗ lưu code call api
-const BASE_URL = 'https://dummyjson.com';
+// VITE_API_URL đặt lúc build (vd: /api khi deploy), chưa đặt thì dùng dummyjson
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://dummyjson.com';
 
 // call, trả về json
 export default async function apiFetch(path) {

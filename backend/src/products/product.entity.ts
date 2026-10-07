@@ -6,11 +6,13 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+// turn string to number func
 const numeric = {
   to: (value: number) => value,
   from: (value: string | null) => (value === null ? null : Number(value)),
 };
 
+// make "products" entity *could let the AI handle this
 @Entity('products')
 export class Product {
   @PrimaryGeneratedColumn()

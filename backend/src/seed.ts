@@ -44,8 +44,9 @@ async function seed() {
     tags: p.tags ?? [],
   }));
 
-  // Upsert by id so the script is safe to re-run.
-  await productRepo.upsert(rows, ['id']);
+  // Wipe the table and reset the id counter so re-running gives exactly the source data.
+  await productRepo.query('TRUNCATE products RESTART IDENTITY');
+  await productRepo.insert(rows);
 
   // Explicit ids don't advance the serial counter; move it past the max id
   // so products created through the API don't collide.
