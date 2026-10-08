@@ -9,7 +9,7 @@ import { QueryProductDto } from './dto/query-product.dto';
 import { ProductsService } from './products.service';
 
 //Step 4: 
-@ApiTags('products')
+@ApiTags('products') //Swagger
 @Controller('products')
 export class ProductsController {
     constructor(private readonly productsService: ProductsService) { }
@@ -20,17 +20,19 @@ export class ProductsController {
         return this.productsService.findAll(query);
     }
 
-    // GET /products/search?q=phone   ⚠️ must be ABOVE :id
+    // GET /products/search?q=phone   ⚠️ must be ABOVE :id *check
     @Get('search')
     search(@Query() query: QueryProductDto) {
         return this.productsService.search(query);
     }
 
-    // GET /products/5
+    // GET /products/:id
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number) {
         return this.productsService.findOne(id);
     }
+
+    // GET /products
 
     // ---- Step 7 ---- : post patch delete
     @Post()

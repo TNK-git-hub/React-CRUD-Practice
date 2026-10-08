@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 /* 
 @IsString(): query param value must be a string
 @IsInt(): query param value must be a integer
@@ -9,8 +9,11 @@ import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 @Type(): query param value must be of the given type
 */
 
-// Define type for query params  
-// GET /products?q=<string>&limit=10&skip=0
+export const SORTABLE_FIELDS = ['id', 'title', 'price', 'rating', 'stock'] as const;
+
+/* Under stand as an form templete, then validate the filled form request from client
+before send to service*/
+// GET /products?q=<string>&limit=10&skip=0&sortBy=<title>&order=<asc/desc>
 export class QueryProductDto {
     @IsOptional()
     @IsString()
@@ -28,4 +31,12 @@ export class QueryProductDto {
     @IsInt()
     @Min(0)
     skip: number = 0;
+
+    @IsOptional()
+    @IsIn(SORTABLE_FIELDS)
+    sortBy?: (typeof SORTABLE_FIELDS)[number] = 'id';
+
+    @IsOptional()
+    @IsString()
+    order?: string;
 }

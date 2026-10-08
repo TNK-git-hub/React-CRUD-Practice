@@ -12,30 +12,46 @@ export class CreateProductDto {
   @Min(0)
   price: number;
 
-  @IsOptional() @IsString()
+  @IsOptional() 
+  @IsString()
   description?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() 
+  @IsString()
   category?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() 
+  @IsString()
   brand?: string;
 
-  @IsOptional() @IsNumber() @Min(0) @Max(100)
+  @IsOptional() 
+  @IsNumber() 
+  @Min(0) 
+  @Max(100)
   discountPercentage?: number;
 
-  @IsOptional() @IsNumber() @Min(0) @Max(5)
+  @IsOptional() 
+  @IsNumber() 
+  @Min(0) 
+  @Max(5)
   rating?: number;
 
-  @IsOptional() @IsInt() @Min(0)
+  @IsOptional() 
+  @IsInt() 
+  @Min(0)
   stock?: number;
 
-  @IsOptional() @IsString()
+  @IsOptional() 
+  @IsString()
   thumbnail?: string;
 
-  @IsOptional() @IsArray() @IsString({ each: true })
+  @IsOptional() 
+  @IsArray() 
+  @IsString({ each: true })
   images?: string[];
 
-  @IsOptional() @IsArray() @IsString({ each: true })
+  @IsOptional() 
+  @IsArray() 
+  @IsString({ each: true })
   tags?: string[];
 }

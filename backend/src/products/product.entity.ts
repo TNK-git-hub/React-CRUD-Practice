@@ -12,7 +12,7 @@ const numeric = {
   from: (value: string | null) => (value === null ? null : Number(value)),
 };
 
-// make "products" entity *could let the AI handle this
+// make "products" entity 
 @Entity('products')
 export class Product {
   @PrimaryGeneratedColumn()
