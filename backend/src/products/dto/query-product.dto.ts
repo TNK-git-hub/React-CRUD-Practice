@@ -2,6 +2,7 @@ import { Type } from 'class-transformer'; // turn type to teh proper one (number
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 /* 
 @IsString(): query param value must be a string
+@IsIn(): query param value must be in the given array
 @IsInt(): query param value must be a integer
 @IsOptional(): query param value is optional
 @Max(): query param value must be less than or equal to the given value
