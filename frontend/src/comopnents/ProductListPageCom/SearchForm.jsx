@@ -4,7 +4,7 @@ import Button from "./Button";
 import Sorting from "./Sorting";
 
 // searchInput nằm ở đây thay vì ProductList → gõ phím chỉ re-render SearchForm
-function SearchForm({ initialValue = "", onSearch, isError = false }) {
+function SearchForm({ initialValue = "", onSearch, sortBy, order, handleSort, isError = false }) {
     const [searchInput, setSearchInput] = useState(initialValue); // Track Search input hiện tại
 
     const handleSubmit = (e) => {
@@ -18,7 +18,7 @@ function SearchForm({ initialValue = "", onSearch, isError = false }) {
             <SearchBar value={searchInput} onChange={setSearchInput} isError={isError} />
             <Button text="Search" type="submit" />
             <div style={{ flexGrow: 1 }}></div>
-            <Sorting />
+            <Sorting sortBy={sortBy} order={order} onChange={handleSort} />
         </form>
     )
 }

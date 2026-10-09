@@ -11,7 +11,9 @@ import PageNav from '../comopnents/ProductListPageCom/PageNav';
 function ProductList() {
     const [page, setPage] = useState(1); //useState này sau dùng để track page để display product items
     const [query, setQuery] = useState(""); // track query gửi đi
-    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query });
+    const [sortBy, setSortBy] = useState('');   // NEW: which field to sort by
+    const [order, setOrder] = useState('asc');    // NEW: asc / desc
+    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });// NEW: pass sortBy + order
 
     console.log("productListPage rendered", { status, query, page });
 
@@ -19,6 +21,12 @@ function ProductList() {
 
     const firstProIdx = (page - 1) * 10 + 1;
     const lastProIdx = Math.min(page * 10, total); // so Min để phòng hờ trang cuối không tròn 10
+
+    const handleSort = (next) => {
+        setSortBy(next.sortBy);
+        setOrder(next.order);
+        setPage(1); // a new sort starts from page 1
+    };
 
     const handleSearch = (newQuery) => { // SearchForm chỉ gọi hàm này khi submit
         setQuery(newQuery);
@@ -58,7 +66,15 @@ function ProductList() {
                 <div className='vanish-in-mobile'><span className='product-route-badge'>/PRODUCTS</span></div>
             </div>
             <div className='search-sorting-container'>
-                <SearchForm key={query} initialValue={query} onSearch={handleSearch} isError={status === 'error'} />
+                <SearchForm 
+                    key={query} 
+                    initialValue={query} 
+                    onSearch={handleSearch} 
+                    sortBy={sortBy} // thêm sort
+                    order={order} // thêm sort
+                    handleSort={handleSort} //
+                    isError={status === 'error'} 
+                />
             </div>
             {status === 'success' &&
                 <span className='display-product-indexs mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>

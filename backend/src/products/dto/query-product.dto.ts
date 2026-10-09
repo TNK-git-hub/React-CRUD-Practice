@@ -10,7 +10,7 @@ import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 @Type(): query param value must be of the given type
 */
 
-export const SORTABLE_FIELDS = ['id', 'title', 'price', 'rating', 'stock'] as const;
+export const SORTABLE_FIELDS = ['title', 'price', 'rating', 'stock'] as const;
 
 /* Under stand as an form templete, then validate the filled form request from client
 before send to service*/
@@ -35,7 +35,7 @@ export class QueryProductDto {
 
     @IsOptional()
     @IsIn(SORTABLE_FIELDS)
-    sortBy: (typeof SORTABLE_FIELDS)[number] = 'id';
+    sortBy: (typeof SORTABLE_FIELDS)[number];
 
     @IsOptional()
     @IsIn(['asc', 'desc'])

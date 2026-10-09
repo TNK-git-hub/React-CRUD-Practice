@@ -19,47 +19,71 @@ export class ProductsService {
         private readonly productRepo: Repository<Product>,
     ) { }
 
-    // GET /products: returns one page of products.
-    // input: limit, skip, go throu
-    async findAll({ limit, skip }: QueryProductDto) {
+    // GET /products: 
+    // input: 
+    async findAll({ q, limit, skip, sortBy, order }: QueryProductDto) {
+        const pattern = ILike(`%${q}%`);
+
+        // SELECT * FROM product
+        // ORDER BY price DESC, id ASC.  -- 1. sort ALL rows first
+        // OFFSET 0                      -- 2. then skip
+        // LIMIT 10; --3. then limit
+
+        // cần lấy full với Asc hoặc Desc trước, xong lấy array product đấy cắt đi bằng limit và skip 
+
         const [products, total] = await this.productRepo.findAndCount({
-            order: { id: 'ASC' }, // stable order, so pages don't shuffle
-            take: limit,          // SQL LIMIT: how many rows to return
-            skip,                 // SQL OFFSET: how many rows to skip first
+            where: q ? [{ title: pattern }, { description: pattern }] : undefined,
+            order: sortBy
+                ? { [sortBy]: order, id: 'ASC'}
+                : { id: order},  // fixed: decides WHICH products are on the page
+            skip,
+            take: limit,
         });
-        // total lets the frontend work out how many pages there are
+
+        // Step 4: sort only the products on this page
+        // const dir = order === 'asc' ? 1 : -1;
+        // products.sort((a, b) => {
+        //     const x = a[sortBy];
+        //     const y = b[sortBy];
+        //     const result = typeof x === 'string'
+        //         ? x.localeCompare(y as string)    // title: compare text (string)
+        //         : (x as number) - (y as number);  // id, price, rating, stock: compare numbers (number)
+        //     return result * dir;                  // desc flips the result
+        // });
+
         return { products, total, skip, limit };
     }
 
     // GET /products/search?q=...: same as findAll, but filtered by keyword.
     // q defaults to '' so the pattern becomes '%%', which matches everything
-    async search({ q = '', limit, skip }: QueryProductDto) {
-        const pattern = ILike(`%${q}%`); // case-insensitive LIKE
-        const [products, total] = await this.productRepo.findAndCount({
-            where: [{ title: pattern }, { description: pattern }], // where condition same to SQL
-            order: { id: 'ASC' },
-            take: limit,
-            skip,
-        });
-        return { products, total, skip, limit };
-    }
+
+    // async search({ q = '', limit, skip }: QueryProductDto) {
+    //     const pattern = ILike(`%${q}%`); // 
+    //     const [products, total] = await this.productRepo.findAndCount({
+    //         where: [{ title: pattern }, { description: pattern }], // where condition same to SQL
+    //         order: { id: 'ASC' },
+    //         take: limit,
+    //         skip,\
+    //     });
+    //     return { products, total, skip, limit };
+    // }
 
     // GET /products/:id: returns one product, or a 404 if it doesn't exist
     async findOne(id: number) {
-        const product = await this.productRepo.findOneBy({ id });
-        if (!product) throw new NotFoundException(`Product ${id} not found`);
-        return product;
-    }
+    const product = await this.productRepo.findOneBy({ id });
+    if (!product) throw new NotFoundException(`Product ${id} not found`);
+    return product;
+}
 
-    // ---- Step 7 ----
+// ---- Step 7 ----
 
-    create(dto: CreateProductDto) {
-        return this.productRepo.save(this.productRepo.create(dto));
-    }
+// create(dto: CreateProductDto) {
+//     return this.productRepo.save(this.productRepo.create(dto));
+// }
 
-    // PATCH /products/:id: update an existing product
-    async update(id: number, dto: UpdateProductDto){
-        const product = await this.findOne(id);
-        return this.productRepo.save(this.productRepo.merge(product, dto));
-    }
+//     // PATCH /products/:id: update an existing product
+//     async update(id: number, dto: UpdateProductDto) {
+//     const product = await this.findOne(id);
+//     return this.productRepo.save(this.productRepo.merge(product, dto));
+// }
 }

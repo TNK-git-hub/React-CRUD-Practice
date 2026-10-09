@@ -21,10 +21,6 @@ export class ProductsController {
     }
 
     // GET /products/search?q=phone   ⚠️ must be ABOVE :id *check
-    @Get('search')
-    search(@Query() query: QueryProductDto) {
-        return this.productsService.search(query);
-    }
 
     // GET /products/:id
     @Get(':id')
@@ -35,8 +31,8 @@ export class ProductsController {
     // GET /products
 
     // ---- Step 7 ---- : post patch delete
-    @Post()
-    create(@Body() dto: CreateProductDto) {
-        return this.productsService.create(dto);
-    }
+    // @Post()
+    // create(@Body() dto: CreateProductDto) {
+    //     return this.productsService.create(dto);
+    // }
 }

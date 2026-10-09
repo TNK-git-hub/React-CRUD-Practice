@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { getProducts, searchProduct } from '../api/productsQuerParam';
+import { getProducts } from '../api/productsQuerParam';
 
-export function useProducts({ page, limit, query = "" }) {
-    const skip = 10 * (page - 1);
+export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc'  }) {
+    const skip = limit * (page - 1);
 
     const [products, setProducts] = useState([]); // lưu array 10 products
     const [total, setTotal] = useState() // track cho "trong .... sản phẩm" góc trái dưới màn hình
@@ -16,8 +16,8 @@ export function useProducts({ page, limit, query = "" }) {
         setStatus('loading');
         setError(null)
         const request = query
-            ? searchProduct(query, { limit, skip }) // check xem là search hay là lấy danh sách full
-            : getProducts({ limit, skip });
+            ? getProducts({ q: query, limit, skip, sortBy, order }) // check xem là search hay là lấy danh sách full
+            : getProducts({ limit, skip, sortBy, order });
 
         request
             .then(data => {
@@ -26,7 +26,7 @@ export function useProducts({ page, limit, query = "" }) {
                 setStatus('success');
             })
             .catch(err => { setError(err); setStatus('error'); });
-    }, [page, limit, query, reloadKey])
+    }, [page, limit, query, sortBy, order, reloadKey])
 
     const retry = () => setReloadKey(k => k + 1);
     return { products, total, status, error, retry }

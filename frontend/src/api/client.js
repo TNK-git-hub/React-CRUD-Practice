@@ -4,7 +4,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'https://dummyjson.com';
 
 // call, trả về json
 export default async function apiFetch(path) {
-    const res = await fetch(`${BASE_URL}/${path}`);
+    const res = await fetch(`${BASE_URL}${path}`);
     if (!res.ok) {
         const err = new Error(`Call api error: ${res.status}`);
         err.status = res.status;
