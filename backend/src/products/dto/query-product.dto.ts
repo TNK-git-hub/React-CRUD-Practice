@@ -20,7 +20,7 @@ export class QueryProductDto {
     q?: string;
 
     @IsOptional()
-    @Type(() => Number) // query params arrive as strings: "10" → 10
+    @Type(() => Number) 
     @IsInt()
     @Min(1)
     @Max(100)
@@ -34,9 +34,9 @@ export class QueryProductDto {
 
     @IsOptional()
     @IsIn(SORTABLE_FIELDS)
-    sortBy?: (typeof SORTABLE_FIELDS)[number] = 'id';
+    sortBy: (typeof SORTABLE_FIELDS)[number] = 'id';
 
     @IsOptional()
-    @IsString()
-    order?: string;
+    @IsIn(['asc', 'desc'])
+    order: 'asc' | 'desc' = 'asc';
 }
