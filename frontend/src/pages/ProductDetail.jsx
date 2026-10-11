@@ -13,7 +13,7 @@ import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 
 function ProductDetail() {
     const { id } = useParams();
-    const { product, status } = useProduct(id)
+    const { product, status, error, retry } = useProduct(id)
     const navigate = useNavigate(); // hook của react router dom, trả về một hàm navigate chuyển trang theo tham số đường dẫn 
 
     const returnToProductPage = () => navigate("/");
@@ -52,7 +52,7 @@ function ProductDetail() {
                         <span className="detail-sku">{product.sku}</span>
                     </div>
                     <h1 className="detail-title typo-h1">{product.title}</h1>
-                    <StarRating rating={product.rating} ratingCount={product.reviews.length} />
+                    <StarRating rating={product.rating} ratingCount={product.reviewCount ?? product.reviews?.length ?? 0} />
                     <PriceBlock price={product.price} discountPercentage={product.discountPercentage} />
                     <StockStatus status={product.availabilityStatus} stock={product.stock} minimum={product.minimumOrderQuantity} />
                     <p className="product-detail-description typo-body">{product.description}</p>

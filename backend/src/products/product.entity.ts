@@ -7,6 +7,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn
 } from 'typeorm';
 import { ProductImage } from './product-image.entity';
 import { Review } from './review.entity';
@@ -99,9 +100,12 @@ export class Product {
   @OneToMany(() => ProductImage, (image) => image.product, { cascade: true })
   images: ProductImage[];
 
-
   // count all reviews for this product
-  reviewCount?: number;
+  @VirtualColumn({
+  type: 'int',
+  query: (alias) => `SELECT COUNT(*)::int FROM reviews WHERE reviews."productId" = ${alias}.id`,
+  })
+  reviewCount: number;
 
   // one product -> many reviews (table "reviews")
   @OneToMany(() => Review, (review) => review.product, { cascade: true })

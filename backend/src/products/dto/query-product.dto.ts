@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
+
 /* 
 @IsString(): query param value must be a string
 @IsIn(): query param value must be in the given array
@@ -16,28 +18,31 @@ export const SORTABLE_FIELDS = ['title', 'price', 'rating', 'stock'] as const;
 before send to service*/
 // GET /products?q=<string>&limit=10&skip=0&sortBy=<title>&order=<asc/desc>
 export class QueryProductDto {
+    @ApiPropertyOptional({ description: 'Description: search ' })
     @IsOptional()
     @IsString()
     q?: string;
 
+    @ApiPropertyOptional({ description: 'Description: num of products', minimum: 1, maximum: 100 })
     @IsOptional()
-    @Type(() => Number) 
+    @Type(() => Number)
     @IsInt()
     @Min(1)
     @Max(100)
-    limit: number = 10;
+    limit?: number;
 
+    @ApiPropertyOptional({ description: 'Description: skip num of products'})
     @IsOptional()
     @Type(() => Number)
     @IsInt()
     @Min(0)
-    skip: number = 0;
+    skip?: number = 0;
 
     @IsOptional()
     @IsIn(SORTABLE_FIELDS)
-    sortBy: (typeof SORTABLE_FIELDS)[number];
+    sortBy?: (typeof SORTABLE_FIELDS)[number];
 
     @IsOptional()
     @IsIn(['asc', 'desc'])
-    order: 'asc' | 'desc' = 'asc';
+    order?: 'asc' | 'desc' = 'asc';
 }

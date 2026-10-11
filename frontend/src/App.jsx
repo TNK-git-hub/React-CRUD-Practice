@@ -24,6 +24,7 @@ function App() {
       <Header theme={theme} toggleTheme={toggleTheme} />
       <Routes>
         <Route path="/" element={<ProductList />} />
+        <Route path="/products/search" element={<ProductList />} />
         <Route path="/products/:id" element={<ProductDetail />} />
       </Routes>
     </BrowserRouter>

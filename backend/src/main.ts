@@ -20,7 +20,11 @@ async function bootstrap() { // default
 
   const port = process.env.PORT ?? 3000; // default
   await app.listen(port); // default
-  console.log(`Backend listening on http://localhost:${port}`); // Print out when backend runs
-  console.log(`Swagger docs at http://localhost:${port}/docs`); // Print out where to acces Swagger docs
+  // Print out backend + Swagger links, highlighted so they stand out from Nest's logs
+  const cyan = (s: string) => `\x1b[36m\x1b[1m${s}\x1b[0m`;
+  console.log(`
+  \x1b[32m➜\x1b[0m  Backend:  ${cyan(`http://localhost:${port}`)}
+  \x1b[32m➜\x1b[0m  Swagger:  ${cyan(`http://localhost:${port}/docs`)}
+`);
 }
 bootstrap(); // default

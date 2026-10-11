@@ -20,17 +20,8 @@ export class ProductsService {
     ) { }
 
     // GET /products: 
-    // input: 
     async findAll({ q, limit, skip, sortBy, order }: QueryProductDto) {
-        const pattern = ILike(`%${q}%`);
-
-        // SELECT * FROM product
-        // ORDER BY price DESC, id ASC.  -- 1. sort ALL rows first
-        // OFFSET 0                      -- 2. then skip
-        // LIMIT 10; --3. then limit
-
-        // cần lấy full với Asc hoặc Desc trước, xong lấy array product đấy cắt đi bằng limit và skip 
-
+        const pattern = ILike(`%${q}%`); // caseinsensitive search
         const [products, total] = await this.productRepo.findAndCount({
             where: q ? [{ title: pattern }, { description: pattern }] : undefined,
             order: sortBy
@@ -39,40 +30,26 @@ export class ProductsService {
             skip,
             take: limit,
         });
-
-        // Step 4: sort only the products on this page
-        // const dir = order === 'asc' ? 1 : -1;
-        // products.sort((a, b) => {
-        //     const x = a[sortBy];
-        //     const y = b[sortBy];
-        //     const result = typeof x === 'string'
-        //         ? x.localeCompare(y as string)    // title: compare text (string)
-        //         : (x as number) - (y as number);  // id, price, rating, stock: compare numbers (number)
-        //     return result * dir;                  // desc flips the result
-        // });
-
         return { products, total, skip, limit };
     }
 
-    // GET /products/search?q=...: same as findAll, but filtered by keyword.
-    // q defaults to '' so the pattern becomes '%%', which matches everything
-
-    // async search({ q = '', limit, skip }: QueryProductDto) {
-    //     const pattern = ILike(`%${q}%`); // 
-    //     const [products, total] = await this.productRepo.findAndCount({
-    //         where: [{ title: pattern }, { description: pattern }], // where condition same to SQL
-    //         order: { id: 'ASC' },
-    //         take: limit,
-    //         skip,\
-    //     });
-    //     return { products, total, skip, limit };
-    // }
-
     // GET /products/:id: returns one product, or a 404 if it doesn't exist
     async findOne(id: number) {
-    const product = await this.productRepo.findOneBy({ id });
+     const product = await this.productRepo.findOne({
+        where: { id },
+        relations: { images: true, reviews: true, tags: true }, // JOIN 3 bảng productImage, review, tag để cho vào đây
+        order: { images: { position: 'ASC' }, reviews: { id: 'ASC' } },
+    });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
-    return product;
+
+    // đổi về dạng giống dummyjson để frontend không phải sửa
+    const { images, tags, barcode, qrCode, createdAt, updatedAt, ...rest } = product;
+    return {
+        ...rest,
+        images: images.map((img) => img.url),
+        tags: tags.map((tag) => tag.name),
+        meta: { barcode, qrCode, createdAt, updatedAt },
+    };
 }
 
 // ---- Step 7 ----

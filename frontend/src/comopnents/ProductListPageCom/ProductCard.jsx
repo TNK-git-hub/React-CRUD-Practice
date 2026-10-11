@@ -20,14 +20,13 @@ function ProductCard({ product }) {
     const price = product.price;
     const discountPercentage = product.discountPercentage;
     const thumbnail = product.thumbnail;
-    // const ratingCount = product.reviews.length at this time, db doesnt have it yet
+    const ratingCount = product.reviewCount ?? product.reviews?.length ?? 0;
 
     // Tính toán các giá trị hiển thị
     const discount = Math.round(discountPercentage);
     const previousPrice = getPreviousPrice(price, discountPercentage); // dịch chuyển sang hàm tại utils, để tái sử dụng
-    
-    console.log("procard re-redered");
 
+    console.log("procard re-redered");
     return (
         <article className='product-card-container'>
             <div className="product-image-block">
@@ -41,7 +40,7 @@ function ProductCard({ product }) {
                 <div className="rating">
                     <svg data-dc-tpl="56" width="12" height="12" viewBox="0 0 24 24" fill="#B4531F" aria-hidden="true"><path data-dc-tpl="57" d="M12 2.4l2.86 6.02 6.44.86-4.7 4.6 1.16 6.55L12 17.32 6.24 20.43 7.4 13.88l-4.7-4.6 6.44-.86z"></path></svg>
                     <span className="rating-point">{rating}</span>
-                    {/* <span className="rating-count">{`(${ratingCount})`}</span> // at this time, db doesnt have it yet*/} 
+                    <span className="rating-count">{`(${ratingCount})`}</span>
                 </div>
                 <div className="price-div">
                     <span className="price">${price}</span>

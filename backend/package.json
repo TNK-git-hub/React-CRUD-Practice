@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "build": "nest build",
-    "dev": "nest start --watch",
+    "dev": "nest start --watch --preserveWatchOutput",
     "start": "nest start",
     "start:prod": "node dist/main",
     "seed": "nest build && node --use-system-ca dist/seed"
