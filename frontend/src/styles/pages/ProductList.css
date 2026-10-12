@@ -20,6 +20,37 @@
     gap: 6px;
 }
 
+.pro-intro-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.add-product-btn {
+    text-decoration: none;
+    /* <a> có gạch chân mặc định */
+
+    display: inline-flex;
+    /* <a> là inline → height không có tác dụng */
+    align-items: center;
+    /* căn icon + chữ giữa theo chiều dọc */
+    gap: 7px;
+}
+
+.add-product-btn svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    /* dùng màu chữ (#fff) */
+    stroke-width: 2.3;
+    stroke-linecap: round;
+}
+
+.add-product-btn:hover {
+    filter: brightness(1.08);
+}
+
 .search-sorting-container {
     /* background-color: lightblue; */
 

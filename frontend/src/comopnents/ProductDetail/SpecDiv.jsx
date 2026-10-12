@@ -1,11 +1,15 @@
 import "../../styles/ProductDetailElementStyle/SpecDiv.css"
 
 export default function SpecDiv({ name, value, unit = "" }) {
-    const isObject = typeof value === "object"; // vì tái sử dụng SpecDiv, nhưng chỉ có trường hợp dimensions là object
+    const isEmpty = value === null || value === undefined;
+    const isObject = !isEmpty && typeof value === "object"; // typeof null === "object", so check isEmpty first
 
-    const displayValue = isObject
-        ? Object.values(value).join(" × ") + ` ${unit}`   // { 23.17, 14.43, 28.01 } → [23.17 × 14.43 × 28.01] → "23.17 × 14.43 × 28.01"
-        : value + ` ${unit}`;
+    const displayValue = isEmpty
+        ? "—"
+        : isObject
+            ? Object.values(value).join(" × ") + ` ${unit}`
+            : value + ` ${unit}`;
+
 
     return (
         <div className="spec-div-container">
@@ -17,4 +21,4 @@ export default function SpecDiv({ name, value, unit = "" }) {
             </span>
         </div>
     )
-}
+}   

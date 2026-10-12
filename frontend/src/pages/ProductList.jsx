@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 
 import '../styles/pages/ProductList.css';
+import '../styles/Button.css';
 
 import SearchForm from '../comopnents/ProductListPageCom/SearchForm';
 import ProList from '../comopnents/ProductListPageCom/ProList';
@@ -85,7 +86,15 @@ function ProductList() {
                     <h1>Products</h1>
                     <p className='vanish-in-mobile'>Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
                 </div>
-                <div className='vanish-in-mobile'><span className='product-route-badge'>/PRODUCTS</span></div>
+                <div className='pro-intro-actions'>
+                    <span className='product-route-badge vanish-in-mobile'>/PRODUCTS</span>
+                    <Link to="/products/add" className='button-container add-product-btn'>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        Thêm sản phẩm
+                    </Link>
+                </div>
             </div>
             <div className='search-sorting-container'>
                 <SearchForm

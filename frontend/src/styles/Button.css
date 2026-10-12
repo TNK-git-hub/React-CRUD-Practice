@@ -15,3 +15,25 @@
     background-color: #8e3f15;
 
 }
+
+.button-secondary {
+    height: 40px;
+    padding: 0 17px;
+    box-sizing: border-box;
+    border: 1px solid var(--button-secondary-border);
+    border-radius: var(--bd-control);
+    background-color: var(--button-secondary-bg);
+    color: var(--button-secondary-text);
+    font-family: var(--typeface-body);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-card-title);
+    text-decoration: none;
+
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.button-secondary:hover {
+    background-color: var(--chip);
+}

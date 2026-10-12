@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom"
 import Header from './comopnents/Header'
 import ProductDetail from './pages/ProductDetail'
 import ProductList from './pages/ProductList'
+import CreateProduct from './pages/CreateProduct'   // trang tạo một sản phẩm
 
 function App() {
   const [theme, setTheme] = useState('light')
@@ -25,6 +26,7 @@ function App() {
       <Routes>
         <Route path="/" element={<ProductList />} />
         <Route path="/products/search" element={<ProductList />} />
+        <Route path="/products/add" element={<CreateProduct />} />
         <Route path="/products/:id" element={<ProductDetail />} />
       </Routes>
     </BrowserRouter>

@@ -20,19 +20,16 @@ export class ProductsController {
         return this.productsService.findAll(query);
     }
 
-    // GET /products/search?q=phone   ⚠️ must be ABOVE :id *check
-
     // GET /products/:id
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number) {
         return this.productsService.findOne(id);
     }
 
-    // GET /products
-
     // ---- Step 7 ---- : post patch delete
-    // @Post()
-    // create(@Body() dto: CreateProductDto) {
-    //     return this.productsService.create(dto);
-    // }
+    // POST /products/add
+    @Post('add')
+    create(@Body() dto: CreateProductDto) {
+        return this.productsService.create(dto);
+    }
 }
