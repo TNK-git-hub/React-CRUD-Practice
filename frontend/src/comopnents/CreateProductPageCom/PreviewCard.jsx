@@ -1,16 +1,23 @@
 import "../../styles/CreateProductElementStyle/PreviewCard.css";
+import getPreviousPrice from "../../utils/getPreviousPrice";
 
-// tạm thời hardcode; khi có state sẽ truyền props vào
-function PreviewCard() {
+// shows the product card live while the user fills in the form
+function PreviewCard({ title, category, price, discountPercentage }) {
+    const priceNum = Number(price) || 0;               // '' -> 0
+    const discount = Number(discountPercentage) || 0;
+    const hasDiscount = discount > 0 && discount < 100;
+
     return (
         <div className="preview-card">
-            <div className="preview-media">?</div>
+            <div className="preview-media">{title.trim().charAt(0).toUpperCase() || '?'}</div>
             <div className="preview-body">
-                <div className="preview-category">beauty</div>
-                <span className="preview-title">Tên sản phẩm</span>
+                <div className="preview-category">{category || 'Danh mục'}</div>
+                <span className="preview-title">{title.trim() || 'Tên sản phẩm'}</span>
                 <div className="preview-price-row">
-                    <span className="preview-price">$0.00</span>
-                    <span className="preview-old-price">$0.00</span>
+                    <span className="preview-price">${priceNum.toFixed(2)}</span>
+                    {hasDiscount && (
+                        <span className="preview-old-price">${getPreviousPrice(priceNum, discount)}</span>
+                    )}
                 </div>
             </div>
         </div>

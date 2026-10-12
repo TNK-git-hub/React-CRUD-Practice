@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional,
-  IsString, Max, Min, ValidateNested
+  IsString, Length, Max, Min, ValidateNested
 } from 'class-validator';
 
 // nested object { width, height, depth } -> saved into the embedded Dimensions columns
@@ -13,7 +13,7 @@ export class DimensionsDto {
 
 export class CreateProductDto {
   // ---- required ----
-  @IsString() @IsNotEmpty()
+  @IsString() @IsNotEmpty() @Length(3, 100)
   title: string;
 
   @IsString() @IsNotEmpty()

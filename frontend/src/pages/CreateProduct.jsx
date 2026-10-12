@@ -64,11 +64,16 @@ function CreateProduct() {
     // one handler for every input: uses the input's id as the key
     const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.id]: e.target.value }));
 
-    const handleTagKeyDown = (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();               // ⚠️ otherwise Enter submits the whole form
+    // returns the tags list with tagInput added (if it's new)
+    const withPendingTag = () => {
         const tag = tagInput.trim().toLowerCase();
-        if (tag && !tags.includes(tag)) setTags(prev => [...prev, tag]);
+        return tag && !tags.includes(tag) ? [...tags, tag] : tags;
+    };
+
+    const handleTagKeyDown = (e) => {
+        if (e.key !== 'Enter' || e.nativeEvent.isComposing) return; // skip Enter while Telex/IME is composing
+        e.preventDefault();               // ⚠️ otherwise Enter submits the whole form
+        setTags(withPendingTag());
         setTagInput('');
     };
 
@@ -80,7 +85,7 @@ function CreateProduct() {
         e.preventDefault();
         setStatus('submitting');
         try {
-            const created = await createProduct(buildPayload(form, tags));
+            const created = await createProduct(buildPayload(form, withPendingTag()));
             navigate(`/products/${created.id}`);
         } catch (err) {
             setError(err.message);
@@ -112,7 +117,7 @@ function CreateProduct() {
                     </button>
                 </div>
             </div>
-            
+
             {status === 'error' && <p className="create-error">{error}</p>}
 
             <form id="create-product-form" className="create-form" onSubmit={handleSubmit}>
@@ -120,17 +125,17 @@ function CreateProduct() {
                 <div className="create-form-col">
                     <FormSection title="Thông tin cơ bản">
                         <FormField label="Tên sản phẩm" htmlFor="title" required hint="3–100 ký tự">
-                            <input id="title" type="text" className="form-input" placeholder="VD: Essence Mascara Lash Princess" value={form.title} onChange={handleChange} />
+                            <input id="title" type="text" className="form-input" minLength={3} maxLength={100} placeholder="VD: Essence Mascara Lash Princess" value={form.title} onChange={handleChange} />
                         </FormField>
 
                         <FormField label="Mô tả" htmlFor="description" required>
-                            <textarea id="description" className="form-textarea" placeholder="Mô tả ngắn về sản phẩm…" value={form.description} onChange={handleChange} />
+                            <textarea id="description" className="form-textarea" placeholder="Mô tả ngắn về sản phẩm…" value={form.description} onChange={handleChange} required />
                         </FormField>
 
                         <div className="form-row cols-2">
                             <FormField label="Danh mục" htmlFor="category" required>
                                 <div className="form-control-wrap">
-                                    <select id="category" className="form-select" value={form.category} onChange={handleChange}>
+                                    <select id="category" className="form-select" value={form.category} onChange={handleChange} required>
                                         <option value="" disabled>Chọn danh mục</option>
                                         {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
@@ -163,15 +168,15 @@ function CreateProduct() {
                         <div className="form-row cols-4">
                             <FormField label="Giá" htmlFor="price" required>
                                 <div className="form-control-wrap">
-                                    <input id="price" type="number" min="0" step="0.01" className="form-input has-suffix" placeholder="0.00" value={form.price} onChange={handleChange} />
+                                    <input id="price" type="number" min="0" step="0.01" className="form-input has-suffix" placeholder="0.00" value={form.price} onChange={handleChange} required />
                                     <span className="form-control-icon">$</span>
                                 </div>
                             </FormField>
                             <FormField label="Giảm giá" htmlFor="discountPercentage">
-                                <input id="discountPercentage" type="number" min="0" max="100" className="form-input" placeholder="0" value={form.discountPercentage} onChange={handleChange} />
+                                <input id="discountPercentage" type="number" min="0" step="0.01" max="100" className="form-input" placeholder="0" value={form.discountPercentage} onChange={handleChange} />
                             </FormField>
                             <FormField label="Tồn kho" htmlFor="stock" required>
-                                <input id="stock" type="number" min="0" className="form-input" placeholder="0" value={form.stock} onChange={handleChange} />
+                                <input id="stock" type="number" min="0" className="form-input" placeholder="0" value={form.stock} onChange={handleChange} required />
                             </FormField>
                             <FormField label="Đặt tối thiểu" htmlFor="minimumOrderQuantity">
                                 <input id="minimumOrderQuantity" type="number" min="1" className="form-input" placeholder="1" value={form.minimumOrderQuantity} onChange={handleChange} />
@@ -197,16 +202,16 @@ function CreateProduct() {
                     <FormSection title="Quy cách & vận chuyển">
                         <div className="form-row cols-4">
                             <FormField label="Khối lượng" htmlFor="weight">
-                                <input id="weight" type="number" min="0" className="form-input" placeholder="0" value={form.weight} onChange={handleChange} />
+                                <input id="weight" type="number" min="0" step="0.01" className="form-input" placeholder="0" value={form.weight} onChange={handleChange} />
                             </FormField>
                             <FormField label="Rộng" htmlFor="width">
-                                <input id="width" type="number" min="0" className="form-input" placeholder="0" value={form.width} onChange={handleChange} />
+                                <input id="width" type="number" min="0" step="0.01" className="form-input" placeholder="0" value={form.width} onChange={handleChange} />
                             </FormField>
                             <FormField label="Cao" htmlFor="height">
-                                <input id="height" type="number" min="0" className="form-input" placeholder="0" value={form.height} onChange={handleChange} />
+                                <input id="height" type="number" min="0" step="0.01" className="form-input" placeholder="0" value={form.height} onChange={handleChange} />
                             </FormField>
                             <FormField label="Sâu" htmlFor="depth">
-                                <input id="depth" type="number" min="0" className="form-input" placeholder="0" value={form.depth} onChange={handleChange} />
+                                <input id="depth" type="number" min="0" step="0.01" className="form-input" placeholder="0" value={form.depth} onChange={handleChange} />
                             </FormField>
                         </div>
 
@@ -231,7 +236,12 @@ function CreateProduct() {
                         <ImageDropzone />
                     </FormSection>
                     <FormSection title="Xem trước">
-                        <PreviewCard />
+                        <PreviewCard
+                            title={form.title}
+                            category={form.category}
+                            price={form.price}
+                            discountPercentage={form.discountPercentage}
+                        />
                     </FormSection>
                 </div>
             </form>

@@ -12,7 +12,7 @@ export default async function apiFetch(path, options = {}) {
     if (!res.ok) {
         const body = await res.json().catch(() => ({})); // nếu ko parse dc json thì trả empty object
         const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
-        const err = new Error(body.message ?? `Call api error: ${res.status}`); // nếu ko có message thì trả lỗi default
+        const err = new Error(message ?? `Call api error: ${res.status}`); 
         err.status = res.status;
         err.path = path;
         throw err;

@@ -1,7 +1,7 @@
 import { randomInt } from 'crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { Tag } from './tag.entity';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
@@ -21,6 +21,7 @@ export class ProductsService {
         private readonly productRepo: Repository<Product>,
         @InjectRepository(Tag)
         private readonly tagRepo: Repository<Tag>,
+        private readonly dataSource: DataSource,
     ) { }
 
     // GET /products: 
@@ -80,16 +81,19 @@ export class ProductsService {
     // POST /products: create a new product
     async create(dto: CreateProductDto) {
         const { images = [], tags = [], ...fields } = dto;
-        const product = this.productRepo.create({
-            ...fields,
-            barcode: await this.generateUniqueBarcode(),
-            images: images.map((url, position) => ({ url, position })),
-            tags: await this.findOrCreateTags(tags),
-        });
-
         try {
-            const saved = await this.productRepo.save(product);
-            return this.findOne(saved.id);
+            // everything inside runs in one transaction: if any step fails, nothing is saved
+            const id = await this.dataSource.transaction(async (manager) => {
+                const product = manager.create(Product, {
+                    ...fields,
+                    barcode: await this.generateUniqueBarcode(),
+                    images: images.map((url, position) => ({ url, position })),
+                    tags: await this.findOrCreateTags(manager, tags),
+                });
+                const saved = await manager.save(product);
+                return saved.id;
+            });
+            return this.findOne(id); // after the commit, so findOne can see the new row
         } catch (err) {
             // 23505 = unique_violation, e.g. detail: 'Key (barcode)=(123...) already exists.'
             if (err instanceof QueryFailedError && (err as any).code === '23505') {
@@ -99,6 +103,7 @@ export class ProductsService {
             throw err;
         }
     }
+
 
     // 13 random digits, e.g. "5784719087687"
     private generateBarcode(): string {
@@ -115,20 +120,28 @@ export class ProductsService {
     }
 
     // string[] of tag names -> Tag[] (reuse existing tags, insert only the new ones)
-    private async findOrCreateTags(names: string[]): Promise<Tag[]> {
+    private async findOrCreateTags(manager: EntityManager, names: string[]): Promise<Tag[]> {
         if (names.length === 0) return [];
         const unique = [...new Set(names)];
 
         // 1. find the tags that are already in the db
-        const existing = await this.tagRepo.findBy({ name: In(unique) });
+        const existing = await manager.findBy(Tag, { name: In(unique) });          // 👈 changed
 
         // 2. create the missing ones
         const existingNames = existing.map((tag) => tag.name);
         const newTags = unique
             .filter((name) => !existingNames.includes(name))
-            .map((name) => this.tagRepo.create({ name }));
-        const saved = await this.tagRepo.save(newTags);
+            .map((name) => manager.create(Tag, { name }));                         // 👈 changed
+        const saved = await manager.save(newTags);                                 // 👈 changed
 
         return [...existing, ...saved];
+    }
+
+
+    // DELETE /products/:id
+    async remove(id: number) {
+        const product = await this.findOne(id); // throws 404 if not found
+        await this.productRepo.delete(id);      // DB cascade removes images/reviews/product_tags
+        return { ...product, isDeleted: true, deletedOn: new Date().toISOString() };
     }
 }
