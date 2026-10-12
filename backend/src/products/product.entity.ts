@@ -87,7 +87,7 @@ export class Product {
   returnPolicy: string | null;
 
   // from dummyjson "meta"
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: 'varchar', unique: true, nullable: true, })
   barcode: string | null;
 
   @Column({ type: 'varchar', nullable: true })

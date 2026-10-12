@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { createProduct } from '../api/productsQuerParam';
 
 import '../styles/pages/CreateProduct.css'
 import '../styles/Button.css';
@@ -18,7 +20,75 @@ const Chevron = () => (
     </span>
 );
 
+const EMPTY_FORM = {
+    title: '', description: '', category: '', brand: '',
+    price: '', discountPercentage: '', stock: '', minimumOrderQuantity: '',
+    availabilityStatus: '', sku: '',
+    weight: '', width: '', height: '', depth: '',
+    warrantyInformation: '', shippingInformation: '', returnPolicy: '',
+};
+
+// '' -> undefined (JSON.stringify drops it), otherwise string -> number
+const toNum = (v) => (v === '' ? undefined : Number(v)); // string to num
+const toStr = (v) => (v.trim() === '' ? undefined : v.trim()); // string trim 
+
+function buildPayload(form, tags) {
+    return {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        category: form.category,
+        brand: toStr(form.brand),
+        tags,
+        price: toNum(form.price),
+        discountPercentage: toNum(form.discountPercentage),
+        stock: toNum(form.stock),
+        minimumOrderQuantity: toNum(form.minimumOrderQuantity),
+        availabilityStatus: form.availabilityStatus || undefined,
+        sku: toStr(form.sku),
+        weight: toNum(form.weight),
+        dimensions: { width: toNum(form.width), height: toNum(form.height), depth: toNum(form.depth) },
+        warrantyInformation: toStr(form.warrantyInformation),
+        shippingInformation: toStr(form.shippingInformation),
+        returnPolicy: toStr(form.returnPolicy),
+        images: [],   // file upload = later
+        // no barcode: the backend generates it
+    };
+}
+
+
 function CreateProduct() {
+    const [form, setForm] = useState(EMPTY_FORM);
+    const [tags, setTags] = useState([]);
+    const [tagInput, setTagInput] = useState('');
+
+    // one handler for every input: uses the input's id as the key
+    const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.id]: e.target.value }));
+
+    const handleTagKeyDown = (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();               // ⚠️ otherwise Enter submits the whole form
+        const tag = tagInput.trim().toLowerCase();
+        if (tag && !tags.includes(tag)) setTags(prev => [...prev, tag]);
+        setTagInput('');
+    };
+
+    const navigate = useNavigate();
+    const [status, setStatus] = useState('idle');   // 'idle' | 'submitting' | 'error'
+    const [error, setError] = useState(null);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setStatus('submitting');
+        try {
+            const created = await createProduct(buildPayload(form, tags));
+            navigate(`/products/${created.id}`);
+        } catch (err) {
+            setError(err.message);
+            setStatus('error');
+        }
+    };
+
+
     return (
         <main className="create-product-main">
             {/* breadcrumb + API badge */}
@@ -36,28 +106,31 @@ function CreateProduct() {
                 <h1>Thêm sản phẩm</h1>
                 <div className="create-actions">
                     <Link to="/" className="button-secondary">Huỷ</Link>
-                    <button type="submit" form="create-product-form" className="button-container">
-                        Lưu sản phẩm
+                    <button type="submit" form="create-product-form" className="button-container"
+                        disabled={status === 'submitting'}>
+                        {status === 'submitting' ? 'Đang lưu…' : 'Lưu sản phẩm'}
                     </button>
                 </div>
             </div>
+            
+            {status === 'error' && <p className="create-error">{error}</p>}
 
-            <form id="create-product-form" className="create-form" onSubmit={(e) => e.preventDefault()}>
+            <form id="create-product-form" className="create-form" onSubmit={handleSubmit}>
                 {/* ---- cột trái ---- */}
                 <div className="create-form-col">
                     <FormSection title="Thông tin cơ bản">
                         <FormField label="Tên sản phẩm" htmlFor="title" required hint="3–100 ký tự">
-                            <input id="title" type="text" className="form-input" placeholder="VD: Essence Mascara Lash Princess" />
+                            <input id="title" type="text" className="form-input" placeholder="VD: Essence Mascara Lash Princess" value={form.title} onChange={handleChange} />
                         </FormField>
 
                         <FormField label="Mô tả" htmlFor="description" required>
-                            <textarea id="description" className="form-textarea" placeholder="Mô tả ngắn về sản phẩm…" />
+                            <textarea id="description" className="form-textarea" placeholder="Mô tả ngắn về sản phẩm…" value={form.description} onChange={handleChange} />
                         </FormField>
 
                         <div className="form-row cols-2">
                             <FormField label="Danh mục" htmlFor="category" required>
                                 <div className="form-control-wrap">
-                                    <select id="category" className="form-select" defaultValue="">
+                                    <select id="category" className="form-select" value={form.category} onChange={handleChange}>
                                         <option value="" disabled>Chọn danh mục</option>
                                         {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
@@ -65,17 +138,23 @@ function CreateProduct() {
                                 </div>
                             </FormField>
                             <FormField label="Thương hiệu" htmlFor="brand">
-                                <input id="brand" type="text" className="form-input" placeholder="VD: Essence" />
+                                <input id="brand" type="text" className="form-input" placeholder="VD: Essence" value={form.brand} onChange={handleChange} />
                             </FormField>
                         </div>
 
                         <FormField label="Tags" htmlFor="tags" hint="dùng cho search phía client">
                             <div className="tag-input-box">
-                                <span className="tag-chip">
-                                    beauty
-                                    <button type="button" aria-label="Xoá tag beauty">×</button>
-                                </span>
-                                <input id="tags" type="text" placeholder="Thêm tag rồi Enter…" />
+                                {tags.map(tag => (
+                                    <span key={tag} className="tag-chip">
+                                        {tag}
+                                        <button type="button" aria-label={`Xoá tag ${tag}`}
+                                            onClick={() => setTags(prev => prev.filter(t => t !== tag))}>×</button>
+                                    </span>
+                                ))}
+                                <input id="tags" type="text" placeholder="Thêm tag rồi Enter…"
+                                    value={tagInput}
+                                    onChange={(e) => setTagInput(e.target.value)}
+                                    onKeyDown={handleTagKeyDown} />
                             </div>
                         </FormField>
                     </FormSection>
@@ -84,25 +163,25 @@ function CreateProduct() {
                         <div className="form-row cols-4">
                             <FormField label="Giá" htmlFor="price" required>
                                 <div className="form-control-wrap">
-                                    <input id="price" type="number" min="0" step="0.01" className="form-input has-suffix" placeholder="0.00" />
+                                    <input id="price" type="number" min="0" step="0.01" className="form-input has-suffix" placeholder="0.00" value={form.price} onChange={handleChange} />
                                     <span className="form-control-icon">$</span>
                                 </div>
                             </FormField>
                             <FormField label="Giảm giá" htmlFor="discountPercentage">
-                                <input id="discountPercentage" type="number" min="0" max="100" className="form-input" placeholder="0" />
+                                <input id="discountPercentage" type="number" min="0" max="100" className="form-input" placeholder="0" value={form.discountPercentage} onChange={handleChange} />
                             </FormField>
                             <FormField label="Tồn kho" htmlFor="stock" required>
-                                <input id="stock" type="number" min="0" className="form-input" placeholder="0" />
+                                <input id="stock" type="number" min="0" className="form-input" placeholder="0" value={form.stock} onChange={handleChange} />
                             </FormField>
                             <FormField label="Đặt tối thiểu" htmlFor="minimumOrderQuantity">
-                                <input id="minimumOrderQuantity" type="number" min="1" className="form-input" placeholder="1" />
+                                <input id="minimumOrderQuantity" type="number" min="1" className="form-input" placeholder="1" value={form.minimumOrderQuantity} onChange={handleChange} />
                             </FormField>
                         </div>
 
                         <div className="form-row cols-2">
                             <FormField label="Tình trạng" htmlFor="availabilityStatus">
                                 <div className="form-control-wrap">
-                                    <select id="availabilityStatus" className="form-select" defaultValue="">
+                                    <select id="availabilityStatus" className="form-select" value={form.availabilityStatus} onChange={handleChange}>
                                         <option value="" disabled>Chọn tình trạng</option>
                                         {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
@@ -110,7 +189,7 @@ function CreateProduct() {
                                 </div>
                             </FormField>
                             <FormField label="SKU" htmlFor="sku">
-                                <input id="sku" type="text" className="form-input" placeholder="BEA-ESS-ESS-001" />
+                                <input id="sku" type="text" className="form-input" placeholder="BEA-ESS-ESS-001" value={form.sku} onChange={handleChange} />
                             </FormField>
                         </div>
                     </FormSection>
@@ -118,30 +197,30 @@ function CreateProduct() {
                     <FormSection title="Quy cách & vận chuyển">
                         <div className="form-row cols-4">
                             <FormField label="Khối lượng" htmlFor="weight">
-                                <input id="weight" type="number" min="0" className="form-input" placeholder="0" />
+                                <input id="weight" type="number" min="0" className="form-input" placeholder="0" value={form.weight} onChange={handleChange} />
                             </FormField>
                             <FormField label="Rộng" htmlFor="width">
-                                <input id="width" type="number" min="0" className="form-input" placeholder="0" />
+                                <input id="width" type="number" min="0" className="form-input" placeholder="0" value={form.width} onChange={handleChange} />
                             </FormField>
                             <FormField label="Cao" htmlFor="height">
-                                <input id="height" type="number" min="0" className="form-input" placeholder="0" />
+                                <input id="height" type="number" min="0" className="form-input" placeholder="0" value={form.height} onChange={handleChange} />
                             </FormField>
                             <FormField label="Sâu" htmlFor="depth">
-                                <input id="depth" type="number" min="0" className="form-input" placeholder="0" />
+                                <input id="depth" type="number" min="0" className="form-input" placeholder="0" value={form.depth} onChange={handleChange} />
                             </FormField>
                         </div>
 
                         <div className="form-row cols-2">
                             <FormField label="Bảo hành" htmlFor="warrantyInformation">
-                                <input id="warrantyInformation" type="text" className="form-input" placeholder="VD: 1 year warranty" />
+                                <input id="warrantyInformation" type="text" className="form-input" placeholder="VD: 1 year warranty" value={form.warrantyInformation} onChange={handleChange} />
                             </FormField>
                             <FormField label="Giao hàng" htmlFor="shippingInformation">
-                                <input id="shippingInformation" type="text" className="form-input" placeholder="VD: Ships in 1 week" />
+                                <input id="shippingInformation" type="text" className="form-input" placeholder="VD: Ships in 1 week" value={form.shippingInformation} onChange={handleChange} />
                             </FormField>
                         </div>
 
                         <FormField label="Chính sách đổi trả" htmlFor="returnPolicy">
-                            <input id="returnPolicy" type="text" className="form-input" placeholder="VD: 7 days return policy" />
+                            <input id="returnPolicy" type="text" className="form-input" placeholder="VD: 7 days return policy" value={form.returnPolicy} onChange={handleChange} />
                         </FormField>
                     </FormSection>
                 </div>

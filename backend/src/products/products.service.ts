@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomInt } from 'crypto';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, In, Repository } from 'typeorm';
+import { ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { Tag } from './tag.entity';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
@@ -81,17 +82,39 @@ export class ProductsService {
         const { images = [], tags = [], ...fields } = dto;
         const product = this.productRepo.create({
             ...fields,
-            // string[] -> ProductImage rows (cascade: true saves them with the product)
+            barcode: await this.generateUniqueBarcode(),
             images: images.map((url, position) => ({ url, position })),
             tags: await this.findOrCreateTags(tags),
         });
-        const saved = await this.productRepo.save(product);
 
-        // return the same shape as GET /products/:id
-        return this.findOne(saved.id);
+        try {
+            const saved = await this.productRepo.save(product);
+            return this.findOne(saved.id);
+        } catch (err) {
+            // 23505 = unique_violation, e.g. detail: 'Key (barcode)=(123...) already exists.'
+            if (err instanceof QueryFailedError && (err as any).code === '23505') {
+                const field = (err as any).detail?.match(/Key \((\w+)\)/)?.[1] ?? 'value';
+                throw new ConflictException(`${field} already exists`);
+            }
+            throw err;
+        }
     }
 
-        // string[] of tag names -> Tag[] (reuse existing tags, insert only the new ones)
+    // 13 random digits, e.g. "5784719087687"
+    private generateBarcode(): string {
+        return Array.from({ length: 13 }, () => randomInt(0, 10)).join('');
+    }
+
+    // keep generating until the db doesn't have that barcode yet
+    private async generateUniqueBarcode(): Promise<string> {
+        let barcode: string;
+        do {
+            barcode = this.generateBarcode();
+        } while (await this.productRepo.existsBy({ barcode }));
+        return barcode;
+    }
+
+    // string[] of tag names -> Tag[] (reuse existing tags, insert only the new ones)
     private async findOrCreateTags(names: string[]): Promise<Tag[]> {
         if (names.length === 0) return [];
         const unique = [...new Set(names)];
@@ -108,6 +131,4 @@ export class ProductsService {
 
         return [...existing, ...saved];
     }
-
-
 }

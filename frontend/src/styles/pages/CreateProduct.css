@@ -27,6 +27,7 @@
     color: var(--accent);
     font-weight: 600;
     text-decoration: none;
+    font-family: var(--typeface-cap-meta);
 }
 
 .breadcrumb-current {
@@ -56,6 +57,9 @@
 }
 
 /* 2 cột: form | sidebar 348px */
+
+.create-error { color: #dc2626; margin-bottom: 16px; }
+
 .create-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 348px;

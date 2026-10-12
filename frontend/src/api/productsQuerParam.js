@@ -32,3 +32,13 @@ export function getProducts({ q = '', limit = 10, skip = 0, sortBy = '', order =
 export function getProductById(id) {
     return apiFetch(`/products/${id}`)
 }
+
+// POST /products/add: create a new product
+export function createProduct(data) {
+    return apiFetch('/products/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+}
+
