@@ -2,17 +2,10 @@
 import defaultProductImg from "../../assets/website-7-kh-2026-08-12t163109-795.jpg";
 import { Link } from "react-router-dom";
 import getPreviousPrice from "../../utils/getPreviousPrice";
+import CardMenu from "./CardMenu";
 
-// Thông tin product items
-// - giảm giá
-
-// - category
-// - brand
-// - title
-// - rating
-// - price 
-
-function ProductCard({ product }) {
+// onDelete: fucntion to handle xoá product
+function ProductCard({ product, onDelete }) {
     const title = product.title;
     const category = product.category;
     const brand = product.brand;
@@ -28,8 +21,8 @@ function ProductCard({ product }) {
 
     console.log("procard re-redered");
     return (
-        <Link to={`/products/${product.id}`} className="product-card-link">
-            <article className='product-card-container'>
+        <article className='product-card-container'>
+            <Link to={`/products/${product.id}`} className="product-card-link">
                 <div className="product-image-block">
                     <span className="discount-badge">-{discount}%</span>
                     <img alt="product pic" src={thumbnail} />
@@ -49,8 +42,10 @@ function ProductCard({ product }) {
                     </div>
                     <span className=""></span>
                 </div>
-            </article>
-        </Link>
+            </Link >
+            <CardMenu product={product} onDelete={onDelete} />
+        </article>
+
     )
 }
 

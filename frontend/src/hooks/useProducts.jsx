@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getProducts } from '../api/productsQuerParam';
 
-export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc'  }) {
+export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc' }) {
     const skip = limit * (page - 1);
 
     const [products, setProducts] = useState([]); // lưu array 10 products
@@ -29,5 +29,6 @@ export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc
     }, [page, limit, query, sortBy, order, reloadKey])
 
     const retry = () => setReloadKey(k => k + 1);
-    return { products, total, status, error, retry }
+
+    return { products, total, status, error, retry}
 }

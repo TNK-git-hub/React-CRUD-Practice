@@ -1,0 +1,62 @@
+.confirm-dialog {
+    margin: auto;
+    padding: 0;
+    /* padding goes on the body, so backdrop clicks are detected correctly */
+    width: min(420px, calc(100vw - 32px));
+    border: 1px solid var(--line);
+    border-radius: var(--bd-panel);
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.confirm-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.confirm-dialog-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.confirm-dialog-body h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.confirm-dialog-body p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.confirm-dialog-body code {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.confirm-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.button-container.danger {
+    background: var(--focus-ring-error-color);
+}
+
+.confirm-dialog-actions button:disabled {
+    opacity: var(--button-disabled-opacity);
+    cursor: not-allowed;
+}
+
+.confirm-dialog-error {
+    padding: 10px 12px;
+    border-radius: var(--bd-control);
+    background: var(--danger-bg);
+    color: var(--focus-ring-error-color);
+    font-size: 13px;
+    line-height: 1.4;
+}

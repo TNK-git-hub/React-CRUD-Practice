@@ -32,7 +32,7 @@ export class CreateProductDto {
   price: number;
 
   @IsOptional() @IsNumber() @Min(0) @Max(100)
-  discountPercentage: number = 0;
+  discountPercentage: number;
 
   @IsInt() @Min(0)
   stock: number;

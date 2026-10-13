@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
+import { deleteProduct } from '../api/productsQuerParam';
 
 import '../styles/pages/ProductList.css';
 import '../styles/Button.css';
@@ -9,6 +10,7 @@ import SearchForm from '../comopnents/ProductListPageCom/SearchForm';
 import ProList from '../comopnents/ProductListPageCom/ProList';
 import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import PageNav from '../comopnents/ProductListPageCom/PageNav';
+import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
 function ProductList() {
     const [searchParams] = useSearchParams(); //----{cần đọc thêm }
@@ -33,8 +35,31 @@ function ProductList() {
         const qs = next.toString();                              // (4) tự encode: "iphone 15" → "iphone+15"
         navigate(qs ? `${path}?${qs}` : path);                   // (5) đổi URL
     };
-    //
-    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });// NEW: pass sortBy + order
+    // useProducts values
+    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
+
+    const [productToDelete, setProductToDelete] = useState(null); // null = dialog đóng
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState(null);
+
+    const handleConfirmDelete = async () => {
+        setIsDeleting(true);
+        setDeleteError(null);
+        try {
+            await deleteProduct(productToDelete.id);   // DELETE /products/:id
+
+            // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước
+            if (products.length === 1 && page > 1) setPage(page - 1);
+            else retry();                              // tải lại trang hiện tại từ server
+
+            setProductToDelete(null);                  // đóng dialog
+        } catch (err) {
+            setDeleteError(err.message);               // giữ dialog mở, hiện lỗi
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
 
     console.log("productListPage rendered", { status, query, page });
 
@@ -75,7 +100,7 @@ function ProductList() {
             title="Không tìm thấy sản phẩm nào"
             description={<>Không có kết quả cho từ khoá “<strong>{query}</strong>”.Thử từ khoá ngắn hơn hoặc xoá bộ lọc.</>}
             action={clearSearch} />;
-        return <ProList products={products} /> // TH: tìm ra danh sách bình thường;
+        return <ProList products={products} onDelete={setProductToDelete} /> // TH: tìm ra danh sách bình thường;
     };
 
 
@@ -119,6 +144,17 @@ function ProductList() {
                     <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
                 </nav>
             </div>
+
+            {/* dialog xác nhận xoá: chỉ render khi đã chọn 1 sản phẩm */}
+            {productToDelete && (
+                <ConfirmDeleteDialog
+                    product={productToDelete}
+                    isDeleting={isDeleting}
+                    error={deleteError}
+                    onCancel={() => { setProductToDelete(null); setDeleteError(null); }}
+                    onConfirm={handleConfirmDelete}
+                />
+            )}
         </main>
     )
 }

@@ -7,6 +7,7 @@ import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { Product } from './product.entity';
+import { ProductImage } from './product-image.entity';
 
 /* FLOW: Controller calls a service method -> service give TypeORM options
 -> based on options, TypeORM gen query -> and vice versa
@@ -95,22 +96,27 @@ export class ProductsService {
             });
             return this.findOne(id); // after the commit, so findOne can see the new row
         } catch (err) {
-            // 23505 = unique_violation, e.g. detail: 'Key (barcode)=(123...) already exists.'
-            if (err instanceof QueryFailedError && (err as any).code === '23505') {
-                const field = (err as any).detail?.match(/Key \((\w+)\)/)?.[1] ?? 'value';
-                throw new ConflictException(`${field} already exists`);
-            }
-            throw err;
+            this.handleUniqueError(err);
         }
     }
 
+    // 23505 = unique_violation, e.g. detail: 'Key (sku)=(ABC) already exists.'
+    // turns the db error into a 409 Conflict; any other error is re-thrown as is
+    private handleUniqueError(err: unknown): never {
+        if (err instanceof QueryFailedError && (err as any).code === '23505') {
+            const field = (err as any).detail?.match(/Key \((\w+)\)/)?.[1] ?? 'value';
+            throw new ConflictException(`${field} already exists`);
+        }
+        throw err;
+    }
 
-    // 13 random digits, e.g. "5784719087687"
+
+    // 13 random digits, e.g. "5784719087687" -- when create a product, gen a new barcode
     private generateBarcode(): string {
         return Array.from({ length: 13 }, () => randomInt(0, 10)).join('');
     }
 
-    // keep generating until the db doesn't have that barcode yet
+    // keep generating until the db doesn't have that barcode yet -- check the gen until the barcode is unique
     private async generateUniqueBarcode(): Promise<string> {
         let barcode: string;
         do {
@@ -144,4 +150,36 @@ export class ProductsService {
         await this.productRepo.delete(id);      // DB cascade removes images/reviews/product_tags
         return { ...product, isDeleted: true, deletedOn: new Date().toISOString() };
     }
+
+    // PATCH /products/:id: only change the fields that were sent
+    async update(id: number, dto: UpdateProductDto) {
+        const { images, tags, dimensions, ...fields } = dto;
+        try {
+            await this.dataSource.transaction(async (manager) => {
+                const product = await manager.findOneBy(Product, { id });
+                if (!product) throw new NotFoundException(`Product ${id} not found`);
+
+                Object.assign(product, fields); // plain columns: title, price, sku...
+
+                // merge, so { width: 5 } doesn't wipe height/depth
+                if (dimensions) product.dimensions = { ...product.dimensions, ...dimensions };
+
+                // replace the whole tag list (reuses existing tags)
+                if (tags) product.tags = await this.findOrCreateTags(manager, tags);
+
+                // replace the whole image list: delete old rows, then add the new ones
+                if (images) {
+                    await manager.delete(ProductImage, { product: { id } });
+                    product.images = images.map((url, position) =>
+                        manager.create(ProductImage, { url, position }));
+                }
+
+                await manager.save(product);
+            });
+            return this.findOne(id); // same response shape as GET /products/:id
+        } catch (err) {
+            this.handleUniqueError(err);
+        }
+    }
+
 }

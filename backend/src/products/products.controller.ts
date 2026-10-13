@@ -5,7 +5,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
-// import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
+import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { ProductsService } from './products.service';
 
 //Step 4: 
@@ -39,4 +39,9 @@ export class ProductsController {
         return this.productsService.remove(id);
     }
 
+    // PATCH /products/:id
+    @Patch(':id')
+    update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
+        return this.productsService.update(id, dto);
+    }
 }
