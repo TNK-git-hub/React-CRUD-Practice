@@ -6,6 +6,7 @@ import Header from './comopnents/Header'
 import ProductDetail from './pages/ProductDetail'
 import ProductList from './pages/ProductList'
 import CreateProduct from './pages/CreateProduct'   // trang tạo một sản phẩm
+import EditProduct from './pages/EditProduct'     // trang sửa một sản phẩm
 
 function App() {
   const [theme, setTheme] = useState('light')
@@ -28,6 +29,7 @@ function App() {
         <Route path="/products/search" element={<ProductList />} />
         <Route path="/products/add" element={<CreateProduct />} />
         <Route path="/products/:id" element={<ProductDetail />} />
+        <Route path="/products/:id/edit" element={<EditProduct />} />
       </Routes>
     </BrowserRouter>
   )

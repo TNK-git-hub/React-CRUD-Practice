@@ -43,12 +43,12 @@ function ProductList() {
     const [deleteError, setDeleteError] = useState(null);
 
     const handleConfirmDelete = async () => {
-        setIsDeleting(true);
+        setIsDeleting(true); // track to disable delete button
         setDeleteError(null);
         try {
-            await deleteProduct(productToDelete.id);   // DELETE /products/:id
+            await deleteProduct(productToDelete.id);   // DELETE /products/:id (send request)
 
-            // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước
+            // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước -- sau khi xoá set lại page về trang 1
             if (products.length === 1 && page > 1) setPage(page - 1);
             else retry();                              // tải lại trang hiện tại từ server
 

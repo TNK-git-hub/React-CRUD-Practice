@@ -21,6 +21,12 @@ function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }
             onClose={onCancel}
             onClick={handleBackdropClick}>
             <div className="confirm-dialog-body">
+                <span className="confirm-dialog-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+                        <path d="M10.5 11v5.5M13.5 11v5.5" />
+                    </svg>
+                </span>
                 <h2>Xoá sản phẩm này?</h2>
                 <p>
                     <strong>{product.title}</strong> #{product.id} sẽ bị gỡ khỏi danh sách.

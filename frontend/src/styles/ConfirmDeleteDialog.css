@@ -20,6 +20,27 @@
     gap: 12px;
 }
 
+.confirm-dialog-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;          /* circle */
+    background: var(--danger-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.confirm-dialog-icon svg {
+    width: 21px;
+    height: 21px;
+    fill: none;                    /* outline icon, no fill */
+    stroke: var(--focus-ring-error-color);
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
 .confirm-dialog-body h2 {
     margin: 0;
     font-size: 18px;
