@@ -38,10 +38,15 @@ export class QueryProductDto {
     @Min(0)
     skip?: number = 0;
 
+    @ApiPropertyOptional({
+        description: 'Description: sort field (leave empty = sort by id)',
+        enum: SORTABLE_FIELDS,
+    })
     @IsOptional()
     @IsIn(SORTABLE_FIELDS)
     sortBy?: (typeof SORTABLE_FIELDS)[number];
 
+    @ApiPropertyOptional({ description: 'Description: sort direction', enum: ['asc', 'desc'], default: 'asc' })
     @IsOptional()
     @IsIn(['asc', 'desc'])
     order?: 'asc' | 'desc' = 'asc';

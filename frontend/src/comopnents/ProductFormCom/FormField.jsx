@@ -1,4 +1,4 @@
-import "../../styles/CreateProductElementStyle/FormField.css";
+import "../../styles/ProductFormStyle/FormField.css";
 
 function FormField({ label, htmlFor, required = false, hint, children }) {
     return (

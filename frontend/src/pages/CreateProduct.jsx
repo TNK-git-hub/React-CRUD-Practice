@@ -5,7 +5,7 @@ import { createProduct } from '../api/productsQuerParam';
 import '../styles/pages/CreateProduct.css'
 import '../styles/Button.css';
 
-import ProductFormFields from '../comopnents/CreateProductPageCom/ProductFormFields';
+import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
 import { useProductForm } from '../hooks/useProductForm';
 import { EMPTY_FORM, buildPayload } from '../utils/productForm';
 

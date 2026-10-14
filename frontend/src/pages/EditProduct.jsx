@@ -1,14 +1,163 @@
-import { Link, useParams } from "react-router-dom";
+import { useState } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useProduct } from '../hooks/useProduct';
+import { updateProduct, deleteProduct } from '../api/productsQuerParam';
+import FormSection from '../comopnents/ProductFormCom/FormSection';
+import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
+import '../styles/pages/EditProduct.css';     // only the Edit-only bits
+import '../styles/pages/CreateProduct.css';
+import '../styles/Button.css';
+
+import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
+import { useProductForm } from '../hooks/useProductForm';
+import { productToForm, getChangedFields, buildPayload } from '../utils/productForm';
+import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
+
+// ---- parent: load the product, handle loading / error / 404 (check if the product exist yet)----
 function EditProduct() {
-    const { id } = useParams();   // "/products/5/edit" → id = "5" (always a string)
+    const { id } = useParams();
+    const { product, status, error, retry } = useProduct(id);
+    const navigate = useNavigate();
+
+    if (status === 'loading') return <main className="create-product-main"></main>; // tạm, giống ProductDetail
+    if (status === 'error') return <StatusMessage
+        icon="exclamation"
+        title="Không tải được sản phẩm"
+        description="Yêu cầu tới server thất bại. Kiểm tra kết nối mạng rồi thử lại."
+        code={`HTTP ${error.status} · /${error.path}`}
+        action={retry} />;
+    if (status === 'notfound') return <StatusMessage
+        icon="404"
+        title="Sản phẩm không tồn tại"
+        description={<>Server trả về <code className="four04-code-style">404</code> cho id này.</>}
+        action={() => navigate('/')} />;
+
+    // key: another product -> brand-new form state
+    return <EditProductForm key={product.id} product={product} />;
+}
+
+//---- child: temporary, just to prove the data arrives (if the product exist then render the children) ----
+function EditProductForm({ product }) {
+    // computed only once: the arrow function runs on the first render only
+    const [initialForm] = useState(() => productToForm(product));
+    const initialTags = product.tags;
+
+    const formState = useProductForm(initialForm, initialTags); // track state với state ban đầu gồm tất cả các thông tin form và tags
+    const { form, tags } = formState;
+
+    // derived on every render, NOT stored in state
+    const changedFields = getChangedFields(form, initialForm, tags, initialTags); // hàm thay đổi fields khi ngừoi dùng nhập
+    const changeCount = changedFields.size;
+
+    const navigate = useNavigate();
+    const [status, setStatus] = useState('idle');   // 'idle' | 'submitting' | 'error'
+    const [error, setError] = useState(null);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setStatus('submitting');
+        try {
+            // ⚠️ drop images: PATCH with images: [] would delete all old images on the backend
+            const { images, ...payload } = buildPayload(form, formState.withPendingTag());
+            await updateProduct(product.id, payload);
+            navigate(`/products/${product.id}`);
+        } catch (err) {
+            setError(err.message);
+            setStatus('error');                     // form data stays: nothing resets it
+        }
+    };
+
+    // ---- delete (same pattern as ProductList) ----
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState(null);
+
+    const handleConfirmDelete = async () => {
+        setIsDeleting(true);
+        setDeleteError(null);
+        try {
+            await deleteProduct(product.id);
+            navigate('/');                       // the product is gone -> back to the list
+        } catch (err) {
+            setDeleteError(err.message);
+            setIsDeleting(false);
+        }
+    };
+
 
     return (
-        <main>
-            <h1>Sửa sản phẩm #{id}</h1>
-            <Link to={`/products/${id}`}>← Quay lại</Link>
+
+
+        <main className="create-product-main">
+            {/* breadcrumb + API badge */}
+            <div className="create-top-row">
+                <nav aria-label="Breadcrumb" className="breadcrumb">
+                    <Link to="/">Products</Link>
+                    <span>/</span>
+                    <Link to={`/products/${product.id}`}>{product.title}</Link>
+                    <span>/</span>
+                    <span className="breadcrumb-current">Sửa</span>
+                </nav>
+                <span className="api-badge">PATCH /products/{product.id}</span>
+            </div>
+
+            {/* title + nút */}
+            <div className="create-title-row">
+                <div className="edit-title-group">
+                    <h1>Sửa sản phẩm</h1>
+                    <span className="id-chip">#{product.id}</span>
+                </div>
+                <div className="create-actions">
+                    {changeCount > 0 && <span className="dirty-count">{changeCount} thay đổi chưa lưu</span>}
+                    <Link to={`/products/${product.id}`} className="button-secondary">Huỷ</Link>
+                    <button type="submit" form="edit-product-form" className="button-container"
+                        disabled={status === 'submitting' || changeCount === 0}>
+                        {status === 'submitting' ? 'Đang lưu…' : 'Lưu thay đổi'}
+                    </button>
+                </div>
+            </div>
+
+            {status === 'error' && <p className="create-error">Lưu thất bại: {error}</p>}
+
+            <ProductFormFields
+                formId="edit-product-form"
+                onSubmit={handleSubmit}
+                formState={formState}
+                changedFields={changedFields}
+                imageCount={product.images.length}
+            >
+                {/* children -> rendered at the bottom of the left column */}
+                <FormSection title="Xoá sản phẩm" variant="danger">
+                    <div className="danger-row">
+                        <p>Gỡ sản phẩm này khỏi danh sách. Không thể hoàn tác sau khi xác nhận — luôn hỏi lại bằng dialog trước khi gọi <code>DELETE</code>.</p>
+                        <button type="button" className="button-danger-outline" onClick={() => setIsConfirmOpen(true)}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+                                <path d="M10.5 11v5.5M13.5 11v5.5" />
+                            </svg>
+                            Xoá sản phẩm
+                        </button>
+                    </div>
+                </FormSection>
+            </ProductFormFields>
+
+            <p className="create-footnote">
+                <span>*</span> bắt buộc. Nút lưu chỉ bật khi có thay đổi.
+            </p>
+
+            {isConfirmOpen && (
+                <ConfirmDeleteDialog
+                    product={product}
+                    isDeleting={isDeleting}
+                    error={deleteError}
+                    onCancel={() => { setIsConfirmOpen(false); setDeleteError(null); }}
+                    onConfirm={handleConfirmDelete}
+                />
+            )}
         </main>
     );
+
 }
 
 export default EditProduct;

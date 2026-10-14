@@ -19,7 +19,7 @@ function ProductList() {
     // URL là "nơi lưu state": đọc giá trị từ URL, không lưu trong useState nữa ----{cần đọc thêm }
     const query = searchParams.get('q') ?? '';
     const page = Number(searchParams.get('page')) || 1;
-    const sortBy = searchParams.get('sortBy') ?? '';
+    const sortBy = searchParams.get('sortBy') || 'title';
     const order = searchParams.get('order') ?? 'asc';
 
     // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL ----{cần đọc thêm }

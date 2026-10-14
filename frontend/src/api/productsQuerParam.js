@@ -31,4 +31,14 @@ export function deleteProduct(id) {
     return apiFetch(`/products/${id}`, { method: 'DELETE' });
 }
 
+// PATCH /products/:id: update some fields of a product
+export function updateProduct(id, data) {
+    return apiFetch(`/products/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+}
+
+
 

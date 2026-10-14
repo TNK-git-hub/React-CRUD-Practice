@@ -121,3 +121,11 @@
     font-family: var(--typeface-body);
     font-size: 13.5px;
 }
+
+/* Edit page: field differs from the saved value */
+.form-input.is-changed,
+.form-select.is-changed,
+.form-textarea.is-changed,
+.tag-input-box.is-changed {
+    border-color: var(--accent);
+}

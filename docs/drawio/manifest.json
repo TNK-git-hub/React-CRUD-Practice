@@ -1,0 +1,121 @@
+{
+  "pages": [
+    {
+      "file": "pages/01-architecture.json",
+      "sources": [
+        "package.json",
+        "docker-compose*.yml",
+        "*/Dockerfile",
+        "frontend/nginx.conf",
+        "infra/terraform/*",
+        "backend/src/main.ts",
+        "backend/src/app.module.ts",
+        "backend/src/seed.ts",
+        "frontend/src/api/client.js"
+      ]
+    },
+    {
+      "file": "pages/02-frontend.json",
+      "sources": [
+        "frontend/src/**/*.jsx",
+        "frontend/src/**/*.js"
+      ]
+    },
+    {
+      "file": "pages/03-flows.json",
+      "sources": [
+        "frontend/src/pages/*",
+        "frontend/src/hooks/*",
+        "frontend/src/api/*",
+        "frontend/src/utils/productForm.js",
+        "frontend/src/comopnents/ProductListPageCom/CardMenu.jsx",
+        "frontend/src/comopnents/ProductListPageCom/ConfirmDeleteDialog.jsx",
+        "backend/src/products/**/*.ts"
+      ]
+    },
+    {
+      "file": "pages/04-database.json",
+      "sources": [
+        "backend/src/products/*.entity.ts"
+      ]
+    }
+  ],
+  "watch": [
+    "frontend/src/**",
+    "backend/src/**"
+  ],
+  "ignore": [
+    "**/*.css",
+    "**/assets/**",
+    "**/*.md"
+  ],
+  "hashes": {
+    "backend/Dockerfile": "adeac1b239ff",
+    "backend/src/app.module.ts": "b42013cc3f2a",
+    "backend/src/main.ts": "285150d7340d",
+    "backend/src/products/dto/create-product.dto.ts": "a3495e39aadf",
+    "backend/src/products/dto/query-product.dto.ts": "1287c8354ea8",
+    "backend/src/products/dto/update-product.dto.ts": "a63b427b0194",
+    "backend/src/products/product-image.entity.ts": "5dc95d1552b2",
+    "backend/src/products/product.entity.ts": "cfcc073c7343",
+    "backend/src/products/products.controller.ts": "26039c389ded",
+    "backend/src/products/products.module.ts": "1fbc8d8e9b3e",
+    "backend/src/products/products.service.ts": "7805f066a356",
+    "backend/src/products/review.entity.ts": "d9eb2ba6c673",
+    "backend/src/products/tag.entity.ts": "8847be526507",
+    "backend/src/seed.ts": "5d67d4264ca3",
+    "docker-compose.prod.yml": "feff8d9d7f3c",
+    "docker-compose.yml": "0be8053221a1",
+    "frontend/Dockerfile": "6872694035b5",
+    "frontend/nginx.conf": "eb762b78b90b",
+    "frontend/src/App.jsx": "071cb0933f09",
+    "frontend/src/api/client.js": "0810692eaaec",
+    "frontend/src/api/productsQuerParam.js": "0cb70c4b5b99",
+    "frontend/src/comopnents/Header.jsx": "ba1fbc7789b7",
+    "frontend/src/comopnents/ProductDetail/CommentsContainer.jsx": "bf86a9b54f1a",
+    "frontend/src/comopnents/ProductDetail/ImageGallery.jsx": "b74fe0ec6479",
+    "frontend/src/comopnents/ProductDetail/PriceBlock.jsx": "6b1b2f51c08c",
+    "frontend/src/comopnents/ProductDetail/ReviewCard.jsx": "6b69d535157d",
+    "frontend/src/comopnents/ProductDetail/SpecDiv.jsx": "5fc81745bea1",
+    "frontend/src/comopnents/ProductDetail/SpecGrid.jsx": "9464744e489c",
+    "frontend/src/comopnents/ProductDetail/StarRating.jsx": "a1905505cb4c",
+    "frontend/src/comopnents/ProductDetail/StockStatus.jsx": "d53e8394f199",
+    "frontend/src/comopnents/ProductDetail/TagsContainer.jsx": "1701d14b00ec",
+    "frontend/src/comopnents/ProductFormCom/FormField.jsx": "206c47ddd11c",
+    "frontend/src/comopnents/ProductFormCom/FormSection.jsx": "4af1bf97ff49",
+    "frontend/src/comopnents/ProductFormCom/ImageDropzone.jsx": "7529b048df05",
+    "frontend/src/comopnents/ProductFormCom/PreviewCard.jsx": "bb102fbae3a0",
+    "frontend/src/comopnents/ProductFormCom/ProductFormFields.jsx": "2a65045741e8",
+    "frontend/src/comopnents/ProductListPageCom/Button.jsx": "e8e81cd71ec0",
+    "frontend/src/comopnents/ProductListPageCom/CardMenu.jsx": "a85cde97609b",
+    "frontend/src/comopnents/ProductListPageCom/ConfirmDeleteDialog.jsx": "d55722306cf6",
+    "frontend/src/comopnents/ProductListPageCom/Filter.jsx": "1396221dd5b1",
+    "frontend/src/comopnents/ProductListPageCom/PageButton.jsx": "a265a2db1571",
+    "frontend/src/comopnents/ProductListPageCom/PageNav.jsx": "43c25c4ba48b",
+    "frontend/src/comopnents/ProductListPageCom/ProList.jsx": "1c322b7a4649",
+    "frontend/src/comopnents/ProductListPageCom/ProductCard.jsx": "c9762a57b8cf",
+    "frontend/src/comopnents/ProductListPageCom/ProductCardSkeleton.jsx": "d3840bbcfe42",
+    "frontend/src/comopnents/ProductListPageCom/SearchBar.jsx": "8072c6a4bcd1",
+    "frontend/src/comopnents/ProductListPageCom/SearchForm.jsx": "5cc0eb73f335",
+    "frontend/src/comopnents/ProductListPageCom/Sorting.jsx": "b59fac7e2e4e",
+    "frontend/src/comopnents/ProductListPageCom/StatusMessage.jsx": "ecef3d779a41",
+    "frontend/src/hooks/useProduct.jsx": "4bd62fe7b5b5",
+    "frontend/src/hooks/useProductForm.jsx": "ded5049dfc49",
+    "frontend/src/hooks/useProducts.jsx": "dff120fedf52",
+    "frontend/src/main.jsx": "043258ae910f",
+    "frontend/src/pages/CreateProduct.jsx": "acecf0023838",
+    "frontend/src/pages/EditProduct.jsx": "f5caa5be5ff7",
+    "frontend/src/pages/ProductDetail.jsx": "e4f229eac142",
+    "frontend/src/pages/ProductList.jsx": "8ddcb6edab9a",
+    "frontend/src/utils/genPageArray.js": "4c422bfc7908",
+    "frontend/src/utils/getPreviousPrice.js": "8eb262362292",
+    "frontend/src/utils/productForm.js": "e695ff98f5f6",
+    "infra/terraform/main.tf": "29d80106e785",
+    "infra/terraform/outputs.tf": "a86903f780b2",
+    "infra/terraform/terraform.tfvars.example": "1d8b268f7890",
+    "infra/terraform/user_data.sh.tftpl": "7334664f39d8",
+    "infra/terraform/variables.tf": "8bd72c9bfc27",
+    "infra/terraform/versions.tf": "84515ad725e2",
+    "package.json": "2653f4c65c72"
+  }
+}

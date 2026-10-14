@@ -9,6 +9,10 @@
     gap: 13px;
 }
 
+.form-section.danger {
+    border-color: var(--focus-ring-error-color);
+}
+
 .form-section-head {
     display: flex;
     align-items: baseline;

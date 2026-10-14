@@ -1,4 +1,4 @@
-import "../../styles/CreateProductElementStyle/ImageDropzone.css";
+import "../../styles/ProductFormStyle/ImageDropzone.css";
 
 function ImageDropzone() {
     return (

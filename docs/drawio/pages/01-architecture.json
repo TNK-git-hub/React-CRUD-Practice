@@ -1,0 +1,38 @@
+{
+  "name": "1. Architecture",
+  "nodes": [
+    { "id": "arch.title", "label": "Architecture: local dev vs production", "x": 20, "y": 10, "w": 700, "h": 40, "style": "title" },
+
+    { "id": "arch.dev", "label": "Local development (pnpm dev + pnpm db:up)", "x": 20, "y": 60, "w": 580, "h": 480, "style": "zone" },
+    { "id": "arch.dev.browser", "label": "Browser\nlocalhost:5173", "x": 50, "y": 100, "w": 220, "h": 50, "style": "external" },
+    { "id": "arch.dev.vite", "label": "Vite dev server (frontend)\nReact 19 + React Router 7", "x": 50, "y": 200, "w": 220, "h": 60, "style": "page" },
+    { "id": "arch.dev.client", "label": "apiFetch (api/client.js)\nBASE_URL = VITE_API_URL || dummyjson", "x": 50, "y": 300, "w": 220, "h": 60, "style": "api" },
+    { "id": "arch.dev.nest", "label": "NestJS backend :3000\nCORS (FRONTEND_URL) · ValidationPipe\nSwagger UI at /docs", "x": 50, "y": 410, "w": 220, "h": 80, "style": "backend" },
+    { "id": "arch.dev.dummy", "label": "dummyjson.com\n(fallback when VITE_API_URL is unset)", "x": 350, "y": 100, "w": 220, "h": 60, "style": "external" },
+    { "id": "arch.dev.seed", "label": "seed.ts (backend: pnpm seed)\nresets the DB with dummyjson products", "x": 350, "y": 210, "w": 220, "h": 60, "style": "util" },
+    { "id": "arch.dev.pg", "label": "Postgres 16 container\n127.0.0.1:5432\ndocker-compose.yml · volume pgdata", "x": 350, "y": 400, "w": 220, "h": 100, "style": "db" },
+
+    { "id": "arch.prod", "label": "Production: AWS (docker-compose.prod.yml)", "x": 640, "y": 60, "w": 620, "h": 480, "style": "zone" },
+    { "id": "arch.prod.user", "label": "Internet user", "x": 670, "y": 100, "w": 170, "h": 50, "style": "external" },
+    { "id": "arch.prod.tf", "label": "Terraform (infra/terraform)\nsecurity group :80 · :22\nIAM role (SSM) · key pair\nrandom DB password · budget alert", "x": 1040, "y": 90, "w": 200, "h": 100, "style": "infra" },
+    { "id": "arch.prod.ec2", "label": "EC2 instance", "x": 660, "y": 210, "w": 580, "h": 310, "style": "zone" },
+    { "id": "arch.prod.web", "label": "web: nginx :80\nserves React build (VITE_API_URL=/api)\n/api/* → backend:3000 (strips /api)\n/assets/* cached 1y · other paths → index.html", "x": 680, "y": 240, "w": 300, "h": 100, "style": "page" },
+    { "id": "arch.prod.boot", "label": "user_data on first boot:\nswap · docker · git clone\nwrite .env · compose up --build", "x": 1020, "y": 240, "w": 200, "h": 90, "style": "note" },
+    { "id": "arch.prod.be", "label": "backend: NestJS :3000\n(internal network only)", "x": 680, "y": 410, "w": 300, "h": 60, "style": "backend" },
+    { "id": "arch.prod.pg", "label": "postgres:16\nno public port · healthcheck\nvolume pgdata", "x": 1020, "y": 390, "w": 200, "h": 100, "style": "db" }
+  ],
+  "edges": [
+    { "id": "arch.e.browser-vite", "from": "arch.dev.browser", "to": "arch.dev.vite", "label": "loads app" },
+    { "id": "arch.e.vite-client", "from": "arch.dev.vite", "to": "arch.dev.client", "label": "fetch()" },
+    { "id": "arch.e.client-nest", "from": "arch.dev.client", "to": "arch.dev.nest", "label": "JSON /products" },
+    { "id": "arch.e.client-dummy", "from": "arch.dev.client", "to": "arch.dev.dummy", "label": "fallback", "style": "dashed" },
+    { "id": "arch.e.nest-pg", "from": "arch.dev.nest", "to": "arch.dev.pg", "label": "TypeORM\nsynchronize: true" },
+    { "id": "arch.e.seed-dummy", "from": "arch.dev.seed", "to": "arch.dev.dummy", "label": "GET products?limit=0", "style": "dashed" },
+    { "id": "arch.e.seed-pg", "from": "arch.dev.seed", "to": "arch.dev.pg", "label": "save products + tags" },
+
+    { "id": "arch.e.user-web", "from": "arch.prod.user", "to": "arch.prod.web", "label": "HTTP :80" },
+    { "id": "arch.e.tf-ec2", "from": "arch.prod.tf", "to": "arch.prod.boot", "label": "creates EC2" },
+    { "id": "arch.e.web-be", "from": "arch.prod.web", "to": "arch.prod.be", "label": "/api proxy" },
+    { "id": "arch.e.be-pg", "from": "arch.prod.be", "to": "arch.prod.pg", "label": "depends_on: healthy" }
+  ]
+}

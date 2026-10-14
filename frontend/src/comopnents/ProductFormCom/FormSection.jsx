@@ -1,8 +1,8 @@
-import "../../styles/CreateProductElementStyle/FormSection.css";
+import "../../styles/ProductFormStyle/FormSection.css";
 
-function FormSection({ title, meta, children }) {
+function FormSection({ title, meta, variant, children }) {
     return (
-        <section className="form-section">
+        <section className={variant ? `form-section ${variant}` : 'form-section'}>
             <div className="form-section-head">
                 <h2>{title}</h2>
                 {meta && <span className="form-section-meta">{meta}</span>}

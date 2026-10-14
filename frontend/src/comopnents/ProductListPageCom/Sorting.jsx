@@ -7,7 +7,6 @@ function Sorting({ sortBy, order, onChange }) {
         <div className='sorting-container'>
             <span>Sắp xếp</span>
             <select value={sortBy} onChange={e => onChange({ sortBy: e.target.value, order })} name="title" id="title-select">
-                <option value="">none</option>
                 {SORT_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <select value={order} onChange={e => onChange({ sortBy, order: e.target.value })} name="order" id="order-select">

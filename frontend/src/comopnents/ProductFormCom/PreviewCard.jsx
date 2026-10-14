@@ -1,4 +1,4 @@
-import "../../styles/CreateProductElementStyle/PreviewCard.css";
+import "../../styles/ProductFormStyle/PreviewCard.css";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 
 // shows the product card live while the user fills in the form
