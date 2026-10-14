@@ -31,9 +31,16 @@ function ProductList() {
             else next.delete(key);
         });
 
-        const path = next.get('q') ? '/products/search' : '/';   // (3) có từ khoá → trang search
-        const qs = next.toString();                              // (4) tự encode: "iphone 15" → "iphone+15"
-        navigate(qs ? `${path}?${qs}` : path);                   // (5) đổi URL
+        // (3) sắp xếp lại thứ tự key: q → page → sortBy → order
+        const ordered = new URLSearchParams();
+        ['q', 'page', 'sortBy', 'order'].forEach((key) => {
+            const value = next.get(key);
+            if (value) ordered.set(key, value);
+        });
+
+        const path = ordered.get('q') ? '/products/search' : '/'; // (4) có từ khoá → trang search
+        const qs = ordered.toString();                           // (5) tự encode: "iphone 15" → "iphone+15"
+        navigate(qs ? `${path}?${qs}` : path);                   // (6) đổi URL
     };
     // useProducts values
     const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });

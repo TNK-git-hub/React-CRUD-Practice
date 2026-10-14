@@ -17,27 +17,30 @@ const NO_CHANGES = new Set();   // default for Create: nothing is ever "changed"
 // changedFields: Set of field ids to highlight (Edit only)
 // children: extra sections at the bottom of the left column (Edit: danger zone)
 function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, imageCount = 0, children }) {
-    const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag } = formState;
+    const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, errors } = formState;
 
     // "form-input" -> "form-input is-changed" when that field was edited
-    const cls = (base, id) => (changedFields.has(id) ? `${base} is-changed` : base);
+    const cls = (base, id) => [base, changedFields.has(id) && 'is-changed', errors[id] && 'is-invalid'].filter(Boolean).join(' ');
+
+    // screen reader: mark the control invalid + link it to its <p id="<id>-error"> message
+    const errAria = (id) => ({ 'aria-invalid': !!errors[id], 'aria-describedby': errors[id] ? `${id}-error` : undefined });
 
     return (
-        <form id={formId} className="create-form" onSubmit={onSubmit}>
+        <form id={formId} className="create-form" onSubmit={onSubmit} noValidate>
             {/* ---- cột trái ---- */}
             <div className="create-form-col">
                 <FormSection title="Thông tin cơ bản">
-                    <FormField label="Tên sản phẩm" htmlFor="title" required hint="3–100 ký tự">
-                        <input id="title" type="text" className={cls('form-input', 'title')} minLength={3} maxLength={100} placeholder="VD: Essence Mascara Lash Princess" value={form.title} onChange={handleChange} />
+                    <FormField label="Tên sản phẩm" htmlFor="title" required hint="3–100 ký tự" error={errors.title}>
+                        <input id="title" type="text" className={cls('form-input', 'title')} minLength={3} maxLength={100} placeholder="VD: Essence Mascara Lash Princess" value={form.title} onChange={handleChange} {...errAria('title')} />
                     </FormField>
-                    <FormField label="Mô tả" htmlFor="description" required>
-                        <textarea id="description" className={cls('form-textarea', 'description')} placeholder="Mô tả ngắn về sản phẩm…" value={form.description} onChange={handleChange} required />
+                    <FormField label="Mô tả" htmlFor="description" required error={errors.description}>
+                        <textarea id="description" className={cls('form-textarea', 'description')} placeholder="Mô tả ngắn về sản phẩm…" value={form.description} onChange={handleChange} required {...errAria('description')} />
                     </FormField>
 
                     <div className="form-row cols-2">
-                        <FormField label="Danh mục" htmlFor="category" required>
+                        <FormField label="Danh mục" htmlFor="category" required error={errors.category}>
                             <div className="form-control-wrap">
-                                <select id="category" className={cls('form-select', 'category')} value={form.category} onChange={handleChange} required>
+                                <select id="category" className={cls('form-select', 'category')} value={form.category} onChange={handleChange} required {...errAria('category')}>
                                     <option value="" disabled>Chọn danh mục</option>
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -67,17 +70,17 @@ function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHA
                 </FormSection>
                 <FormSection title="Giá & kho">
                     <div className="form-row cols-4">
-                        <FormField label="Giá" htmlFor="price" required>
+                        <FormField label="Giá" htmlFor="price" required error={errors.price}>
                             <div className="form-control-wrap">
-                                <input id="price" type="number" min="0" step="0.01" className={cls('form-input has-suffix', 'price')} placeholder="0.00" value={form.price} onChange={handleChange} required />
+                                <input id="price" type="number" min="0" step="0.01" className={cls('form-input has-suffix', 'price')} placeholder="0.00" value={form.price} onChange={handleChange} required {...errAria('price')} />
                                 <span className="form-control-icon">$</span>
                             </div>
                         </FormField>
                         <FormField label="Giảm giá" htmlFor="discountPercentage">
                             <input id="discountPercentage" type="number" min="0" step="0.01" max="100" className={cls('form-input', 'discountPercentage')} placeholder="0" value={form.discountPercentage} onChange={handleChange} />
                         </FormField>
-                        <FormField label="Tồn kho" htmlFor="stock" required>
-                            <input id="stock" type="number" min="0" className={cls('form-input', 'stock')} placeholder="0" value={form.stock} onChange={handleChange} required />
+                        <FormField label="Tồn kho" htmlFor="stock" required error={errors.stock}>
+                            <input id="stock" type="number" min="0" className={cls('form-input', 'stock')} placeholder="0" value={form.stock} onChange={handleChange} required {...errAria('stock')} />
                         </FormField>
                         <FormField label="Đặt tối thiểu" htmlFor="minimumOrderQuantity">
                             <input id="minimumOrderQuantity" type="number" min="1" className={cls('form-input', 'minimumOrderQuantity')} placeholder="1" value={form.minimumOrderQuantity} onChange={handleChange} />

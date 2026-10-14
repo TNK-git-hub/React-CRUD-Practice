@@ -7,16 +7,25 @@ import '../styles/Button.css';
 
 import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
 import { useProductForm } from '../hooks/useProductForm';
-import { EMPTY_FORM, buildPayload } from '../utils/productForm';
+import { EMPTY_FORM, buildPayload, validateProduct } from '../utils/productForm';
 
 function CreateProduct() {
     const formState = useProductForm(EMPTY_FORM);
     const navigate = useNavigate();
     const [status, setStatus] = useState('idle');   // 'idle' | 'submitting' | 'error'
     const [error, setError] = useState(null);
+    const errorCount = Object.keys(formState.errors).length;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        const errs = validateProduct(formState.form);
+        if (Object.keys(errs).length > 0) {
+            formState.setErrors(errs);
+            document.getElementById(Object.keys(errs)[0])?.focus();  // jump to the first bad field
+            return;                                                  // stop: no API call
+        }
+
         setStatus('submitting');
         try {
             const created = await createProduct(buildPayload(formState.form, formState.withPendingTag()));
@@ -26,6 +35,7 @@ function CreateProduct() {
             setStatus('error');
         }
     };
+
 
     return (
         <main className="create-product-main">
@@ -50,6 +60,13 @@ function CreateProduct() {
                     </button>
                 </div>
             </div>
+
+            {errorCount > 0 && (
+                <div role="alert" className="form-invalid-banner">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.2M12 16.3v.2" /></svg>
+                    <p>Không lưu được — còn <strong>{errorCount} field</strong> chưa hợp lệ.</p>
+                </div>
+            )}
 
             {status === 'error' && <p className="create-error">{error}</p>}
 

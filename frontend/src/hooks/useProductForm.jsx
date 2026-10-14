@@ -4,9 +4,18 @@ export function useProductForm(initialForm, initialTags = []) {
     const [form, setForm] = useState(initialForm);
     const [tags, setTags] = useState(initialTags);
     const [tagInput, setTagInput] = useState('');
+    const [errors, setErrors] = useState({});   // { fieldId: 'message' }
 
-    // one handler for every input: uses the input's id as the key
-    const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.id]: e.target.value }));
+    const handleChange = (e) => {
+        const { id, value } = e.target;
+        setForm(prev => ({ ...prev, [id]: value }));
+        // the user is fixing this field -> remove its error
+        setErrors(prev => {
+            if (!prev[id]) return prev;              // no error -> same object, no re-render
+            const { [id]: _, ...rest } = prev;
+            return rest;
+        });
+    };
 
     // returns the tags list with tagInput added (if it's new)
     const withPendingTag = () => {
@@ -23,5 +32,5 @@ export function useProductForm(initialForm, initialTags = []) {
 
     const removeTag = (tag) => setTags(prev => prev.filter(t => t !== tag));
 
-    return { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, withPendingTag };
+    return { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, withPendingTag, errors, setErrors };
 }

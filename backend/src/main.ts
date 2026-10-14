@@ -1,3 +1,5 @@
+import { NestExpressApplication } from '@nestjs/platform-express';   // (a)
+import { join } from 'node:path';                                    // (b)
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core'; // default
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -5,10 +7,11 @@ import { AppModule } from './app.module'; // default
 
 // run server
 async function bootstrap() { // default
-  const app = await NestFactory.create(AppModule); // default
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);   // (c)
 
   app.enableCors({ origin: process.env.FRONTEND_URL });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });   // (d)
 
   const swaggerConfig = new DocumentBuilder() // NONDEFAULT: Swagger settings
     .setTitle('Products API')

@@ -87,6 +87,7 @@ export class ProductsService {
             const id = await this.dataSource.transaction(async (manager) => {
                 const product = manager.create(Product, {
                     ...fields,
+                    thumbnail: fields.thumbnail ?? images[0] ?? null,   // NEW: first image = thumbnail
                     barcode: await this.generateUniqueBarcode(),
                     images: images.map((url, position) => ({ url, position })),
                     tags: await this.findOrCreateTags(manager, tags),

@@ -67,3 +67,27 @@ export function getChangedFields(form, initialForm, tags, initialTags) {
     if (tags.join() !== initialTags.join()) changed.push('tags');   // arrays: compare as text
     return new Set(changed);
 }
+
+const filled = (v) => v.trim() !== '';
+
+// required fields only -> { fieldId: 'message' }, empty object = valid
+export function validateProduct(form) {
+    const errors = {};
+
+    const title = form.title.trim();
+    if (!title) errors.title = 'Tên sản phẩm là bắt buộc.';
+    else if (title.length < 3 || title.length > 100) errors.title = 'Tên phải từ 3–100 ký tự.';
+
+    if (!filled(form.description)) errors.description = 'Mô tả là bắt buộc.';
+
+    if (!CATEGORIES.includes(form.category)) errors.category = 'Hãy chọn danh mục.';
+
+    if (!filled(form.price)) errors.price = 'Giá là bắt buộc.';
+    else if (!(Number(form.price) > 0)) errors.price = 'Giá phải lớn hơn 0.';
+
+    const stock = Number(form.stock);
+    if (!filled(form.stock)) errors.stock = 'Tồn kho là bắt buộc.';
+    else if (!Number.isInteger(stock) || stock < 0) errors.stock = 'Tồn kho phải là số nguyên ≥ 0.';
+
+    return errors;
+}

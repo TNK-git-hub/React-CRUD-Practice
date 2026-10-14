@@ -35,7 +35,7 @@
 .form-select:focus,
 .form-textarea:focus {
     border: var(--input-border-focus);
-    box-shadow: var(--input-bshadow-focus);
+    /* box-shadow: var(--input-bshadow-focus); */
 }
 
 .form-textarea {
@@ -129,3 +129,19 @@
 .tag-input-box.is-changed {
     border-color: var(--accent);
 }
+
+/* validation: field failed on submit */
+.form-input.is-invalid,
+.form-select.is-invalid,
+.form-textarea.is-invalid {
+    border: 1px solid #9A2C1E;
+    box-shadow: 0 0 0 3px #F8E7E3;
+}
+
+.form-error {
+    margin: 5px 0 0;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #9A2C1E;
+}
+
