@@ -13,7 +13,7 @@ export const EMPTY_FORM = {
 const toNum = (v) => (v === '' ? undefined : Number(v));
 const toStr = (v) => (v.trim() === '' ? undefined : v.trim());
 
-export function buildPayload(form, tags) {
+export function buildPayload(form, tags, images = []) { //IMG_FeToBe: images = uploaded URLs, default [] keeps EditProduct working
     return {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -31,7 +31,7 @@ export function buildPayload(form, tags) {
         warrantyInformation: toStr(form.warrantyInformation),
         shippingInformation: toStr(form.shippingInformation),
         returnPolicy: toStr(form.returnPolicy),
-        images: [],   // file upload = later
+        images, //IMG_FeToBe
         // no barcode: the backend generates it
     };
 }

@@ -44,3 +44,73 @@
     font-weight: 600;
     cursor: pointer;
 }
+
+/* IMG_Han: highlight while a file is dragged over the zone */
+.image-dropzone.is-dragging {
+    border-color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+/* IMG_Han: rejected files (wrong type, > 2 MB, > 5 images) */
+.dropzone-errors {
+    margin: 8px 0 0;
+    padding-left: 16px;
+    font-size: 11px;
+    color: var(--input-border-error);
+}
+
+/* IMG_Han: row of small previews */
+.dropzone-thumbs {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+/* IMG_Han: one square preview */
+.dropzone-thumbs li {
+    position: relative;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* IMG_Han */
+.dropzone-thumbs img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* IMG_Han: × remove button */
+.dropzone-thumbs button {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+/* IMG_Han: "Ảnh bìa" on the first image */
+.thumb-badge {
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background-color: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+}

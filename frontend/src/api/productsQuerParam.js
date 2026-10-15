@@ -26,6 +26,13 @@ export function createProduct(data) {
     });
 }
 
+// POST /uploads: upload one image, returns { url }
+export function uploadImage(file) { //IMG_FeToBe
+    const body = new FormData(); //IMG_FeToBe
+    body.append('file', file); //IMG_FeToBe: "file" must match FileInterceptor('file') on the backend
+    return apiFetch('/uploads', { method: 'POST', body }); //IMG_FeToBe: no Content-Type -> the browser adds "multipart/form-data; boundary=..."
+} //IMG_FeToBe
+
 // DELETE /products/:id: delete a product
 export function deleteProduct(id) {
     return apiFetch(`/products/${id}`, { method: 'DELETE' });

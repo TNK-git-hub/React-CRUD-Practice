@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+export const MAX_IMAGES = 5; //IMG_Han
+const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']; //IMG_Han
+const MAX_SIZE = 2 * 1024 * 1024; //IMG_Han: 2 MB, same as the backend
 
 export function useProductForm(initialForm, initialTags = []) {
     const [form, setForm] = useState(initialForm);
     const [tags, setTags] = useState(initialTags);
     const [tagInput, setTagInput] = useState('');
     const [errors, setErrors] = useState({});   // { fieldId: 'message' }
+    const [images, setImages] = useState([]); //IMG_Han: [{ id, file, previewUrl }]
 
     const handleChange = (e) => {
         const { id, value } = e.target;
@@ -32,5 +37,37 @@ export function useProductForm(initialForm, initialTags = []) {
 
     const removeTag = (tag) => setTags(prev => prev.filter(t => t !== tag));
 
-    return { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, withPendingTag, errors, setErrors };
+    // checks the files, adds the valid ones, returns a list of error messages
+    const addImages = (fileList) => { //IMG_Han
+        const errs = []; //IMG_Han
+        const valid = []; //IMG_Han
+        for (const file of fileList) { //IMG_Han: FileList isn't an array -> no .map
+            if (!ALLOWED_TYPES.includes(file.type)) errs.push(`${file.name}: chỉ nhận PNG, JPG, WEBP`); //IMG_Han
+            else if (file.size > MAX_SIZE) errs.push(`${file.name}: lớn hơn 2 MB`); //IMG_Han
+            else valid.push(file); //IMG_Han
+        } //IMG_Han
+        const room = MAX_IMAGES - images.length; //IMG_Han: free slots left
+        if (valid.length > room) errs.push(`Tối đa ${MAX_IMAGES} ảnh`); //IMG_Han
+
+        const added = valid.slice(0, room).map(file => ({ //IMG_Han: keep only as many as fit
+            id: crypto.randomUUID(), //IMG_Han: stable key for React lists
+            file, //IMG_Han: kept for the upload (Phase B)
+            previewUrl: URL.createObjectURL(file), //IMG_Han: blob: URL for <img src>
+        })); //IMG_Han
+        setImages(prev => [...prev, ...added]); //IMG_Han
+        return errs; //IMG_Han
+    }; //IMG_Han
+
+    const removeImage = (id) => { //IMG_Han
+        const img = images.find(i => i.id === id); //IMG_Han
+        if (img) URL.revokeObjectURL(img.previewUrl); //IMG_Han: free the memory
+        setImages(prev => prev.filter(i => i.id !== id)); //IMG_Han
+    }; //IMG_Han
+
+    // free every preview URL when the page closes (ref = always the latest list)
+    const imagesRef = useRef(images); //IMG_Han
+    useEffect(() => { imagesRef.current = images; }, [images]); //IMG_Han
+    useEffect(() => () => imagesRef.current.forEach(i => URL.revokeObjectURL(i.previewUrl)), []); //IMG_Han
+
+    return { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, withPendingTag, errors, setErrors, images, addImages, removeImage };
 }

@@ -17,7 +17,7 @@ const NO_CHANGES = new Set();   // default for Create: nothing is ever "changed"
 // changedFields: Set of field ids to highlight (Edit only)
 // children: extra sections at the bottom of the left column (Edit: danger zone)
 function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, imageCount = 0, children }) {
-    const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, errors } = formState;
+    const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, errors, images, addImages, removeImage } = formState;
 
     // "form-input" -> "form-input is-changed" when that field was edited
     const cls = (base, id) => [base, changedFields.has(id) && 'is-changed', errors[id] && 'is-invalid'].filter(Boolean).join(' ');
@@ -137,11 +137,12 @@ function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHA
 
             {/* ---- cột phải ---- */}
             <div className="create-form-col">
-                <FormSection title="Ảnh sản phẩm" meta={`${imageCount}/5`}>
-                    <ImageDropzone />
+                <FormSection title="Ảnh sản phẩm" meta={`${imageCount + images.length}/5`}> {/* IMG_Han: old (Edit) + dropped */}
+                    <ImageDropzone images={images} onAdd={addImages} onRemove={removeImage} /> {/* IMG_Han */}
                 </FormSection>
                 <FormSection title="Xem trước">
-                    <PreviewCard title={form.title} category={form.category} price={form.price} discountPercentage={form.discountPercentage} />
+                    <PreviewCard title={form.title} category={form.category} price={form.price} discountPercentage={form.discountPercentage}
+                        thumbnail={images[0]?.previewUrl} /> {/* IMG_Han: first image -> preview card */}
                 </FormSection>
             </div>
         </form>

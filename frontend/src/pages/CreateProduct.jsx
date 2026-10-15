@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createProduct } from '../api/productsQuerParam';
+import { createProduct, uploadImage } from '../api/productsQuerParam';
 
 import '../styles/pages/CreateProduct.css'
 import '../styles/Button.css';
@@ -28,7 +28,9 @@ function CreateProduct() {
 
         setStatus('submitting');
         try {
-            const created = await createProduct(buildPayload(formState.form, formState.withPendingTag()));
+            const uploaded = await Promise.all(formState.images.map(img => uploadImage(img.file))); //IMG_FeToBe: all uploads at once -> [{ url }, ...]
+            const urls = uploaded.map(r => r.url); //IMG_FeToBe
+            const created = await createProduct(buildPayload(formState.form, formState.withPendingTag(), urls)); //IMG_FeToBe: urls -> product images
             navigate(`/products/${created.id}`);
         } catch (err) {
             setError(err.message);

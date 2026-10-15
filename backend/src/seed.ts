@@ -4,8 +4,12 @@ import { Repository } from 'typeorm';
 import { AppModule } from './app.module';
 import { Product } from './products/product.entity';
 import { Tag } from './products/tag.entity';
+import { mkdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 // This file will be run by pnpm to reset to original data that was fetch fro dummyjson
 const SOURCE_URL = 'https://dummyjson.com/products?limit=0';
+// same folder Multer writes to (uploads.controller.ts) and main.ts serves
+const UPLOADS_DIR = join(process.cwd(), 'uploads');
 
 type DummyReview = {
   rating: number;
@@ -53,6 +57,10 @@ async function seed() {
   await productRepo.query(
     'TRUNCATE products, product_images, reviews, tags, product_tags RESTART IDENTITY CASCADE',
   );
+
+  // Uploaded images belonged to the products just deleted -> remove the files too.
+  await rm(UPLOADS_DIR, { recursive: true, force: true });
+  await mkdir(UPLOADS_DIR);
 
   // Each tag name is saved once, then shared by every product that uses it.
   const tagNames = [...new Set(products.flatMap((p) => p.tags ?? []))];
