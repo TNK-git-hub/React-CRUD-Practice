@@ -13,6 +13,9 @@ import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import { useProductForm } from '../hooks/useProductForm';
 import { productToForm, getChangedFields, buildPayload } from '../utils/productForm';
 import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
+import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard';
+import LeaveConfirmDialog from '../comopnents/ProductFormCom/LeaveConfirmDialog';
+import SaveErrorBanner from '../comopnents/ProductFormCom/SaveErrorBanner';
 
 // ---- parent: load the product, handle loading / error / 404 (check if the product exist yet)----
 function EditProduct() {
@@ -68,7 +71,7 @@ function EditProductForm({ product }) {
             await updateProduct(product.id, { ...buildPayload(form, formState.withPendingTag()), images: urls });
             navigate(`/products/${product.id}`);
         } catch (err) {
-            setError(err.message);
+            setError(err);                          // giữ cả object: banner cần .status
             setStatus('error');                     // form data stays: nothing resets it
         }
     };
@@ -77,6 +80,9 @@ function EditProductForm({ product }) {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState(null);
+
+    // chặn rời trang khi form dirty; tắt khi đang lưu / xoá -> navigate() lúc thành công không bị chặn
+    const blocker = useUnsavedChangesGuard(changeCount > 0 && status !== 'submitting' && !isDeleting);
 
     const handleConfirmDelete = async () => {
         setIsDeleting(true);
@@ -123,7 +129,7 @@ function EditProductForm({ product }) {
                 </div>
             </div>
 
-            {status === 'error' && <p className="create-error">Lưu thất bại: {error}</p>}
+            {status === 'error' && <SaveErrorBanner error={error} formId="edit-product-form" />}
 
             <ProductFormFields
                 formId="edit-product-form"
@@ -157,6 +163,14 @@ function EditProductForm({ product }) {
                     error={deleteError}
                     onCancel={() => { setIsConfirmOpen(false); setDeleteError(null); }}
                     onConfirm={handleConfirmDelete}
+                />
+            )}
+
+            {blocker.state === 'blocked' && (
+                <LeaveConfirmDialog
+                    changeCount={changeCount}
+                    onStay={() => blocker.reset()}
+                    onLeave={() => blocker.proceed()}
                 />
             )}
         </main>

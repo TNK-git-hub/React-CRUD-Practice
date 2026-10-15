@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram id="OcCCWAk5Wa38Slk1rlmo" name="Page-1">
-    <mxGraphModel dx="1525" dy="844" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="1271" dy="703" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -63,8 +63,16 @@
             </Array>
           </mxGeometry>
         </mxCell>
+        <mxCell id="weYVhtXiwa4Fv4CnnDhR-2" edge="1" parent="1" source="vWnJGSs0cbLeqI2l_333-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="weYVhtXiwa4Fv4CnnDhR-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="240" y="660" />
+              <mxPoint x="240" y="1570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
         <mxCell id="vWnJGSs0cbLeqI2l_333-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Some hard to track flow" vertex="1">
-          <mxGeometry height="60" width="120" x="100" y="630" as="geometry" />
+          <mxGeometry height="60" width="120" x="70" y="630" as="geometry" />
         </mxCell>
         <mxCell id="vWnJGSs0cbLeqI2l_333-11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="tag chip" vertex="1">
           <mxGeometry height="60" width="120" x="270" y="680" as="geometry" />
@@ -201,7 +209,7 @@
         <mxCell id="vWnJGSs0cbLeqI2l_333-55" edge="1" parent="1" source="vWnJGSs0cbLeqI2l_333-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="vWnJGSs0cbLeqI2l_333-54">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="vWnJGSs0cbLeqI2l_333-53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="track unfinished fields" vertex="1">
+        <mxCell id="vWnJGSs0cbLeqI2l_333-53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="track unfinished fields" vertex="1">
           <mxGeometry height="60" width="120" x="270" y="980" as="geometry" />
         </mxCell>
         <mxCell id="vWnJGSs0cbLeqI2l_333-57" edge="1" parent="1" source="vWnJGSs0cbLeqI2l_333-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="vWnJGSs0cbLeqI2l_333-56">
@@ -290,6 +298,9 @@
         </mxCell>
         <mxCell id="NFbBHo71dJ7aIjJW4V2G-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="backend" vertex="1">
           <mxGeometry height="60" width="140" x="890" y="106" as="geometry" />
+        </mxCell>
+        <mxCell id="weYVhtXiwa4Fv4CnnDhR-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="useBlocker cho thông báo bỏ thay đổi&amp;nbsp;" vertex="1">
+          <mxGeometry height="60" width="120" x="270" y="1540" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

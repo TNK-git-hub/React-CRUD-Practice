@@ -1,0 +1,48 @@
+/* tạo thành công — theo design CrudStates "Tạo thành công" */
+.success-toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    max-width: min(420px, calc(100vw - 32px));
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: #FFFFFF;
+    border: 1px solid #E4E1D9;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .16);
+}
+
+.success-toast svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #2F6B42;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ghi đè p global (App.css: size body + màu muted) */
+.success-toast .success-toast-text {
+    font-family: var(--typeface-cap-meta);
+    margin: 0;
+    flex-grow: 1;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #17160F;
+}
+
+/* ghi đè code global (App.css: nền chip + padding) */
+.success-toast code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    color: inherit;
+}

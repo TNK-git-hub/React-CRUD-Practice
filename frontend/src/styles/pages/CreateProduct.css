@@ -58,8 +58,6 @@
 
 /* 2 cột: form | sidebar 348px */
 
-.create-error { color: #dc2626; margin-bottom: 16px; }
-
 .create-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 348px;
@@ -108,7 +106,7 @@
     line-height: 1.5;
 }
 
-.form-invalid-banner p { margin: 0; }
+.form-invalid-banner p { margin: 0; font-size: 12.5px; color: #17160F; }   /* ghi đè p global (App.css) */
 
 .form-invalid-banner svg {
     flex-shrink: 0;
