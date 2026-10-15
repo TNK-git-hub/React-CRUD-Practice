@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useProduct } from '../hooks/useProduct';
-import { updateProduct, deleteProduct } from '../api/productsQuerParam';
+import { updateProduct, deleteProduct, uploadImage } from '../api/productsQuerParam';
 import FormSection from '../comopnents/ProductFormCom/FormSection';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
@@ -43,11 +43,13 @@ function EditProductForm({ product }) {
     const [initialForm] = useState(() => productToForm(product));
     const initialTags = product.tags;
 
-    const formState = useProductForm(initialForm, initialTags); // track state với state ban đầu gồm tất cả các thông tin form và tags
-    const { form, tags } = formState;
+    const initialImageUrls = product.images; //IMG_Edit: urls already in the db
+
+    const formState = useProductForm(initialForm, initialTags, initialImageUrls); // track state với state ban đầu gồm tất cả các thông tin form, tags và ảnh cũ
+    const { form, tags, images } = formState;
 
     // derived on every render, NOT stored in state
-    const changedFields = getChangedFields(form, initialForm, tags, initialTags); // hàm thay đổi fields khi ngừoi dùng nhập
+    const changedFields = getChangedFields(form, initialForm, tags, initialTags, images, initialImageUrls); // hàm thay đổi fields khi ngừoi dùng nhập
     const changeCount = changedFields.size;
 
     const navigate = useNavigate();
@@ -58,9 +60,12 @@ function EditProductForm({ product }) {
         e.preventDefault();
         setStatus('submitting');
         try {
-            // ⚠️ drop images: PATCH with images: [] would delete all old images on the backend
-            const { images, ...payload } = buildPayload(form, formState.withPendingTag());
-            await updateProduct(product.id, payload);
+            // IMG_Edit: images untouched -> undefined -> JSON.stringify drops it (sending them would delete + re-insert the same rows)
+            // changed -> upload only the new files, keep the display order: new file -> uploaded url, old image -> its url
+            const urls = changedFields.has('images')
+                ? await Promise.all(images.map(img => img.file ? uploadImage(img.file).then(r => r.url) : img.url))
+                : undefined;
+            await updateProduct(product.id, { ...buildPayload(form, formState.withPendingTag()), images: urls });
             navigate(`/products/${product.id}`);
         } catch (err) {
             setError(err.message);
@@ -125,7 +130,6 @@ function EditProductForm({ product }) {
                 onSubmit={handleSubmit}
                 formState={formState}
                 changedFields={changedFields}
-                imageCount={product.images.length}
             >
                 {/* children -> rendered at the bottom of the left column */}
                 <FormSection title="Xoá sản phẩm" variant="danger">

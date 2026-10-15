@@ -16,7 +16,7 @@ const NO_CHANGES = new Set();   // default for Create: nothing is ever "changed"
 // formState: object returned by useProductForm
 // changedFields: Set of field ids to highlight (Edit only)
 // children: extra sections at the bottom of the left column (Edit: danger zone)
-function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, imageCount = 0, children }) {
+function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, children }) {
     const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, errors, images, addImages, removeImage } = formState;
 
     // "form-input" -> "form-input is-changed" when that field was edited
@@ -137,7 +137,7 @@ function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHA
 
             {/* ---- cột phải ---- */}
             <div className="create-form-col">
-                <FormSection title="Ảnh sản phẩm" meta={`${imageCount + images.length}/5`}> {/* IMG_Han: old (Edit) + dropped */}
+                <FormSection title="Ảnh sản phẩm" meta={`${images.length}/5`}> {/* IMG_Edit: images = old (Edit, from the db) + dropped */}
                     <ImageDropzone images={images} onAdd={addImages} onRemove={removeImage} /> {/* IMG_Han */}
                 </FormSection>
                 <FormSection title="Xem trước">

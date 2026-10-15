@@ -173,6 +173,8 @@ export class ProductsService {
                     await manager.delete(ProductImage, { product: { id } });
                     product.images = images.map((url, position) =>
                         manager.create(ProductImage, { url, position }));
+                    // same rule as create: first image = thumbnail (unless a thumbnail was sent)
+                    product.thumbnail = fields.thumbnail ?? images[0] ?? null;
                 }
 
                 await manager.save(product);

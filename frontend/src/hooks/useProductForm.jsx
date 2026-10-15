@@ -4,12 +4,18 @@ export const MAX_IMAGES = 5; //IMG_Han
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']; //IMG_Han
 const MAX_SIZE = 2 * 1024 * 1024; //IMG_Han: 2 MB, same as the backend
 
-export function useProductForm(initialForm, initialTags = []) {
+// initialImageUrls: image urls already in the db (Edit only), e.g. dummyjson cdn or /uploads/...
+export function useProductForm(initialForm, initialTags = [], initialImageUrls = []) {
     const [form, setForm] = useState(initialForm);
     const [tags, setTags] = useState(initialTags);
     const [tagInput, setTagInput] = useState('');
     const [errors, setErrors] = useState({});   // { fieldId: 'message' }
-    const [images, setImages] = useState([]); //IMG_Han: [{ id, file, previewUrl }]
+    // new image: { id, file, previewUrl: blob: } | old image: { id, url, previewUrl: url } (no file -> nothing to upload)
+    const [images, setImages] = useState(() => initialImageUrls.map(url => ({ //IMG_Edit: runs on the first render only
+        id: crypto.randomUUID(), //IMG_Edit: not the url -> the same url twice still gets 2 keys
+        url, //IMG_Edit
+        previewUrl: url, //IMG_Edit: a normal http url works in <img src> too
+    })));
 
     const handleChange = (e) => {
         const { id, value } = e.target;
@@ -46,7 +52,7 @@ export function useProductForm(initialForm, initialTags = []) {
             else if (file.size > MAX_SIZE) errs.push(`${file.name}: lớn hơn 2 MB`); //IMG_Han
             else valid.push(file); //IMG_Han
         } //IMG_Han
-        const room = MAX_IMAGES - images.length; //IMG_Han: free slots left
+        const room = MAX_IMAGES - images.length; //IMG_Han: free slots left (old + new images)
         if (valid.length > room) errs.push(`Tối đa ${MAX_IMAGES} ảnh`); //IMG_Han
 
         const added = valid.slice(0, room).map(file => ({ //IMG_Han: keep only as many as fit
@@ -60,14 +66,14 @@ export function useProductForm(initialForm, initialTags = []) {
 
     const removeImage = (id) => { //IMG_Han
         const img = images.find(i => i.id === id); //IMG_Han
-        if (img) URL.revokeObjectURL(img.previewUrl); //IMG_Han: free the memory
+        if (img?.file) URL.revokeObjectURL(img.previewUrl); //IMG_Han: free the memory (only blob: urls, old images have none)
         setImages(prev => prev.filter(i => i.id !== id)); //IMG_Han
     }; //IMG_Han
 
     // free every preview URL when the page closes (ref = always the latest list)
     const imagesRef = useRef(images); //IMG_Han
     useEffect(() => { imagesRef.current = images; }, [images]); //IMG_Han
-    useEffect(() => () => imagesRef.current.forEach(i => URL.revokeObjectURL(i.previewUrl)), []); //IMG_Han
+    useEffect(() => () => imagesRef.current.filter(i => i.file).forEach(i => URL.revokeObjectURL(i.previewUrl)), []); //IMG_Han: skip old images (http url)
 
     return { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, withPendingTag, errors, setErrors, images, addImages, removeImage };
 }

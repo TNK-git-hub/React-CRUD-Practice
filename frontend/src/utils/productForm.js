@@ -62,9 +62,13 @@ export function productToForm(p) {
 }
 
 // NEW: which fields differ from the starting values -> Set of ids, e.g. {"title", "price"}
-export function getChangedFields(form, initialForm, tags, initialTags) {
+// images: items from useProductForm, initialImageUrls: urls from the db (Edit only)
+export function getChangedFields(form, initialForm, tags, initialTags, images = [], initialImageUrls = []) {
     const changed = Object.keys(initialForm).filter(key => form[key] !== initialForm[key]);
     if (tags.join() !== initialTags.join()) changed.push('tags');   // arrays: compare as text
+    // IMG_Edit: removed / added / reordered -> changed (a new image has no url yet, so it never matches)
+    if (images.length !== initialImageUrls.length
+        || images.some((img, i) => img.url !== initialImageUrls[i])) changed.push('images');
     return new Set(changed);
 }
 
