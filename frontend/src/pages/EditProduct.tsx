@@ -3,7 +3,9 @@ import type { FormEvent } from 'react';
 import type { Product } from '../types/product';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useProduct } from '../hooks/useProduct';
-import { updateProduct, deleteProduct, uploadImage } from '../api/productsQuerParam';
+import { uploadImage } from '../api/productsQuerParam';
+import { useUpdateProduct, useDeleteProduct } from '../hooks/useProductMutations';
+import { useToast } from '../hooks/useToast';
 import { toError } from '../api/client';
 import FormSection from '../comopnents/ProductFormCom/FormSection';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
@@ -63,6 +65,9 @@ function EditProductForm({ product }: { product: Product }) {
     const navigate = useNavigate();
     const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
     const [error, setError] = useState<Error | null>(null);
+    const updateMutation = useUpdateProduct(); // thành công -> cache detail = response mới
+    const deleteMutation = useDeleteProduct();
+    const showToast = useToast();
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -73,7 +78,7 @@ function EditProductForm({ product }: { product: Product }) {
             const urls = changedFields.has('images')
                 ? await Promise.all(images.map(img => img.file ? uploadImage(img.file).then(r => r.url) : img.url))
                 : undefined;
-            await updateProduct(product.id, { ...buildPayload(form, formState.withPendingTag()), images: urls });
+            await updateMutation.mutateAsync({ id: product.id, data: { ...buildPayload(form, formState.withPendingTag()), images: urls } });
             navigate(`/products/${product.id}`);
         } catch (err) {
             setError(toError(err));                          // giữ cả object: banner cần .status
@@ -93,8 +98,9 @@ function EditProductForm({ product }: { product: Product }) {
         setIsDeleting(true);
         setDeleteError(null);
         try {
-            await deleteProduct(product.id);
+            await deleteMutation.mutateAsync({ id: product.id, title: product.title }); // ko undo: chờ xong mới rời trang, lỗi thì vẫn ở lại form
             navigate('/');                       // the product is gone -> back to the list
+            showToast({ kind: 'deleted', title: product.title });
         } catch (err) {
             setDeleteError(toError(err).message);
             setIsDeleting(false);

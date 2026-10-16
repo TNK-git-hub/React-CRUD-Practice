@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useQuery, useMutationState, keepPreviousData } from '@tanstack/react-query';
 import { getProducts } from '../api/productsQuerParam';
+import type { ProductQuery } from '../api/productsQuerParam';
+import { productKeys, productMutationKeys } from '../api/queryKeys';
+import type { DeleteVars } from './useProductMutations';
 import type { ApiError } from '../api/client';
-import type { ProductSummary, SortField, SortOrder } from '../types/product';
+import type { ProductListResponse, SortField, SortOrder } from '../types/product';
 
 export type ProductsStatus = 'loading' | 'success' | 'error';
 
@@ -16,31 +19,35 @@ interface UseProductsParams {
 export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc' }: UseProductsParams) {
     const skip = limit * (page - 1);
 
-    const [products, setProducts] = useState<ProductSummary[]>([]); // lưu array 10 products
-    const [total, setTotal] = useState<number | undefined>() // track cho "trong .... sản phẩm" góc trái dưới màn hình
-    const [status, setStatus] = useState<ProductsStatus>("loading"); // track 3 trạng thái
+    // check xem là search hay là lấy danh sách full
+    const params: ProductQuery = query
+        ? { q: query, limit, skip, sortBy, order }
+        : { limit, skip, sortBy, order };
 
-    // track error state và cho thử lại
-    const [error, setError] = useState<ApiError | null>(null); // có đang error ko
-    const [reloadKey, setReloadKey] = useState(0); // mỗi lần reload
+    // mỗi page / search / sort = 1 key riêng -> quay lại page cũ lấy từ cache, ko loading
+    const { data, status, error, refetch } = useQuery<ProductListResponse, ApiError>({
+        queryKey: productKeys.list(params),
+        queryFn: () => getProducts(params),
+        placeholderData: keepPreviousData, // đang tải page mới -> giữ data page cũ, ko nháy loading
+    });
 
-    useEffect(() => {
-        setStatus('loading');
-        setError(null)
-        const request = query
-            ? getProducts({ q: query, limit, skip, sortBy, order }) // check xem là search hay là lấy danh sách full
-            : getProducts({ limit, skip, sortBy, order });
+    // id các product đang chờ xoá (5s hoàn tác + lúc gửi request) -> ẩn khỏi list = optimistic
+    const deletingIds = useMutationState({
+        filters: { mutationKey: productMutationKeys.delete, status: 'pending' },
+        select: (mutation) => (mutation.state.variables as DeleteVars).id,
+    });
 
-        request
-            .then(data => {
-                setProducts(data.products);
-                setTotal(data.total);
-                setStatus('success');
-            })
-            .catch(err => { setError(err); setStatus('error'); });
-    }, [page, limit, query, sortBy, order, reloadKey])
+    const retry = () => { refetch(); };
 
-    const retry = () => setReloadKey(k => k + 1);
+    const allProducts = data?.products ?? [];
+    const products = allProducts.filter(p => !deletingIds.includes(p.id)); // lưu array 10 products
+    const hiddenCount = allProducts.length - products.length;
 
-    return { products, total, status, error, retry}
+    return {
+        products,
+        total: data && data.total - hiddenCount, // track cho "trong .... sản phẩm" góc trái dưới màn hình
+        status: (status === 'pending' ? 'loading' : status) as ProductsStatus, // track 3 trạng thái
+        error,
+        retry,
+    }
 }
