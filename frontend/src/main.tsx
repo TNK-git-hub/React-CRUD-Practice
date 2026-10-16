@@ -15,6 +15,11 @@ const queryClient = new QueryClient({
       retry: (failureCount, error) =>
         !(error instanceof ApiError && error.status < 500) && failureCount < 2,
     },
+    mutations: {
+      // mặc định offline -> mutation bị "paused", online lại mới gửi -> ko lỗi, ko rollback
+      // 'always': luôn gửi request -> offline thì lỗi ngay -> rollback + báo lỗi
+      networkMode: 'always',
+    },
   },
 });
 
