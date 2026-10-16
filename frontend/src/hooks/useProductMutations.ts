@@ -1,41 +1,54 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { QueryKey } from '@tanstack/react-query';
 import { createProduct, deleteProduct, updateProduct } from '../api/productsQuerParam';
-import { productKeys } from '../api/queryKeys';
+import { productKeys, productMutationKeys } from '../api/queryKeys';
+import { useToast } from './useToast';
 import type { ApiError } from '../api/client';
 import type { DeletedProduct, Product, ProductListResponse, ProductPayload } from '../types/product';
 
-// DELETE: optimistic update -> xoá khỏi list trong cache NGAY, ko chờ server
+export const UNDO_MS = 5000; // design: giữ 5s để hoàn tác
+
+export interface DeleteVars {
+    id: number;
+    title: string;
+    undo?: AbortController; // có -> chờ 5s mới gửi DELETE, abort() = hoàn tác
+}
+
+// chờ ms, hoặc dừng sớm (reject) khi signal bị abort
+function wait(ms: number, signal: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, ms);
+        signal.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); });
+    });
+}
+
+// DELETE: optimistic "qua UI" -> useProducts ẩn mọi product có mutation xoá đang pending
+// (ko sửa cache: trong 5s chờ, refetch lấy lại product từ server cũng ko hiện lại)
+// hoàn tác / lỗi -> mutation hết pending -> card tự hiện lại, ko cần rollback
 export function useDeleteProduct() {
     const queryClient = useQueryClient();
+    const showToast = useToast();
 
-    return useMutation<DeletedProduct, ApiError, number, { snapshot: [QueryKey, ProductListResponse | undefined][] }>({
-        mutationFn: (id) => deleteProduct(id),
+    return useMutation<DeletedProduct, Error, DeleteVars>({
+        mutationKey: productMutationKeys.delete,
+        mutationFn: async ({ id, undo }) => {
+            if (undo) await wait(UNDO_MS, undo.signal); // hoàn tác trong 5s -> reject, ko gửi request
+            return deleteProduct(id);
+        },
 
-        // (1) chạy TRƯỚC khi gửi request
-        onMutate: async (id) => {
-            // dừng các fetch list đang chạy -> response cũ ko ghi đè lên thay đổi của mình
-            await queryClient.cancelQueries({ queryKey: productKeys.lists() });
-            // lưu data cũ của mọi page list để rollback
-            const snapshot = queryClient.getQueriesData<ProductListResponse>({ queryKey: productKeys.lists() });
-            // bỏ product khỏi mọi page list đang có trong cache -> UI cập nhật luôn
+        // xoá xong: bỏ product khỏi cache luôn, rồi fetch lại list thật
+        // return promise -> mutation còn pending tới khi fetch xong -> card ko nháy hiện lại
+        onSuccess: (_data, { id }) => {
             queryClient.setQueriesData<ProductListResponse>({ queryKey: productKeys.lists() }, (old) =>
                 old && { ...old, products: old.products.filter(p => p.id !== id), total: old.total - 1 });
-            return { snapshot }; // -> onError nhận được
-        },
-
-        // (2) server báo lỗi -> trả data cũ lại (rollback)
-        onError: (_err, _id, ctx) => {
-            ctx?.snapshot.forEach(([key, data]) => queryClient.setQueryData(key, data));
-        },
-
-        // (3) xoá xong -> bỏ cache detail của product đó
-        onSuccess: (_data, id) => {
             queryClient.removeQueries({ queryKey: productKeys.detail(id) });
+            return queryClient.invalidateQueries({ queryKey: productKeys.lists() });
         },
 
-        // (4) thành công hay lỗi -> fetch lại list thật từ server (vd: page bị thiếu 1 dòng sau khi xoá)
-        onSettled: () => queryClient.invalidateQueries({ queryKey: productKeys.lists() }),
+        // xoá chạy nền (có undo) mà lỗi -> toast đỏ; hoàn tác thì ko báo lỗi
+        // (callback ở useMutation vẫn chạy dù trang đã unmount)
+        onError: (err, { title, undo }) => {
+            if (undo && !undo.signal.aborted) showToast({ kind: 'error', title, message: err.message });
+        },
     });
 }
 

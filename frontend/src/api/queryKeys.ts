@@ -12,3 +12,8 @@ export const productKeys = {
     // String(): id từ URL là "5", product.id là 5 -> cùng 1 key
     detail: (id: number | string) => [...productKeys.details(), String(id)] as const,
 };
+
+// mutation key: để useMutationState tìm các mutation xoá đang chờ
+export const productMutationKeys = {
+    delete: [...productKeys.all, 'delete'] as const,
+};

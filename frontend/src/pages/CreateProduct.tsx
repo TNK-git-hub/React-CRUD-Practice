@@ -44,7 +44,7 @@ function CreateProduct() {
             const urls = uploaded.map(r => r.url); //IMG_FeToBe  (file!: trang Create chỉ có ảnh mới -> luôn có file)
             const created = await createMutation.mutateAsync(buildPayload(formState.form, formState.withPendingTag(), urls)); //IMG_FeToBe: urls -> product images
             // gửi toast kèm điều hướng: trang này unmount ngay, RootLayout sẽ hiện toast
-            navigate(`/products/${created.id}`, { state: { toast: { title: created.title, id: created.id } } });
+            navigate(`/products/${created.id}`, { state: { toast: { kind: 'created', title: created.title, id: created.id } } });
         } catch (err) {
             setError(toError(err));                          // giữ cả object: banner cần .status
             setStatus('error');

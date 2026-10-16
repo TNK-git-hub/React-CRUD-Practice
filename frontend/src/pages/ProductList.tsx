@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
-import { toError } from '../api/client';
+import { useToast } from '../hooks/useToast';
 import { isSortField, isSortOrder } from '../utils/sortParams';
 import type { ProductSummary, SortField, SortOrder } from '../types/product';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
@@ -53,26 +53,21 @@ function ProductList() {
     const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
 
     const [productToDelete, setProductToDelete] = useState<ProductSummary | null>(null); // null = dialog đóng
-    const [deleteError, setDeleteError] = useState<string | null>(null);
     const deleteMutation = useDeleteProduct();
+    const showToast = useToast();
 
-    // optimistic: đóng dialog + card biến mất ngay, request chạy nền
+    // optimistic: đóng dialog + card biến mất ngay; chờ 5s (hoàn tác được) rồi mới gửi DELETE
     const handleConfirmDelete = () => {
         if (!productToDelete) return;               // dialog chỉ mở khi đã chọn sản phẩm
-        const product = productToDelete;
-        setDeleteError(null);
+        const { id, title } = productToDelete;
         setProductToDelete(null);                   // đóng dialog luôn, ko chờ server
 
         // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước
         if (products.length === 1 && page > 1) setPage(page - 1);
 
-        deleteMutation.mutate(product.id, {         // DELETE /products/:id (send request)
-            // lỗi: card đã được trả lại (rollback trong hook) -> mở lại dialog kèm lỗi để thử lại
-            onError: (err) => {
-                setProductToDelete(product);
-                setDeleteError(toError(err).message);
-            },
-        });
+        const undo = new AbortController();
+        deleteMutation.mutate({ id, title, undo }); // lỗi -> toast đỏ (trong hook)
+        showToast({ kind: 'deleted', title, onUndo: () => undo.abort() });
     };
 
 
@@ -165,8 +160,8 @@ function ProductList() {
                 <ConfirmDeleteDialog
                     product={productToDelete}
                     isDeleting={false} // optimistic: dialog đóng ngay, ko có trạng thái đang xoá
-                    error={deleteError}
-                    onCancel={() => { setProductToDelete(null); setDeleteError(null); }}
+                    error={null} // lỗi xoá hiện bằng toast đỏ
+                    onCancel={() => setProductToDelete(null)}
                     onConfirm={handleConfirmDelete}
                 />
             )}

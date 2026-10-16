@@ -4,8 +4,10 @@ import './App.css'
 import { createBrowserRouter, RouterProvider, Outlet, useLocation, useNavigate } from "react-router-dom"
 import Header from './comopnents/Header'
 import type { Theme } from './comopnents/Header'
-import SuccessToast from './comopnents/SuccessToast'
-import type { ToastData } from './comopnents/SuccessToast'
+import Toast from './comopnents/Toast'
+import type { ToastData } from './comopnents/Toast'
+import { ToastContext } from './hooks/useToast'
+import { UNDO_MS } from './hooks/useProductMutations'
 import ProductDetail from './pages/ProductDetail'
 import ProductList from './pages/ProductList'
 import CreateProduct from './pages/CreateProduct'   // trang tạo một sản phẩm
@@ -30,10 +32,11 @@ function RootLayout() {
     if (location.state?.toast) navigate(location.pathname + location.search, { replace: true, state: null });
   }, [location, navigate])
 
-  // design: toast tự ẩn sau 4s
+  // design: toast tự ẩn sau 4s; toast xoá có nút hoàn tác -> 5s (= thời gian được hoàn tác)
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 4000);
+    const ms = toast.kind === 'deleted' && toast.onUndo ? UNDO_MS : 4000;
+    const timer = setTimeout(() => setToast(null), ms);
     return () => clearTimeout(timer);
   }, [toast])
 
@@ -48,11 +51,11 @@ function RootLayout() {
   }
 
   return (
-    <>
+    <ToastContext value={setToast}> {/* trang con gọi useToast() để hiện toast */}
       <Header theme={theme} toggleTheme={toggleTheme} />
       <Outlet />
-      {toast && <SuccessToast {...toast} />}
-    </>
+      {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
+    </ToastContext>
   )
 }
 

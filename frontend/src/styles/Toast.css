@@ -1,5 +1,5 @@
-/* tạo thành công — theo design CrudStates "Tạo thành công" */
-.success-toast {
+/* toast giữa trên màn hình — theo design CrudStates "Tạo thành công" / "Xoá thành công + hoàn tác" */
+.toast {
     position: fixed;
     top: 24px;
     left: 50%;
@@ -16,7 +16,7 @@
     box-shadow: 0 10px 26px rgba(0, 0, 0, .16);
 }
 
-.success-toast svg {
+.toast svg {
     flex-shrink: 0;
     width: 18px;
     height: 18px;
@@ -28,7 +28,7 @@
 }
 
 /* ghi đè p global (App.css: size body + màu muted) */
-.success-toast .success-toast-text {
+.toast .toast-text {
     font-family: var(--typeface-cap-meta);
     margin: 0;
     flex-grow: 1;
@@ -38,11 +38,41 @@
 }
 
 /* ghi đè code global (App.css: nền chip + padding) */
-.success-toast code {
+.toast code {
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;
     font-size: 11px;
     background: none;
     padding: 0;
     border-radius: 0;
     color: inherit;
+}
+
+/* nút Hoàn tác — design "Xoá thành công + hoàn tác" */
+.toast .toast-undo {
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 7px;
+    background: #F1EFE8;
+    color: #17160F;
+    font-family: var(--typeface-cap-meta);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.toast .toast-undo:hover {
+    background: #E4E1D9;
+}
+
+/* toast đỏ khi API lỗi — màu theo alert đỏ trong design */
+.toast.toast-error {
+    background: #F8E7E3;
+    border-color: #F8E7E3;
+}
+
+.toast.toast-error svg {
+    stroke: #9A2C1E;
+    stroke-width: 1.8;
 }
