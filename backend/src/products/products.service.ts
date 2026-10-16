@@ -15,6 +15,13 @@ const DETAIL_TTL = 60;
 const detailKey = (id: number) => `products:detail:${id}`;
 type ProductDetail = Awaited<ReturnType<ProductsService['loadOne']>>;
 
+// list: mỗi bộ query (q, limit, skip, sort) = 1 key, sống 30s
+// có "version" trong key: create / update / delete -> INCR version -> MỌI key list cũ bị bỏ qua 1 lần
+// (ko phải tìm + xoá từng key, vì ko biết trước có bao nhiêu tổ hợp q/skip/sort), key cũ tự hết hạn sau 30s
+const LIST_TTL = 30;
+const LIST_VERSION_KEY = 'products:list:version';
+type ProductList = Awaited<ReturnType<ProductsService['loadList']>>;
+
 /* FLOW: Controller calls a service method -> service give TypeORM options
 -> based on options, TypeORM gen query -> and vice versa
 /* EXPLAIN: this service hold Type ORM method calls
@@ -32,8 +39,27 @@ export class ProductsService {
         private readonly cache: CacheService,
     ) { }
 
-    // GET /products: 
-    async findAll({ q, limit, skip, sortBy, order }: QueryProductDto) {
+    // GET /products: cache-aside giống findOne, key = version + các tham số query
+    //   vd products:list:v3:{"q":"phone","limit":20,"skip":0,"sortBy":"price","order":"desc"}
+    async findAll(query: QueryProductDto) {
+        const version = (await this.cache.get<number>(LIST_VERSION_KEY)) ?? 0; // chưa có / Redis tắt -> 0
+        const { q, limit, skip, sortBy, order } = query;
+        const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order })}`;
+
+        const cached = await this.cache.get<ProductList>(key);
+        if (cached) return cached;
+
+        const list = await this.loadList(query);
+        await this.cache.set(key, list, LIST_TTL);
+        return list;
+    }
+
+    // data trong list đổi (thêm / sửa / xoá product) -> lên version mới
+    private invalidateLists() {
+        return this.cache.incr(LIST_VERSION_KEY);
+    }
+
+    private async loadList({ q, limit, skip, sortBy, order }: QueryProductDto) {
         const pattern = ILike(`%${q}%`); // caseinsensitive search
         const [products, total] = await this.productRepo.findAndCount({
             where: q ? [{ title: pattern }, { description: pattern }] : undefined,
@@ -116,6 +142,7 @@ export class ProductsService {
                 const saved = await manager.save(product);
                 return saved.id;
             });
+            await this.invalidateLists(); // list có thêm 1 product
             return this.loadOne(id); // after the commit, so loadOne can see the new row
         } catch (err) {
             this.handleUniqueError(err);
@@ -171,6 +198,7 @@ export class ProductsService {
         const product = await this.loadOne(id); // throws 404 if not found (ko lấy từ cache: có thể đã cũ)
         await this.productRepo.delete(id);      // DB cascade removes images/reviews/product_tags
         await this.cache.del(detailKey(id));    // xoá khỏi cache, ko thì GET /products/:id vẫn trả về 60s nữa
+        await this.invalidateLists();           // list bớt 1 product
         return { ...product, isDeleted: true, deletedOn: new Date().toISOString() };
     }
 
@@ -202,6 +230,7 @@ export class ProductsService {
                 await manager.save(product);
             });
             await this.cache.del(detailKey(id)); // sau commit: xoá bản cũ, GET kế tiếp đọc lại Postgres
+            await this.invalidateLists();        // title / price... trong list có thể đã đổi
             return this.loadOne(id); // same response shape as GET /products/:id
         } catch (err) {
             this.handleUniqueError(err);
