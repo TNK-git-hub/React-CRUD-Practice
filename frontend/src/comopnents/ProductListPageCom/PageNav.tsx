@@ -21,7 +21,7 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
                     <svg viewBox="0 0 24 24" className="size-3.5 stroke-ink" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M 15 5 l -6 7 l 6 7" />
                     </svg>
-                    <span className="max-[401px]:hidden">Previous</span>
+                    <span className="max-xs:hidden">Previous</span>
                 </PageButton>
 
                 {/*  map các nút còn lại */}
@@ -46,7 +46,7 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
                     onClick={() => setPage(currentPage + 1)}
                 >
                     {/* className chủ yếu để hiển thị mobile */}
-                    <span className="max-[401px]:hidden">Next</span>
+                    <span className="max-xs:hidden">Next</span>
 
                     <svg viewBox="0 0 24 24" className="size-3.5 stroke-ink" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M 9 5 l 6 7 l -6 7" />

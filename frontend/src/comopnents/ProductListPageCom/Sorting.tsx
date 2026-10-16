@@ -18,7 +18,7 @@ const select =
 
 function Sorting({ sortBy, order, onChange }: SortingProps) {
     return (
-        <div className="flex items-center gap-2 max-[401px]:hidden">
+        <div className="flex items-center gap-2 max-xs:hidden">
             <span>Sắp xếp</span>
             <select value={sortBy} onChange={e => onChange({ sortBy: e.target.value as SortField, order })} name="title" id="title-select" className={select}>
                 {SORT_FIELDS.map(f => <option key={f} value={f}>{f}</option>)}

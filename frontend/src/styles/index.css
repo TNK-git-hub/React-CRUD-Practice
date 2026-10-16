@@ -44,6 +44,17 @@
   --radius-control: var(--bd-control);
   --radius-badge: var(--bd-badge);
 
+  /* max-xs: = màn hình <= 400px (thay cho @media (max-width: 400px) cũ)
+     max-xs nghĩa là "nhỏ hơn 401px" vì max-* của Tailwind ko tính đúng mốc */
+  --breakpoint-xs: 401px;
+
+  /* animate-skeleton: nhấp nháy nhẹ cho card đang loading (animate-pulse mặc định chậm + mờ hơn design) */
+  --animate-skeleton: skeleton-pulse 1.4s ease-in-out infinite;
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
   /* spacing ko cần khai báo: mặc định 1 bước = 4px -> p-1 = 4px, p-3 = 12px, gap-6 = 24px, p-11 = 44px
      = đúng scale --space-4 ... --space-44 */
 }

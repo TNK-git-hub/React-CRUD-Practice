@@ -1,4 +1,3 @@
-import "../../styles/ProList.css";
 import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 import type { ProductSummary } from "../../types/product";
@@ -13,7 +12,7 @@ type ProListProps =
 function ProList({ products, isLoading, onDelete}: ProListProps) {
     console.log("prolist rendered");
     return (
-        <div className='pro-list-container'>
+        <div className="grid grid-cols-5 gap-5 max-[442px]:grid-cols-2"> {/* <= 441px: 2 cột */}
             {/* map từng product vào mỗi card */}
             {isLoading
                 ? Array.from({ length: 10 }, (_, i) => <ProductCardSkeleton key={i} />)
