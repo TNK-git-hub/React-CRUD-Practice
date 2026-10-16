@@ -1,4 +1,3 @@
-import "../../styles/ProductDetailElementStyle/SpecGrid.css"
 import SpecDiv from "./SpecDiv";
 import type { Dimensions } from "../../types/product";
 
@@ -19,7 +18,7 @@ export default function SpecGrid({
     returnPolicy,
     barcode }: SpecGridProps) {
     return (
-        <div className="spec-grid-container">
+        <div className="mt-1.5 grid grid-cols-3 gap-x-7">
             <SpecDiv name="Weight" value={weight} unit={"g"} />
             <SpecDiv name="Dimensions" value={dimensions} unit={"cm"} />
             <SpecDiv name="Warranty Information" value={warrantyInformation} />

@@ -1,5 +1,3 @@
-import "../../styles/ProductDetailElementStyle/StarRating.css"
-
 const SVG_STAR_PATH = "M 12 2.4 l 2.86 6.02 l 6.44 0.86 l -4.7 4.6 l 1.16 6.55 L 12 17.32 L 6.24 20.43 L 7.4 13.88 l -4.7 -4.6 l 6.44 -0.86 Z"
 
 interface StarRatingProps {
@@ -11,18 +9,18 @@ export default function StarRating({ rating, ratingCount }: StarRatingProps) {
     const starNum = Math.round(rating);
 
     return (
-        <div className="star-rating-container">
-            <span className="stars-number">
+        <div className="flex items-center gap-[9px]">
+            <span className="flex gap-0.5"> {/* flex: svg là block (preflight) -> ko flex thì 5 sao xếp dọc */}
                 {Array.from({ length: 5 }, (_, index) => (
                     <svg
                         key={index} viewBox="0 0 24 24"
-                        className={index < starNum ? "star filled" : "star empty"}>
+                        className={`size-[15px] ${index < starNum ? "fill-accent" : "fill-star-empty"}`}>
                         <path d={SVG_STAR_PATH} />
                     </svg>
                 ))}
             </span>
-            <span className="rating-num">{rating}</span>
-            <span className="rating-count">{`· ${ratingCount} đánh giá`}</span>
+            <span className="text-[13.5px] font-bold text-ink">{rating}</span>
+            <span className="text-[13px]">{`· ${ratingCount} đánh giá`}</span>
         </div>
     )
 }

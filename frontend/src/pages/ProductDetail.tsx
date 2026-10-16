@@ -1,5 +1,3 @@
-import "../styles/pages/ProductDetail.css";
-
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useProduct } from "../hooks/useProduct";
 import ImageGallery from "../comopnents/ProductDetail/ImageGallery";
@@ -11,6 +9,8 @@ import TagsContainer from "../comopnents/ProductDetail/TagsContainer";
 import CommentsContainer from "../comopnents/ProductDetail/CommentsContainer";
 import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 
+const main = "flex grow flex-col gap-[22px] bg-bg px-12 pt-[26px] pb-9";
+
 function ProductDetail() {
     const { id } = useParams();
     const { product, status, error, retry } = useProduct(id!) // route /products/:id -> luôn có id
@@ -18,7 +18,7 @@ function ProductDetail() {
 
     const returnToProductPage = () => navigate("/");
 
-    if (status === "loading") return <main className="product-detail-main"></main>;// tạm
+    if (status === "loading") return <main className={main}></main>;// tạm
     if (status === "error") return <StatusMessage // TH: lỗi API
         icon="exclamation"
         title="Không tải dược danh sách sản phẩm"
@@ -28,35 +28,35 @@ function ProductDetail() {
     if (status === "notfound") return <StatusMessage // TH: ko tìm thấy sp
         icon="404"
         title="Sản phẩm không tồn tại"
-        description={<>DummyJSON trả về <code className="four04-code-style">404</code> cho id này. Hiển thị màn hình trống kèm lối quay lại danh sách</>}
+        description={<>DummyJSON trả về <code className="font-mono text-[11px]">404</code> cho id này. Hiển thị màn hình trống kèm lối quay lại danh sách</>}
         action={returnToProductPage} />;
     if (!product) return null; // status === 'success' -> luôn có product
     return (
         // <h1>Product {id}</h1>;
-        <main className="product-detail-main">
-            <div className="path-data-div">
-                <nav className="path-nav">
-                    <Link to="/" className="return-to-product ">Products</Link>
-                    <span className="typo-cap-meta">/</span>
-                    <span className="typo-cap-meta">{product.category}</span>
-                    <span className="typo-cap-meta">/</span>
-                    <span className="typo-cap-meta"><strong>{product.title}</strong></span>
+        <main className={main}>
+            <div className="flex items-center justify-between">
+                <nav className="flex items-center gap-2 text-[12.5px] text-muted">
+                    <Link to="/" className="font-sans font-semibold text-accent no-underline">Products</Link>
+                    <span>/</span>
+                    <span>{product.category}</span>
+                    <span>/</span>
+                    <span><strong>{product.title}</strong></span>
                 </nav>
-                <span className="product-route-badge">{`/products/${product.id}`}</span>
+                <span className="text-meta font-semibold tracking-[0.06em] text-muted uppercase">{`/products/${product.id}`}</span>
             </div>
-            <div className="product-display-container"> {/* phần thông tin phía trên */}
+            <div className="grid grid-cols-[460px_minmax(0,1fr)] gap-11"> {/* phần thông tin phía trên */}
                 <ImageGallery key={product.id} images={product.images} title={product.title} />
-                <div className="product-data-display">
-                    <div className="detail-badges">
-                        <span className="detail-pill detail-pill-accent">{product.category}</span>
-                        <span className="detail-pill">{product.brand}</span>
-                        <span className="detail-sku">{product.sku}</span>
+                <div className="flex flex-col gap-3.5">
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-pill px-2.5 py-1 text-[10.5px] font-bold tracking-[0.08em] uppercase bg-accent-soft text-accent">{product.category}</span>
+                        <span className="rounded-pill px-2.5 py-1 text-[10.5px] font-bold tracking-[0.08em] uppercase bg-chip text-muted">{product.brand}</span>
+                        <span className="font-mono text-[11px] text-muted">{product.sku}</span>
                     </div>
-                    <h1 className="detail-title typo-h1">{product.title}</h1>
+                    <h1 className="font-display text-h1 leading-[1.1] font-normal text-ink">{product.title}</h1>
                     <StarRating rating={product.rating} ratingCount={product.reviewCount ?? product.reviews?.length ?? 0} />
                     <PriceBlock price={product.price} discountPercentage={product.discountPercentage} />
                     <StockStatus status={product.availabilityStatus} stock={product.stock} minimum={product.minimumOrderQuantity} />
-                    <p className="product-detail-description typo-body">{product.description}</p>
+                    <p className="font-sans text-body font-normal text-ink">{product.description}</p>
                     <SpecGrid
                         weight={product.weight}
                         dimensions={product.dimensions}
@@ -68,9 +68,9 @@ function ProductDetail() {
                     <TagsContainer tags={product.tags} />
                 </div>
             </div>
-            <section className="product-bottom-section">
+            <section className="mt-0.5 flex flex-col gap-3">
                 <h2>Đánh giá
-                    <span className="num-of-reviews">
+                    <span className="[font-family:inherit] [font-size:inherit] text-muted">
                         {` (${product.reviews.length})`}
                     </span>
                 </h2>

@@ -1,4 +1,3 @@
-import "../../styles/ProductDetailElementStyle/SpecDiv.css"
 import type { Dimensions } from "../../types/product";
 
 interface SpecDivProps {
@@ -19,11 +18,11 @@ export default function SpecDiv({ name, value, unit = "" }: SpecDivProps) {
 
 
     return (
-        <div className="spec-div-container">
-            <span className="spec-name">
+        <div className="flex flex-col gap-[3px] border-b border-line py-[11px]">
+            <span className="text-[10.5px] font-bold tracking-[0.08em] text-muted uppercase">
                 {name}
             </span>
-            <span className="spec-value">
+            <span className="text-[13.5px] font-medium text-ink">
                 {displayValue}
             </span>
         </div>
