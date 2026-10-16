@@ -1,7 +1,8 @@
 import {
     Body, Controller, Delete, Get, HttpCode,
-    Param, ParseIntPipe, Patch, Post, Query,
+    Param, ParseIntPipe, Patch, Post, Query, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
@@ -15,15 +16,21 @@ export class ProductsController {
     constructor(private readonly productsService: ProductsService) { }
 
     // GET /products?limit=10&skip=0
+    // X-Cache: HIT (từ Redis) / MISS (từ Postgres) -> xem ở DevTools > Network > Headers
+    // passthrough: true -> vẫn return data như bình thường, chỉ mượn res để thêm header
     @Get()
-    findAll(@Query() query: QueryProductDto) {
-        return this.productsService.findAll(query);
+    async findAll(@Query() query: QueryProductDto, @Res({ passthrough: true }) res: Response) {
+        const { data, cache } = await this.productsService.findAll(query);
+        res.setHeader('X-Cache', cache);
+        return data;
     }
 
     // GET /products/:id
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.productsService.findOne(id);
+    async findOne(@Param('id', ParseIntPipe) id: number, @Res({ passthrough: true }) res: Response) {
+        const { data, cache } = await this.productsService.findOne(id);
+        res.setHeader('X-Cache', cache);
+        return data;
     }
 
     // ---- Step 7 ---- : post patch delete

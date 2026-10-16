@@ -12,5 +12,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # Redis cho cache (nếu ko dùng brew services start redis)
+  redis:
+    image: redis:8-alpine
+    container_name: crud-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
 volumes:
   pgdata:

@@ -9,6 +9,7 @@ import { AppModule } from './app.module'; // default
 async function bootstrap() { // default
   const app = await NestFactory.create<NestExpressApplication>(AppModule); // Express app type -> useStaticAssets exists
 
+  app.enableShutdownHooks(); // Ctrl+C / docker stop -> gọi onModuleDestroy (đóng kết nối Redis, DB)
   app.enableCors({ origin: process.env.FRONTEND_URL });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' }); // serve backend/uploads/* at /uploads/*
