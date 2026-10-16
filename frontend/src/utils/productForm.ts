@@ -1,3 +1,5 @@
+import type { Product, ProductPayload } from '../types/product';
+
 export const CATEGORIES = ['beauty', 'fragrances', 'furniture', 'groceries', 'home-decoration', 'kitchen-accessories'];
 export const STATUSES = ['In Stock', 'Low Stock', 'Out of Stock'];
 
@@ -9,11 +11,21 @@ export const EMPTY_FORM = {
     warrantyInformation: '', shippingInformation: '', returnPolicy: '',
 };
 
-// '' -> undefined (JSON.stringify drops it), otherwise string -> number
-const toNum = (v) => (v === '' ? undefined : Number(v));
-const toStr = (v) => (v.trim() === '' ? undefined : v.trim());
+// giá trị của form: input luôn giữ string
+export type ProductFormValues = typeof EMPTY_FORM;
+export type FormField = keyof ProductFormValues;
+export type FormErrors = Partial<Record<string, string>>; // { fieldId: 'message' }
 
-export function buildPayload(form, tags, images = []) { //IMG_FeToBe: images = uploaded URLs, default [] keeps EditProduct working
+// ảnh trong form: ảnh mới (có file, previewUrl là blob:) | ảnh cũ từ db (có url, không có file)
+export type FormImage =
+    | { id: string; previewUrl: string; file: File; url?: undefined }
+    | { id: string; previewUrl: string; url: string; file?: undefined };
+
+// '' -> undefined (JSON.stringify drops it), otherwise string -> number
+const toNum = (v: string) => (v === '' ? undefined : Number(v));
+const toStr = (v: string) => (v.trim() === '' ? undefined : v.trim());
+
+export function buildPayload(form: ProductFormValues, tags: string[], images: string[] = []): ProductPayload { //IMG_FeToBe: images = uploaded URLs, default [] keeps EditProduct working
     return {
         title: form.title.trim(),
         description: form.description.trim(),
@@ -37,9 +49,9 @@ export function buildPayload(form, tags, images = []) { //IMG_FeToBe: images = u
 }
 
 // NEW: product from the API -> form values (inputs always hold strings)
-const toInput = (v) => (v === null || v === undefined ? '' : String(v));   // null -> '', 11.49 -> "11.49"
+const toInput = (v: unknown) => (v === null || v === undefined ? '' : String(v));   // null -> '', 11.49 -> "11.49"
 
-export function productToForm(p) {
+export function productToForm(p: Product): ProductFormValues {
     return {
         title: toInput(p.title),
         description: toInput(p.description),
@@ -63,8 +75,11 @@ export function productToForm(p) {
 
 // NEW: which fields differ from the starting values -> Set of ids, e.g. {"title", "price"}
 // images: items from useProductForm, initialImageUrls: urls from the db (Edit only)
-export function getChangedFields(form, initialForm, tags, initialTags, images = [], initialImageUrls = []) {
-    const changed = Object.keys(initialForm).filter(key => form[key] !== initialForm[key]);
+export function getChangedFields(
+    form: ProductFormValues, initialForm: ProductFormValues, tags: string[], initialTags: string[],
+    images: FormImage[] = [], initialImageUrls: string[] = [],
+): Set<string> {
+    const changed: string[] = (Object.keys(initialForm) as FormField[]).filter(key => form[key] !== initialForm[key]);
     if (tags.join() !== initialTags.join()) changed.push('tags');   // arrays: compare as text
     // IMG_Edit: removed / added / reordered -> changed (a new image has no url yet, so it never matches)
     if (images.length !== initialImageUrls.length
@@ -72,11 +87,11 @@ export function getChangedFields(form, initialForm, tags, initialTags, images = 
     return new Set(changed);
 }
 
-const filled = (v) => v.trim() !== '';
+const filled = (v: string) => v.trim() !== '';
 
 // required fields only -> { fieldId: 'message' }, empty object = valid
-export function validateProduct(form) {
-    const errors = {};
+export function validateProduct(form: ProductFormValues): FormErrors {
+    const errors: FormErrors = {};
 
     const title = form.title.trim();
     if (!title) errors.title = 'Tên sản phẩm là bắt buộc.';

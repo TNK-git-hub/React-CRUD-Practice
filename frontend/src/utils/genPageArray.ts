@@ -1,6 +1,8 @@
 
 
-export default function genPageArray(totalPage, currentPage) {
+export type PageItem = number | '...';
+
+export default function genPageArray(totalPage: number, currentPage: number): PageItem[] {
     const MaxDisplay = 6; // hiện hết 6 trang trong trường hợp <= 6
     const HeadCount = 5;  // số trang đầu hiện liền nhau
 
@@ -17,7 +19,7 @@ export default function genPageArray(totalPage, currentPage) {
     }
 
     // TH2.2: currentPage từ trang 6 trở đi vd 1, ..., 6, ..., 20, chưa chạm trang cuối
-    const pages = [1, '...', currentPage]; // VD: 1, ..., 6
+    const pages: PageItem[] = [1, '...', currentPage]; // VD: 1, ..., 6
     if (currentPage < totalPage - 1) pages.push('...');   // VD concat: 1, ..., 6, ...; Trương hợp chạm trang gần cuói (VD: 19) thì bỏ qua 
     if (currentPage < totalPage) pages.push(totalPage);   // VD concat: 1, ..., 6, ..., 20 ; Trương hợp chạm trang gần cuói (VD: 19): 1, ...,19, 20
     return pages;
