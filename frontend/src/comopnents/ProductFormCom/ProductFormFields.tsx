@@ -1,4 +1,6 @@
+import type { FormEvent, ReactNode } from 'react';
 import { CATEGORIES, STATUSES } from '../../utils/productForm';
+import type { useProductForm } from '../../hooks/useProductForm';
 import FormSection from './FormSection';
 import FormField from './FormField';
 import ImageDropzone from './ImageDropzone';
@@ -11,19 +13,27 @@ const Chevron = () => (
     </span>
 );
 
-const NO_CHANGES = new Set();   // default for Create: nothing is ever "changed"
+const NO_CHANGES = new Set<string>();   // default for Create: nothing is ever "changed"
 
 // formState: object returned by useProductForm
 // changedFields: Set of field ids to highlight (Edit only)
 // children: extra sections at the bottom of the left column (Edit: danger zone)
-function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, children }) {
+interface ProductFormFieldsProps {
+    formId: string;
+    onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+    formState: ReturnType<typeof useProductForm>;
+    changedFields?: Set<string>;
+    children?: ReactNode;
+}
+
+function ProductFormFields({ formId, onSubmit, formState, changedFields = NO_CHANGES, children }: ProductFormFieldsProps) {
     const { form, tags, tagInput, setTagInput, handleChange, handleTagKeyDown, removeTag, errors, images, addImages, removeImage } = formState;
 
     // "form-input" -> "form-input is-changed" when that field was edited
-    const cls = (base, id) => [base, changedFields.has(id) && 'is-changed', errors[id] && 'is-invalid'].filter(Boolean).join(' ');
+    const cls = (base: string, id: string) => [base, changedFields.has(id) && 'is-changed', errors[id] && 'is-invalid'].filter(Boolean).join(' ');
 
     // screen reader: mark the control invalid + link it to its <p id="<id>-error"> message
-    const errAria = (id) => ({ 'aria-invalid': !!errors[id], 'aria-describedby': errors[id] ? `${id}-error` : undefined });
+    const errAria = (id: string) => ({ 'aria-invalid': !!errors[id], 'aria-describedby': errors[id] ? `${id}-error` : undefined });
 
     return (
         <form id={formId} className="create-form" onSubmit={onSubmit} noValidate>

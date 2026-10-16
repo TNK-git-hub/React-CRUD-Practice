@@ -1,8 +1,17 @@
 import "../../styles/ProductFormStyle/PreviewCard.css";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 
+// giá trị lấy thẳng từ form -> string
+interface PreviewCardProps {
+    title: string;
+    category: string;
+    price: string;
+    discountPercentage: string;
+    thumbnail?: string;
+}
+
 // shows the product card live while the user fills in the form
-function PreviewCard({ title, category, price, discountPercentage, thumbnail }) { //IMG_Han: thumbnail = blob: URL of the first image
+function PreviewCard({ title, category, price, discountPercentage, thumbnail }: PreviewCardProps) { //IMG_Han: thumbnail = blob: URL of the first image
     const priceNum = Number(price) || 0;               // '' -> 0
     const discount = Number(discountPercentage) || 0;
     const hasDiscount = discount > 0 && discount < 100;

@@ -1,11 +1,18 @@
 import { useEffect, useRef } from 'react';
+import type { MouseEvent } from 'react';
 import '../../styles/ConfirmDeleteDialog.css';   // dùng lại giao diện dialog xoá
 import '../../styles/Button.css';
 
 // changeCount: số thay đổi chưa lưu
 // onStay: blocker.reset   onLeave: blocker.proceed
-function LeaveConfirmDialog({ changeCount, onStay, onLeave }) {
-    const dialogRef = useRef(null);
+interface LeaveConfirmDialogProps {
+    changeCount: number;
+    onStay: () => void;
+    onLeave: () => void;
+}
+
+function LeaveConfirmDialog({ changeCount, onStay, onLeave }: LeaveConfirmDialogProps) {
+    const dialogRef = useRef<HTMLDialogElement>(null);
 
     // mở dạng modal khi mount: có backdrop, Esc, focus trap
     useEffect(() => {
@@ -14,7 +21,7 @@ function LeaveConfirmDialog({ changeCount, onStay, onLeave }) {
     }, []);
 
     // click vào nền tối = "Ở lại"
-    const handleBackdropClick = (e) => {
+    const handleBackdropClick = (e: MouseEvent<HTMLDialogElement>) => {
         if (e.target === dialogRef.current) onStay();
     };
 

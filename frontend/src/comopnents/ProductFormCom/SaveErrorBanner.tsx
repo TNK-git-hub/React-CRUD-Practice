@@ -3,8 +3,13 @@ import '../../styles/ProductFormStyle/SaveErrorBanner.css';
 
 // error: Error từ apiFetch (có .status) hoặc TypeError của fetch (backend tắt -> không có .status)
 // formId: "Thử lại" submit lại form này (giống bấm Lưu)
-function SaveErrorBanner({ error, formId }) {
-    const ref = useRef(null);
+interface SaveErrorBannerProps {
+    error: Error | null;
+    formId: string;
+}
+
+function SaveErrorBanner({ error, formId }: SaveErrorBannerProps) {
+    const ref = useRef<HTMLDivElement>(null);
 
     // design: hiện banner ở đầu form và cuộn tới nó (mount lại mỗi lần lỗi -> cuộn lại)
     useEffect(() => {

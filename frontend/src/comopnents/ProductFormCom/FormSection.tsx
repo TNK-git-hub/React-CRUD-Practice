@@ -1,6 +1,14 @@
+import type { ReactNode } from "react";
 import "../../styles/ProductFormStyle/FormSection.css";
 
-function FormSection({ title, meta, variant, children }) {
+interface FormSectionProps {
+    title: string;
+    meta?: string;
+    variant?: string; // vd "danger"
+    children: ReactNode;
+}
+
+function FormSection({ title, meta, variant, children }: FormSectionProps) {
     return (
         <section className={variant ? `form-section ${variant}` : 'form-section'}>
             <div className="form-section-head">

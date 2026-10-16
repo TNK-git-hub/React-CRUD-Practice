@@ -1,6 +1,16 @@
+import type { ReactNode } from "react";
 import "../../styles/ProductFormStyle/FormField.css";
 
-function FormField({ label, htmlFor, required = false, hint, error, children }) {
+interface FormFieldProps {
+    label: string;
+    htmlFor: string;
+    required?: boolean;
+    hint?: string;
+    error?: string;
+    children: ReactNode;
+}
+
+function FormField({ label, htmlFor, required = false, hint, error, children }: FormFieldProps) {
     return (
         <div className="form-field">
             <label htmlFor={htmlFor} className="form-label">
