@@ -1,0 +1,64 @@
+.preview-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.preview-media {
+    height: 112px;
+    background-color: var(--media-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--typeface-dis-h1);
+    font-size: 38px;
+    color: var(--muted);
+}
+
+.preview-body {
+    padding: 11px 12px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.preview-category {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.preview-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--ink);
+}
+
+.preview-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding-top: 2px;
+}
+
+.preview-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.preview-old-price {
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+/* IMG_Han: dropped image fills the preview media box */
+.preview-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}

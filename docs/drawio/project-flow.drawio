@@ -1,0 +1,784 @@
+<mxfile host="65bd71144e">
+    <diagram id="pages/01-architecture.json" name="1. Architecture">
+        <mxGraphModel dx="768" dy="621" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="arch.title" value="Architecture: local dev vs production" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="10" width="700" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev" value="Local development (pnpm dev + pnpm db:up)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="60" width="580" height="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.browser" value="Browser&lt;br&gt;localhost:5173" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="100" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.vite" value="Vite dev server (frontend)&lt;br&gt;React 19 + React Router 7" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="200" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.client" value="apiFetch (api/client.js)&lt;br&gt;BASE_URL = VITE_API_URL || dummyjson" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="300" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.nest" value="NestJS backend :3000&lt;br&gt;CORS (FRONTEND_URL) · ValidationPipe&lt;br&gt;Swagger UI at /docs" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="50" y="410" width="220" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.dummy" value="dummyjson.com&lt;br&gt;(fallback when VITE_API_URL is unset)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="100" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.seed" value="seed.ts (backend: pnpm seed)&lt;br&gt;resets the DB with dummyjson products" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="210" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.dev.pg" value="Postgres 16 container&lt;br&gt;127.0.0.1:5432&lt;br&gt;docker-compose.yml · volume pgdata" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="400" width="220" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod" value="Production: AWS (docker-compose.prod.yml)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="60" width="620" height="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.user" value="Internet user" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="670" y="100" width="170" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.tf" value="Terraform (infra/terraform)&lt;br&gt;security group :80 · :22&lt;br&gt;IAM role (SSM) · key pair&lt;br&gt;random DB password · budget alert" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
+                    <mxGeometry x="1040" y="90" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.ec2" value="EC2 instance" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="660" y="210" width="580" height="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.web" value="web: nginx :80&lt;br&gt;serves React build (VITE_API_URL=/api)&lt;br&gt;/api/* → backend:3000 (strips /api)&lt;br&gt;/assets/* cached 1y · other paths → index.html" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="680" y="240" width="300" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.boot" value="user_data on first boot:&lt;br&gt;swap · docker · git clone&lt;br&gt;write .env · compose up --build" style="shape=note;whiteSpace=wrap;html=1;size=12;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#fffde7;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="240" width="200" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.be" value="backend: NestJS :3000&lt;br&gt;(internal network only)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="680" y="410" width="300" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.prod.pg" value="postgres:16&lt;br&gt;no public port · healthcheck&lt;br&gt;volume pgdata" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="390" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.browser-vite" value="loads app" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.dev.browser" target="arch.dev.vite" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.vite-client" value="fetch()" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.dev.vite" target="arch.dev.client" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.client-nest" value="JSON /products" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.dev.client" target="arch.dev.nest" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.client-dummy" value="fallback" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="arch.dev.client" target="arch.dev.dummy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.nest-pg" value="TypeORM&lt;br&gt;synchronize: true" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.dev.nest" target="arch.dev.pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.seed-dummy" value="GET products?limit=0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="arch.dev.seed" target="arch.dev.dummy" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.seed-pg" value="save products + tags" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.dev.seed" target="arch.dev.pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.user-web" value="HTTP :80" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.prod.user" target="arch.prod.web" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.tf-ec2" value="creates EC2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.prod.tf" target="arch.prod.boot" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.web-be" value="/api proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.prod.web" target="arch.prod.be" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="arch.e.be-pg" value="depends_on: healthy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="arch.prod.be" target="arch.prod.pg" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="pages/02-frontend.json" name="2. Frontend structure">
+        <mxGraphModel dx="768" dy="621" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="fe.title" value="Frontend structure: routes → pages → components / hooks → API" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="10" width="900" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.main" value="main.jsx&lt;br&gt;createRoot + StrictMode" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="300" width="190" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.app" value="App.jsx&lt;br&gt;theme state → &amp;lt;html data-theme&amp;gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="380" width="190" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.header" value="Header&lt;br&gt;light / dark toggle" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="480" width="190" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.router" value="&amp;lt;BrowserRouter&amp;gt; &amp;lt;Routes&amp;gt;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="570" width="190" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.r.home" value="/" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="100" width="180" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.r.search" value="/products/search" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="150" width="180" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.r.detail" value="/products/:id" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="470" width="180" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.r.add" value="/products/add" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="650" width="180" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.r.edit" value="/products/:id/edit" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="740" width="180" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.p.list" value="ProductList&lt;br&gt;URL params = state&lt;br&gt;(q, page, sortBy, order)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="105" width="180" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.p.detail" value="ProductDetail" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="460" width="180" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.p.create" value="CreateProduct" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="640" width="180" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.p.edit" value="EditProduct&lt;br&gt;loading / error / 404" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="730" width="180" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.p.editform" value="EditProductForm&lt;br&gt;key = product.id" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="820" width="180" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.z.list" value="comopnents/ProductListPageCom/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="60" width="540" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.searchForm" value="SearchForm" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="130" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.searchBar" value="SearchBar" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="90" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.sorting" value="Sorting" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="130" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.button" value="Button" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="170" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.proList" value="ProList" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="230" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.productCard" value="ProductCard" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="220" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.cardMenu" value="CardMenu&lt;br&gt;Sửa · Xoá" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="1060" y="215" width="150" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.skeleton" value="ProductCardSkeleton" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="265" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.pageNav" value="PageNav" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="310" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.pageButton" value="PageButton" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="310" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.confirmDelete" value="ConfirmDeleteDialog" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="355" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.z.detail" value="comopnents/ProductDetail/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="420" width="540" height="190" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.imageGallery" value="ImageGallery" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="450" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.starRating" value="StarRating" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="490" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.priceBlock" value="PriceBlock" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="530" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.stockStatus" value="StockStatus" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="570" width="160" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.specGrid" value="SpecGrid" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="450" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.specDiv" value="SpecDiv" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="1060" y="450" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.tags" value="TagsContainer" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="490" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.comments" value="CommentsContainer" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="530" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.reviewCard" value="ReviewCard" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="1060" y="530" width="150" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.z.form" value="comopnents/ProductFormCom/ (shared by Create + Edit)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="630" width="540" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.formFields" value="ProductFormFields&lt;br&gt;highlights changedFields" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="690" width="160" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.formSection" value="FormSection" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="655" width="150" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.formField" value="FormField" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="688" width="150" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.imageDropzone" value="ImageDropzone" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="721" width="150" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.previewCard" value="PreviewCard" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="890" y="754" width="150" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.z.shared" value="Shared" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="690" y="810" width="540" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.c.statusMessage" value="StatusMessage&lt;br&gt;error · 404 · empty" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="838" width="160" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.h.useProducts" value="useProducts()&lt;br&gt;products · total · status · retry" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="110" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.u.genPage" value="genPageArray()&lt;br&gt;1 2 3 4 5 … 20" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="300" width="200" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.h.useProduct" value="useProduct(id)&lt;br&gt;product · status · retry" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="460" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.u.prevPrice" value="getPreviousPrice()" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="560" width="200" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.h.useForm" value="useProductForm()&lt;br&gt;form · tags · tagInput&lt;br&gt;handleChange · withPendingTag" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="640" width="200" height="64" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.u.productForm" value="utils/productForm.js&lt;br&gt;EMPTY_FORM · buildPayload&lt;br&gt;productToForm · getChangedFields&lt;br&gt;CATEGORIES · STATUSES" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="1270" y="740" width="200" height="84" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.api.fns" value="&lt;b&gt;api/productsQuerParam.js&lt;/b&gt;&lt;br&gt;getProducts()&lt;br&gt;getProductById()&lt;br&gt;createProduct()&lt;br&gt;updateProduct()&lt;br&gt;deleteProduct()" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="1520" y="290" width="230" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.api.client" value="api/client.js → apiFetch()&lt;br&gt;throws Error { status, path }" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="1520" y="470" width="230" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.api.backend" value="NestJS /products&lt;br&gt;(see page 3)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1520" y="580" width="230" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend" value="Legend" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="650" width="190" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.route" value="route / entry" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#eeeeee;strokeColor=#666666;fontFamily=Courier New;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="680" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.page" value="page" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="712" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.component" value="component" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="744" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.hook" value="hook" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="776" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.util" value="util" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="808" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.api" value="API call" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="840" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.legend.todo" value="not implemented yet" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#d32f2f;dashed=1;strokeWidth=2;fontColor=#d32f2f;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="872" width="190" height="26" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.main-app" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.main" target="fe.app" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.app-header" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.app" target="fe.header" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.header-router" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.header" target="fe.router" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.router-home" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.router" target="fe.r.home" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.router-search" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.router" target="fe.r.search" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.router-detail" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.router" target="fe.r.detail" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.router-add" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.router" target="fe.r.add" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.router-edit" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.router" target="fe.r.edit" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.home-list" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.r.home" target="fe.p.list" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.search-list" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.r.search" target="fe.p.list" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-page" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.r.detail" target="fe.p.detail" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.add-page" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.r.add" target="fe.p.create" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.edit-page" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.r.edit" target="fe.p.edit" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.edit-editform" value="when loaded" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.edit" target="fe.p.editform" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-searchForm" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.c.searchForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-proList" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.c.proList" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-pageNav" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.c.pageNav" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-confirmDelete" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.c.confirmDelete" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-status" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.c.statusMessage" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.searchForm-searchBar" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.searchForm" target="fe.c.searchBar" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.searchForm-sorting" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.searchForm" target="fe.c.sorting" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.searchForm-button" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.searchForm" target="fe.c.button" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.proList-card" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.proList" target="fe.c.productCard" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.proList-skeleton" value="isLoading" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.proList" target="fe.c.skeleton" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.card-menu" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.productCard" target="fe.c.cardMenu" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.pageNav-button" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.pageNav" target="fe.c.pageButton" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-gallery" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.imageGallery" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-stars" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.starRating" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-price" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.priceBlock" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-stock" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.stockStatus" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-spec" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.specGrid" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-tags" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.tags" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-comments" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.comments" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-status" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.detail" target="fe.c.statusMessage" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.spec-div" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.specGrid" target="fe.c.specDiv" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.comments-review" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.comments" target="fe.c.reviewCard" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.create-form" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.create" target="fe.c.formFields" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.editform-form" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.editform" target="fe.c.formFields" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.edit-status" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.edit" target="fe.c.statusMessage" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.form-section" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.formFields" target="fe.c.formSection" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.form-field" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.formFields" target="fe.c.formField" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.form-dropzone" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.formFields" target="fe.c.imageDropzone" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.form-preview" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.c.formFields" target="fe.c.previewCard" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-useProducts" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.list" target="fe.h.useProducts" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.detail-useProduct" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.detail" target="fe.h.useProduct" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.edit-useProduct" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.edit" target="fe.h.useProduct" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.create-useForm" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.create" target="fe.h.useForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.editform-useForm" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.editform" target="fe.h.useForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.pageNav-genPage" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.c.pageNav" target="fe.u.genPage" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.price-prevPrice" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.c.priceBlock" target="fe.u.prevPrice" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.card-prevPrice" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.c.productCard" target="fe.u.prevPrice" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.preview-prevPrice" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.c.previewCard" target="fe.u.prevPrice" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.create-productForm" value="EMPTY_FORM, buildPayload" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.create" target="fe.u.productForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.editform-productForm" value="productToForm, getChangedFields" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.p.editform" target="fe.u.productForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.formFields-productForm" value="CATEGORIES, STATUSES" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fe.c.formFields" target="fe.u.productForm" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.useProducts-api" value="getProducts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.h.useProducts" target="fe.api.fns" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.useProduct-api" value="getProductById" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.h.useProduct" target="fe.api.fns" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.list-api" value="deleteProduct" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.list" target="fe.api.fns" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.create-api" value="createProduct" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.p.create" target="fe.api.fns" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.editform-api" value="updateProduct (imported, not called yet)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#d32f2f;fontColor=#d32f2f;" parent="1" source="fe.p.editform" target="fe.api.fns" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.fns-client" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.api.fns" target="fe.api.client" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fe.e.client-backend" value="fetch()" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fe.api.client" target="fe.api.backend" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="pages/03-flows.json" name="3. Request flows">
+        <mxGraphModel dx="675" dy="621" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="fl.title" value="Request flows: UI → frontend logic → API → NestJS → Postgres" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="6" width="900" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.ui" value="UI (pages / components)" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.logic" value="Frontend logic (hooks / utils)" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.api" value="API call (productsQuerParam.js)" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.ctrl" value="ProductsController + DTO" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.svc" value="ProductsService / TypeORM" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.h.db" value="Postgres" style="text;html=1;fontSize=13;fontStyle=1;align=center;verticalAlign=middle;fontColor=#555555;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="50" width="240" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1" value="1. List · search · sort · paginate" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="80" width="1680" height="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.ui" value="SearchForm / Sorting / PageNav&lt;br&gt;handleSearch · handleSort · setPage" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="115" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.url" value="updateParams()&lt;br&gt;writes q · page · sortBy · order to the URL&lt;br&gt;path: / or /products/search" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="110" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.hook" value="useProducts({ page, query, sortBy, order })&lt;br&gt;useEffect re-runs → status: loading" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="215" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.api" value="getProducts()&lt;br&gt;GET /products?q&amp;amp;limit&amp;amp;skip&lt;br&gt;&amp;amp;sortBy&amp;amp;order" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="215" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.ctrl" value="findAll(@Query QueryProductDto)&lt;br&gt;limit 1–100 · sortBy ∈ title/price/&lt;br&gt;rating/stock · order asc/desc" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="215" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.svc" value="findAndCount()&lt;br&gt;ILike %q% on title OR description&lt;br&gt;order [sortBy] + id · skip / take" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="215" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.db" value="SELECT products" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="205" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l1.result" value="ProList: cards / skeleton&lt;br&gt;empty → StatusMessage (clear search)&lt;br&gt;error → StatusMessage + retry" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="215" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2" value="2. Product detail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="330" width="1680" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.ui" value="ProductCard link&lt;br&gt;→ /products/:id" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="365" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.hook" value="useProduct(id)&lt;br&gt;status: loading → success / error / notfound" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="365" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.api" value="getProductById(id)&lt;br&gt;GET /products/:id" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="365" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.ctrl" value="findOne(@Param id, ParseIntPipe)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="365" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.svc" value="findOne(): JOIN images · reviews · tags&lt;br&gt;reshape like dummyjson&lt;br&gt;(tag names, image urls, meta)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="355" width="240" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.db" value="products + product_images&lt;br&gt;+ reviews + tags" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="350" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.result" value="ProductDetail renders&lt;br&gt;gallery · price · specs · reviews" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="455" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l2.err" value="404 NotFoundException&lt;br&gt;→ status 'notfound' → StatusMessage 404" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fdecea;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="455" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3" value="3. Create" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="550" width="1680" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.ui" value="CreateProduct&lt;br&gt;ProductFormFields&lt;br&gt;useProductForm(EMPTY_FORM)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="585" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.logic" value="handleSubmit()&lt;br&gt;buildPayload(form, withPendingTag())&lt;br&gt;'' → undefined · string → number" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="585" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.api" value="createProduct(data)&lt;br&gt;POST /products/add" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="585" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.ctrl" value="create(@Body CreateProductDto)&lt;br&gt;ValidationPipe: whitelist + transform" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="585" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.svc" value="transaction:&lt;br&gt;generateUniqueBarcode()&lt;br&gt;findOrCreateTags()&lt;br&gt;images → { url, position }&lt;br&gt;then findOne(id)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="570" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.db" value="INSERT products&lt;br&gt;+ tags · product_tags&lt;br&gt;+ product_images" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="575" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.result" value="navigate(/products/{id})" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="690" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l3.err" value="400 validation · 409 'sku already exists'&lt;br&gt;→ status error → message shown" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fdecea;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="685" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4" value="4. Edit" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="780" width="1680" height="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.ui" value="EditProduct&lt;br&gt;useProduct(id) (same as flow 2)&lt;br&gt;loading / error / notfound" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="815" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.init" value="EditProductForm (key = product.id)&lt;br&gt;productToForm(product)&lt;br&gt;useProductForm(initialForm, tags)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="815" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.dirty" value="getChangedFields() every render&lt;br&gt;→ 'N thay đổi chưa lưu'&lt;br&gt;Save enabled only when N &amp;gt; 0" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="915" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.todo" value="Save → updateProduct(id, data)&lt;br&gt;PATCH /products/:id&lt;br&gt;NOT WIRED YET&lt;br&gt;(onSubmit = preventDefault)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#d32f2f;dashed=1;strokeWidth=2;fontColor=#d32f2f;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="860" width="240" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.ctrl" value="update(id, UpdateProductDto)&lt;br&gt;PartialType: every field optional" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="865" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.svc" value="transaction:&lt;br&gt;Object.assign(fields) · merge dimensions&lt;br&gt;replace tags / images&lt;br&gt;then findOne(id) · 409 on duplicate" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="850" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l4.db" value="UPDATE products&lt;br&gt;(+ tags, images)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="855" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5" value="5. Delete" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;strokeColor=#999999;verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="1030" width="1680" height="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.ui" value="CardMenu ⋮ → Xoá&lt;br&gt;setProductToDelete(product)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1065" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.dialog" value="ConfirmDeleteDialog&lt;br&gt;handleConfirmDelete()&lt;br&gt;buttons disabled while deleting" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="1060" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.api" value="deleteProduct(id)&lt;br&gt;DELETE /products/:id" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="600" y="1065" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.ctrl" value="remove(@Param id, ParseIntPipe)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="1065" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.svc" value="findOne(id) → 404 if missing&lt;br&gt;productRepo.delete(id)&lt;br&gt;returns { …product, isDeleted, deletedOn }" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="1160" y="1050" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.db" value="DELETE products&lt;br&gt;CASCADE → images, reviews,&lt;br&gt;product_tags" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=10;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="1440" y="1050" width="240" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.result" value="last card on page &amp;gt; 1 → setPage(page − 1)&lt;br&gt;else retry() → refetch list&lt;br&gt;close dialog" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1160" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.l5.err" value="error → dialog stays open&lt;br&gt;and shows the message" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fdecea;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="1170" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.ui-url" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.ui" target="fl.l1.url" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.url-hook" value="URL change" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.url" target="fl.l1.hook" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.hook-api" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.hook" target="fl.l1.api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.api-ctrl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.api" target="fl.l1.ctrl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.ctrl-svc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.ctrl" target="fl.l1.svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.svc-db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l1.svc" target="fl.l1.db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l1.hook-result" value="{ products, total }" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fl.l1.hook" target="fl.l1.result" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.ui-hook" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l2.ui" target="fl.l2.hook" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.hook-api" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l2.hook" target="fl.l2.api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.api-ctrl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l2.api" target="fl.l2.ctrl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.ctrl-svc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l2.ctrl" target="fl.l2.svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.svc-db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l2.svc" target="fl.l2.db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.hook-result" value="success" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fl.l2.hook" target="fl.l2.result" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.svc-err" value="no row" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;" parent="1" source="fl.l2.svc" target="fl.l2.err" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l2.err-hook" value="404" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;" parent="1" source="fl.l2.err" target="fl.l2.hook" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.ui-logic" value="submit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l3.ui" target="fl.l3.logic" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.logic-api" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l3.logic" target="fl.l3.api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.api-ctrl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l3.api" target="fl.l3.ctrl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.ctrl-svc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l3.ctrl" target="fl.l3.svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.svc-db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l3.svc" target="fl.l3.db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.logic-result" value="created.id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fl.l3.logic" target="fl.l3.result" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.ctrl-err" value="400" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;" parent="1" source="fl.l3.ctrl" target="fl.l3.err" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l3.svc-err" value="23505 → 409" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;" parent="1" source="fl.l3.svc" target="fl.l3.err" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.ui-init" value="loaded" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l4.ui" target="fl.l4.init" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.init-dirty" value="user types" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l4.init" target="fl.l4.dirty" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.dirty-todo" value="submit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#d32f2f;fontColor=#d32f2f;" parent="1" source="fl.l4.dirty" target="fl.l4.todo" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.todo-ctrl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#d32f2f;fontColor=#d32f2f;" parent="1" source="fl.l4.todo" target="fl.l4.ctrl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.ctrl-svc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l4.ctrl" target="fl.l4.svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l4.svc-db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l4.svc" target="fl.l4.db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.ui-dialog" value="opens" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l5.ui" target="fl.l5.dialog" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.dialog-api" value="confirm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l5.dialog" target="fl.l5.api" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.api-ctrl" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l5.api" target="fl.l5.ctrl" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.ctrl-svc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l5.ctrl" target="fl.l5.svc" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.svc-db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;" parent="1" source="fl.l5.svc" target="fl.l5.db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.dialog-result" value="success" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#777777;" parent="1" source="fl.l5.dialog" target="fl.l5.result" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="fl.e.l5.dialog-err" value="throws" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;endArrow=block;endFill=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;" parent="1" source="fl.l5.dialog" target="fl.l5.err" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="pages/04-database.json" name="4. Database">
+        <mxGraphModel dx="675" dy="621" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="db.title" value="Database (TypeORM entities → Postgres tables)" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="10" width="700" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.products" value="&lt;b&gt;products&lt;/b&gt;&lt;br&gt;id  PK serial&lt;br&gt;title  varchar&lt;br&gt;description  text?&lt;br&gt;category  varchar?&lt;br&gt;brand  varchar?&lt;br&gt;sku  varchar UNIQUE?&lt;br&gt;price  numeric(10,2)&lt;br&gt;discountPercentage  numeric(5,2) = 0&lt;br&gt;rating  numeric(3,2) = 0&lt;br&gt;stock  int = 0&lt;br&gt;minimumOrderQuantity  int = 1&lt;br&gt;availabilityStatus  varchar?&lt;br&gt;weight  numeric(10,2)?&lt;br&gt;dimensionsWidth / Height / Depth  numeric?&lt;br&gt;    (embedded Dimensions → { width, height, depth })&lt;br&gt;warrantyInformation  varchar?&lt;br&gt;shippingInformation  varchar?&lt;br&gt;returnPolicy  varchar?&lt;br&gt;barcode  varchar UNIQUE? (generated on create)&lt;br&gt;qrCode  varchar?&lt;br&gt;thumbnail  varchar?&lt;br&gt;createdAt / updatedAt  timestamp&lt;br&gt;reviewCount  virtual: COUNT(reviews)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#ffffff;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="70" width="340" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.images" value="&lt;b&gt;product_images&lt;/b&gt;&lt;br&gt;id  PK&lt;br&gt;url  varchar&lt;br&gt;position  int = 0 (keeps image order)&lt;br&gt;productId  FK → products  ON DELETE CASCADE" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#ffffff;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="70" width="300" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.reviews" value="&lt;b&gt;reviews&lt;/b&gt;&lt;br&gt;id  PK&lt;br&gt;rating  int&lt;br&gt;comment  text?&lt;br&gt;date  timestamp&lt;br&gt;reviewerName  varchar&lt;br&gt;reviewerEmail  varchar&lt;br&gt;productId  FK → products  ON DELETE CASCADE" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#ffffff;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="200" width="300" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.productTags" value="&lt;b&gt;product_tags (join table)&lt;/b&gt;&lt;br&gt;productId  FK → products&lt;br&gt;tagId  FK → tags" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#ffffff;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="390" width="300" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.tags" value="&lt;b&gt;tags&lt;/b&gt;&lt;br&gt;id  PK&lt;br&gt;name  varchar UNIQUE" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#ffffff;strokeColor=#b85450;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="390" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.notes" value="&lt;b&gt;Notes&lt;/b&gt;&lt;br&gt;• synchronize: true → tables are auto-created from the entities&lt;br&gt;• numeric columns use a transformer: string → number&lt;br&gt;• tags: findOrCreateTags() reuses existing names&lt;br&gt;• duplicate sku / barcode → 409 Conflict (pg code 23505)&lt;br&gt;• deleting a product cascades to images, reviews, product_tags" style="shape=note;whiteSpace=wrap;html=1;size=12;fontSize=12;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fillColor=#fffde7;strokeColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="70" width="400" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.e.products-images" value="1 – N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;startArrow=ERmandOne;endArrow=ERmany;startFill=0;endFill=0;" parent="1" source="db.products" target="db.images" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.e.products-reviews" value="1 – N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;startArrow=ERmandOne;endArrow=ERmany;startFill=0;endFill=0;" parent="1" source="db.products" target="db.reviews" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.e.products-productTags" value="1 – N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;startArrow=ERmandOne;endArrow=ERmany;startFill=0;endFill=0;" parent="1" source="db.products" target="db.productTags" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="db.e.tags-productTags" value="1 – N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;labelBackgroundColor=#ffffff;startArrow=ERmandOne;endArrow=ERmany;startFill=0;endFill=0;" parent="1" source="db.tags" target="db.productTags" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

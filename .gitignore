@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Uploaded images (saved by Multer, created again by pnpm seed)
+backend/uploads/
+
+# Keys & DB dumps
+*.pem
+*.key
+*.sql
+*.dump
+
+# Terraform (state chứa mật khẩu DB, không commit)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log

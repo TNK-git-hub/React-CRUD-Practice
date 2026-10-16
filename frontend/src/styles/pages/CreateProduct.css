@@ -1,0 +1,119 @@
+.create-product-main {
+    background-color: var(--bg);   
+    flex-grow: 1;                  
+    padding: 24px 48px 34px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.create-top-row,
+.create-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.breadcrumb a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    font-family: var(--typeface-cap-meta);
+}
+
+.breadcrumb-current {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+.api-badge {
+    padding: 4px 10px;
+    border-radius: var(--bd-badge);
+    background-color: var(--chip);
+    color: var(--muted);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11.5px;
+}
+
+.create-title-row h1 {
+    margin: 0;
+    font-size: 38px;
+    line-height: 1;
+}
+
+.create-actions {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+/* 2 cột: form | sidebar 348px */
+
+.create-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 348px;
+    gap: 32px;
+    align-items: start;
+}
+
+.create-form-col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-row {
+    display: grid;
+    gap: 14px;
+}
+
+.form-row.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-row.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.create-footnote {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--muted);
+}
+
+.create-footnote span { color: #9A2C1E; }
+
+/* tablet/mobile: dồn về 1 cột */
+@media (max-width: 900px) {
+    .create-product-main { padding: 18px; }
+    .create-form { grid-template-columns: minmax(0, 1fr); }
+    .form-row.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.form-invalid-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 13px;
+    border-radius: 11px;
+    background-color: #F8E7E3;
+    color: var(--ink);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.form-invalid-banner p { margin: 0; font-size: 12.5px; color: #17160F; }   /* ghi đè p global (App.css) */
+
+.form-invalid-banner svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #9A2C1E;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+}
