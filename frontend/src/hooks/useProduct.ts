@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { getProductById } from '../api/productsQuerParam';
+import type { ApiError } from '../api/client';
+import type { Product } from '../types/product';
 
-export function useProduct(id) {
-    const [product, setProduct] = useState(null);
-    const [status, setStatus] = useState("loading");
-    const [error, setError] = useState(null);
+export type ProductStatus = 'loading' | 'success' | 'error' | 'notfound';
+
+export function useProduct(id: number | string) {
+    const [product, setProduct] = useState<Product | null>(null);
+    const [status, setStatus] = useState<ProductStatus>("loading");
+    const [error, setError] = useState<ApiError | null>(null);
     const [retryCount, setRetryCount] = useState(0); // đổi số này → useEffect chạy lại
 
     useEffect(() => {
