@@ -13,7 +13,7 @@ import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 
 function ProductDetail() {
     const { id } = useParams();
-    const { product, status, error, retry } = useProduct(id)
+    const { product, status, error, retry } = useProduct(id!) // route /products/:id -> luôn có id
     const navigate = useNavigate(); // hook của react router dom, trả về một hàm navigate chuyển trang theo tham số đường dẫn 
 
     const returnToProductPage = () => navigate("/");
@@ -23,13 +23,14 @@ function ProductDetail() {
         icon="exclamation"
         title="Không tải dược danh sách sản phẩm"
         description="Yêu cầu tới DummyJSON thất bại. Kiểm tra kết nối mạng rồi thử lại."
-        code={`HTTP ${error.status} · /${error.path}`}
+        code={`HTTP ${error?.status} · /${error?.path}`}
         action={retry} />;
     if (status === "notfound") return <StatusMessage // TH: ko tìm thấy sp
         icon="404"
         title="Sản phẩm không tồn tại"
         description={<>DummyJSON trả về <code className="four04-code-style">404</code> cho id này. Hiển thị màn hình trống kèm lối quay lại danh sách</>}
         action={returnToProductPage} />;
+    if (!product) return null; // status === 'success' -> luôn có product
     return (
         // <h1>Product {id}</h1>;
         <main className="product-detail-main">

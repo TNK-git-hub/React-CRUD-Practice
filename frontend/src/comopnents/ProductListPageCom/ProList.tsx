@@ -3,12 +3,11 @@ import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
 import type { ProductSummary } from "../../types/product";
 
-// lúc loading chỉ truyền isLoading -> products, onDelete không có
-interface ProListProps {
-    products?: ProductSummary[];
-    isLoading?: boolean;
-    onDelete?: (product: ProductSummary) => void;
-}
+// 2 trường hợp: đang loading (chỉ có isLoading) | đã có data (products + onDelete)
+// -> trong nhánh else, TS biết chắc products và onDelete có giá trị
+type ProListProps =
+    | { isLoading: true; products?: undefined; onDelete?: undefined }
+    | { isLoading?: false; products: ProductSummary[]; onDelete: (product: ProductSummary) => void };
 
 // onDelete
 function ProList({ products, isLoading, onDelete}: ProListProps) {

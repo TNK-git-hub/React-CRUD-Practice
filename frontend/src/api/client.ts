@@ -15,6 +15,11 @@ export class ApiError extends Error {
     }
 }
 
+// catch (err) có type unknown -> đổi về Error để lưu vào state / lấy .message
+export function toError(err: unknown): Error {
+    return err instanceof Error ? err : new Error(String(err));
+}
+
 // call, trả về json
 /*
 

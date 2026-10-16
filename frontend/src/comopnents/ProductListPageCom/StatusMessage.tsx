@@ -74,7 +74,7 @@ export default function StatusMessage({ icon, title, description, code, action }
                 <p className="status-title">{title}</p>
                 <p className="status-desc">{description}</p>
                 {code && <code className="status-code">{code}</code>}
-                <button className={returnBtnStyle(icon)} onClick={action}>{returnTextBtn(icon)}</button>
+                <button className={returnBtnStyle(icon) ?? undefined} onClick={action}>{returnTextBtn(icon)}</button>
             </div>
         </div>
 

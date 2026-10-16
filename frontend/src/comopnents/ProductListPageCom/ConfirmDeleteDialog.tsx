@@ -17,7 +17,7 @@ function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }
     // open as a modal when mounted: gives backdrop, Esc, focus trap
     useEffect(() => {
         const dialog = dialogRef.current;
-        if (!dialog.open) dialog.showModal();   // StrictMode runs this twice in dev
+        if (dialog && !dialog.open) dialog.showModal();   // StrictMode runs this twice in dev
     }, []);
 
     // a click on the dark backdrop is reported on the <dialog> itself

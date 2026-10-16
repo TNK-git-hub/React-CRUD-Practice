@@ -9,11 +9,7 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-
-    // tạm thời trong lúc migrate: cho phép file .js/.jsx và vẫn check type của chúng
-    "allowJs": true,
-    "checkJs": true,
-    "strict": false
+    "strict": true
   },
   "include": ["src"]
 }

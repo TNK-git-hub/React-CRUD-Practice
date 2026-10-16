@@ -52,10 +52,10 @@ function ImageDropzone({ images, onAdd, onRemove }: ImageDropzoneProps) { //IMG_
                 <span className="dropzone-title">Kéo ảnh vào đây</span>
                 <span className="dropzone-hint">PNG, JPG, WEBP · tối đa 2 MB</span>
                 <button type="button" className="dropzone-button"
-                    onClick={() => inputRef.current.click()}>Chọn tệp</button> {/* IMG_Han: opens the file dialog */}
+                    onClick={() => inputRef.current?.click()}>Chọn tệp</button> {/* IMG_Han: opens the file dialog */}
                 <input ref={inputRef} type="file" hidden multiple //IMG_Han
                     accept="image/png,image/jpeg,image/webp" //IMG_Han
-                    onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }} /> {/* IMG_Han: reset -> same file can be picked again */}
+                    onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = ''; }} /> {/* IMG_Han: reset -> same file can be picked again */}
             </div>
 
             {errors.length > 0 && ( // IMG_Han

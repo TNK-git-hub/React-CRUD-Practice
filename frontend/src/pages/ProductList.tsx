@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { deleteProduct } from '../api/productsQuerParam';
+import { toError } from '../api/client';
 import { isSortField, isSortOrder } from '../utils/sortParams';
 import type { ProductSummary, SortField, SortOrder } from '../types/product';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
@@ -56,6 +57,7 @@ function ProductList() {
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const handleConfirmDelete = async () => {
+        if (!productToDelete) return;               // dialog chỉ mở khi đã chọn sản phẩm
         setIsDeleting(true); // track to disable delete button
         setDeleteError(null);
         try {
@@ -67,7 +69,7 @@ function ProductList() {
 
             setProductToDelete(null);                  // đóng dialog
         } catch (err) {
-            setDeleteError(err.message);               // giữ dialog mở, hiện lỗi
+            setDeleteError(toError(err).message);               // giữ dialog mở, hiện lỗi
         } finally {
             setIsDeleting(false);
         }
@@ -76,10 +78,10 @@ function ProductList() {
 
     console.log("productListPage rendered", { status, query, page });
 
-    const totalPage = Math.ceil(total / 10); /* tính sô page để truyền vào PageNav */
+    const totalPage = Math.ceil((total ?? 0) / 10); /* tính sô page để truyền vào PageNav */
 
     const firstProIdx = (page - 1) * 10 + 1;
-    const lastProIdx = Math.min(page * 10, total); // so Min để phòng hờ trang cuối không tròn 10
+    const lastProIdx = Math.min(page * 10, total ?? 0); // so Min để phòng hờ trang cuối không tròn 10
 
     const handleSort = (next: SortChange) => { // -----{cần đọc thêm }
         updateParams({ sortBy: next.sortBy, order: next.order, page: null }); // sort mới → về trang 1
@@ -105,7 +107,7 @@ function ProductList() {
             icon="exclamation"
             title="Không tải dược danh sách sản phẩm"
             description="Yêu cầu tới DummyJSON thất bại. Kiểm tra kết nối mạng rồi thử lại."
-            code={`HTTP ${error.status} · /${error.path}`}
+            code={`HTTP ${error?.status} · /${error?.path}`}
             action={retry} />;
         if (status === 'loading') return <ProList isLoading />; // TH: loading
         if (products.length === 0) return <StatusMessage // TH: không serch được ra sản phẩm

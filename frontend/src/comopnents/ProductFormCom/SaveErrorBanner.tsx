@@ -13,7 +13,7 @@ function SaveErrorBanner({ error, formId }: SaveErrorBannerProps) {
 
     // design: hiện banner ở đầu form và cuộn tới nó (mount lại mỗi lần lỗi -> cuộn lại)
     useEffect(() => {
-        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, []);
 
     return (

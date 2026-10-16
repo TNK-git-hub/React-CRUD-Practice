@@ -17,7 +17,7 @@ function LeaveConfirmDialog({ changeCount, onStay, onLeave }: LeaveConfirmDialog
     // mở dạng modal khi mount: có backdrop, Esc, focus trap
     useEffect(() => {
         const dialog = dialogRef.current;
-        if (!dialog.open) dialog.showModal();   // StrictMode chạy 2 lần ở dev
+        if (dialog && !dialog.open) dialog.showModal();   // StrictMode chạy 2 lần ở dev
     }, []);
 
     // click vào nền tối = "Ở lại"

@@ -18,7 +18,7 @@ function CardMenu({ product, onDelete }: CardMenuProps) {
         if (!isOpen) return;
 
         const handleClickOutside = (e: MouseEvent) => {
-            if (!menuRef.current.contains(e.target as Node)) setIsOpen(false);
+            if (!menuRef.current?.contains(e.target as Node)) setIsOpen(false);
         };
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === "Escape") setIsOpen(false);

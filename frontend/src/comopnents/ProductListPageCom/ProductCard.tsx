@@ -34,7 +34,7 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
             <Link to={`/products/${product.id}`} className="product-card-link">
                 <div className="product-image-block">
                     <span className="discount-badge">-{discount}%</span>
-                    <img alt="product pic" src={thumbnail} />
+                    <img alt="product pic" src={thumbnail ?? undefined} />
                 </div>
                 <div className="product-card-detail">
                     <div className="category-and-brand">{`${category} - ${brand}`}</div>

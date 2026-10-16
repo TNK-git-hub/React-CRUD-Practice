@@ -4,6 +4,7 @@ import type { Product } from '../types/product';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useProduct } from '../hooks/useProduct';
 import { updateProduct, deleteProduct, uploadImage } from '../api/productsQuerParam';
+import { toError } from '../api/client';
 import FormSection from '../comopnents/ProductFormCom/FormSection';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
@@ -22,7 +23,7 @@ import SaveErrorBanner from '../comopnents/ProductFormCom/SaveErrorBanner';
 // ---- parent: load the product, handle loading / error / 404 (check if the product exist yet)----
 function EditProduct() {
     const { id } = useParams();
-    const { product, status, error, retry } = useProduct(id);
+    const { product, status, error, retry } = useProduct(id!); // route /products/:id/edit -> luôn có id
     const navigate = useNavigate();
 
     if (status === 'loading') return <main className="create-product-main"></main>; // tạm, giống ProductDetail
@@ -30,13 +31,15 @@ function EditProduct() {
         icon="exclamation"
         title="Không tải được sản phẩm"
         description="Yêu cầu tới server thất bại. Kiểm tra kết nối mạng rồi thử lại."
-        code={`HTTP ${error.status} · /${error.path}`}
+        code={`HTTP ${error?.status} · /${error?.path}`}
         action={retry} />;
     if (status === 'notfound') return <StatusMessage
         icon="404"
         title="Sản phẩm không tồn tại"
         description={<>Server trả về <code className="four04-code-style">404</code> cho id này.</>}
         action={() => navigate('/')} />;
+
+    if (!product) return null; // status === 'success' -> luôn có product
 
     // key: another product -> brand-new form state
     return <EditProductForm key={product.id} product={product} />;
@@ -73,7 +76,7 @@ function EditProductForm({ product }: { product: Product }) {
             await updateProduct(product.id, { ...buildPayload(form, formState.withPendingTag()), images: urls });
             navigate(`/products/${product.id}`);
         } catch (err) {
-            setError(err);                          // giữ cả object: banner cần .status
+            setError(toError(err));                          // giữ cả object: banner cần .status
             setStatus('error');                     // form data stays: nothing resets it
         }
     };
@@ -93,7 +96,7 @@ function EditProductForm({ product }: { product: Product }) {
             await deleteProduct(product.id);
             navigate('/');                       // the product is gone -> back to the list
         } catch (err) {
-            setDeleteError(err.message);
+            setDeleteError(toError(err).message);
             setIsDeleting(false);
         }
     };
