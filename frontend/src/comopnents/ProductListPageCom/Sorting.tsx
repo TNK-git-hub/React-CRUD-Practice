@@ -1,8 +1,7 @@
 import "../../styles/Sorting.css";
 
 import type { SortField, SortOrder } from "../../types/product";
-
-const SORT_FIELDS: SortField[] = ['title', 'price', 'rating', 'stock'];
+import { SORT_FIELDS } from "../../utils/sortParams";
 
 export interface SortChange {
     sortBy: SortField;

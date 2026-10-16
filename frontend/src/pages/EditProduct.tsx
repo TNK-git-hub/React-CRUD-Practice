@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
+import type { Product } from '../types/product';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useProduct } from '../hooks/useProduct';
 import { updateProduct, deleteProduct, uploadImage } from '../api/productsQuerParam';
@@ -41,7 +43,7 @@ function EditProduct() {
 }
 
 //---- child: temporary, just to prove the data arrives (if the product exist then render the children) ----
-function EditProductForm({ product }) {
+function EditProductForm({ product }: { product: Product }) {
     // computed only once: the arrow function runs on the first render only
     const [initialForm] = useState(() => productToForm(product));
     const initialTags = product.tags;
@@ -56,10 +58,10 @@ function EditProductForm({ product }) {
     const changeCount = changedFields.size;
 
     const navigate = useNavigate();
-    const [status, setStatus] = useState('idle');   // 'idle' | 'submitting' | 'error'
-    const [error, setError] = useState(null);
+    const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
+    const [error, setError] = useState<Error | null>(null);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setStatus('submitting');
         try {
@@ -79,7 +81,7 @@ function EditProductForm({ product }) {
     // ---- delete (same pattern as ProductList) ----
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [deleteError, setDeleteError] = useState(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     // chặn rời trang khi form dirty; tắt khi đang lưu / xoá -> navigate() lúc thành công không bị chặn
     const blocker = useUnsavedChangesGuard(changeCount > 0 && status !== 'submitting' && !isDeleting);

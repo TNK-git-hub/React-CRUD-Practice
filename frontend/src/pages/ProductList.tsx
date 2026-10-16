@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { deleteProduct } from '../api/productsQuerParam';
+import { isSortField, isSortOrder } from '../utils/sortParams';
+import type { ProductSummary, SortField, SortOrder } from '../types/product';
+import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
 
 import '../styles/pages/ProductList.css';
 import '../styles/Button.css';
@@ -19,15 +22,18 @@ function ProductList() {
     // URL là "nơi lưu state": đọc giá trị từ URL, không lưu trong useState nữa ----{cần đọc thêm }
     const query = searchParams.get('q') ?? '';
     const page = Number(searchParams.get('page')) || 1;
-    const sortBy = searchParams.get('sortBy') || 'title';
-    const order = searchParams.get('order') ?? 'asc';
+    // sortBy / order không hợp lệ (vd ?sortBy=abc) -> dùng mặc định thay vì để backend trả 400
+    const sortByParam = searchParams.get('sortBy');
+    const sortBy: SortField = isSortField(sortByParam) ? sortByParam : 'title';
+    const orderParam = searchParams.get('order');
+    const order: SortOrder = isSortOrder(orderParam) ? orderParam : 'asc';
 
     // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL ----{cần đọc thêm }
-    const updateParams = (changes) => {
+    const updateParams = (changes: Record<string, string | number | null>) => {
         const next = new URLSearchParams(searchParams);          // (1) copy params hiện tại
 
         Object.entries(changes).forEach(([key, value]) => {      // (2) áp từng thay đổi
-            if (value) next.set(key, value);
+            if (value) next.set(key, String(value));
             else next.delete(key);
         });
 
@@ -45,9 +51,9 @@ function ProductList() {
     // useProducts values
     const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
 
-    const [productToDelete, setProductToDelete] = useState(null); // null = dialog đóng
+    const [productToDelete, setProductToDelete] = useState<ProductSummary | null>(null); // null = dialog đóng
     const [isDeleting, setIsDeleting] = useState(false);
-    const [deleteError, setDeleteError] = useState(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const handleConfirmDelete = async () => {
         setIsDeleting(true); // track to disable delete button
@@ -75,11 +81,11 @@ function ProductList() {
     const firstProIdx = (page - 1) * 10 + 1;
     const lastProIdx = Math.min(page * 10, total); // so Min để phòng hờ trang cuối không tròn 10
 
-    const handleSort = (next) => { // -----{cần đọc thêm }
+    const handleSort = (next: SortChange) => { // -----{cần đọc thêm }
         updateParams({ sortBy: next.sortBy, order: next.order, page: null }); // sort mới → về trang 1
     };
 
-    const handleSearch = (newQuery) => {
+    const handleSearch = (newQuery: string) => {
         updateParams({ q: newQuery, page: null });   // search mới → về trang 1
     };
 
@@ -88,7 +94,7 @@ function ProductList() {
     };
 
     // thay cho setPage của useState, PageNav vẫn gọi setPage(số) như cũ
-    const setPage = (p) => {
+    const setPage = (p: number) => {
         updateParams({ page: p === 1 ? null : p });  // trang 1 thì không cần ghi vào URL
     };
 

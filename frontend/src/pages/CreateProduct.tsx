@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createProduct, uploadImage } from '../api/productsQuerParam';
 
@@ -15,8 +16,8 @@ import SaveErrorBanner from '../comopnents/ProductFormCom/SaveErrorBanner';
 function CreateProduct() {
     const formState = useProductForm(EMPTY_FORM);
     const navigate = useNavigate();
-    const [status, setStatus] = useState('idle');   // 'idle' | 'submitting' | 'error'
-    const [error, setError] = useState(null);
+    const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
+    const [error, setError] = useState<Error | null>(null);
     const errorCount = Object.keys(formState.errors).length;
 
     // dirty = khác form rỗng ban đầu (lúc đầu: không tag, không ảnh)
@@ -24,7 +25,7 @@ function CreateProduct() {
     // tắt khi đang lưu -> navigate() lúc tạo thành công không bị chặn
     const blocker = useUnsavedChangesGuard(changeCount > 0 && status !== 'submitting');
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         const errs = validateProduct(formState.form);

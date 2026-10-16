@@ -3,7 +3,9 @@ import './App.css'
 
 import { createBrowserRouter, RouterProvider, Outlet, useLocation, useNavigate } from "react-router-dom"
 import Header from './comopnents/Header'
+import type { Theme } from './comopnents/Header'
 import SuccessToast from './comopnents/SuccessToast'
+import type { ToastData } from './comopnents/SuccessToast'
 import ProductDetail from './pages/ProductDetail'
 import ProductList from './pages/ProductList'
 import CreateProduct from './pages/CreateProduct'   // trang tạo một sản phẩm
@@ -11,13 +13,13 @@ import EditProduct from './pages/EditProduct'     // trang sửa một sản ph�
 
 // layout: header + trang hiện tại (Outlet), không bao giờ unmount -> theme giữ nguyên
 function RootLayout() {
-  const [theme, setTheme] = useState('light')
-  const [toast, setToast] = useState(null)
+  const [theme, setTheme] = useState<Theme>('light')
+  const [toast, setToast] = useState<ToastData | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
 
   // trang khác gửi toast qua navigate(..., { state: { toast } }) -> giữ vào state ngay lúc render (mỗi location.key một lần)
-  const [toastKey, setToastKey] = useState(null)
+  const [toastKey, setToastKey] = useState<string | null>(null)
   if (location.state?.toast && location.key !== toastKey) {
     setToastKey(location.key)
     setToast(location.state.toast)
