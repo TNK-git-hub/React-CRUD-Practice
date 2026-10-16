@@ -15,6 +15,9 @@ const DETAIL_TTL = 60;
 const detailKey = (id: number) => `products:detail:${id}`;
 type ProductDetail = Awaited<ReturnType<ProductsService['loadOne']>>;
 
+// kèm theo data: lấy từ Redis (HIT) hay từ Postgres (MISS) -> controller gửi header X-Cache
+export type CacheStatus = 'HIT' | 'MISS';
+
 // list: mỗi bộ query (q, limit, skip, sort) = 1 key, sống 30s
 // có "version" trong key: create / update / delete -> INCR version -> MỌI key list cũ bị bỏ qua 1 lần
 // (ko phải tìm + xoá từng key, vì ko biết trước có bao nhiêu tổ hợp q/skip/sort), key cũ tự hết hạn sau 30s
@@ -47,11 +50,11 @@ export class ProductsService {
         const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order })}`;
 
         const cached = await this.cache.get<ProductList>(key);
-        if (cached) return cached;
+        if (cached) return { data: cached, cache: 'HIT' as CacheStatus };
 
         const list = await this.loadList(query);
         await this.cache.set(key, list, LIST_TTL);
-        return list;
+        return { data: list, cache: 'MISS' as CacheStatus };
     }
 
     // data trong list đổi (thêm / sửa / xoá product) -> lên version mới
@@ -78,11 +81,11 @@ export class ProductsService {
     // 404 throw trong loadOne -> ko bao giờ cache "ko tồn tại"
     async findOne(id: number) {
         const cached = await this.cache.get<ProductDetail>(detailKey(id));
-        if (cached) return cached;
+        if (cached) return { data: cached, cache: 'HIT' as CacheStatus };
 
         const product = await this.loadOne(id);
         await this.cache.set(detailKey(id), product, DETAIL_TTL);
-        return product;
+        return { data: product, cache: 'MISS' as CacheStatus };
     }
 
     // đọc thẳng Postgres, ko qua cache: create / update / remove dùng hàm này
