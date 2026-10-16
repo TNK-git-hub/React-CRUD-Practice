@@ -1,7 +1,18 @@
+import type { ReactNode } from "react";
 import "../../styles/StatusMessage.css"
 
+type StatusIcon = "exclamation" | "magnifier" | "404";
+
+interface StatusMessageProps {
+    icon: StatusIcon;
+    title: string;
+    description: ReactNode;
+    code?: string;
+    action: () => void;
+}
+
 // hàm trả icon
-function returnIcon(icon) {
+function returnIcon(icon: StatusIcon) {
     if (icon === "exclamation") {
         return (
             <span className="exclamation-container">
@@ -32,7 +43,7 @@ function returnIcon(icon) {
     return null;
 }
 
-function returnTextBtn(icon) {
+function returnTextBtn(icon: StatusIcon) {
     if (icon === "exclamation") {
         return "Thử lại";
     }
@@ -45,7 +56,7 @@ function returnTextBtn(icon) {
     return null;
 }
 
-function returnBtnStyle(icon) {
+function returnBtnStyle(icon: StatusIcon) {
     if (icon === "exclamation" || icon === "404") {
         return "accent-btn";
     }
@@ -55,7 +66,7 @@ function returnBtnStyle(icon) {
     return null;
 }
 
-export default function StatusMessage({ icon, title, description, code, action }) {
+export default function StatusMessage({ icon, title, description, code, action }: StatusMessageProps) {
     return (
         <div className="status-message-outer-container">
             <div className="status-message-container">

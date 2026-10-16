@@ -1,8 +1,18 @@
 import { useEffect, useRef } from "react";
+import type { MouseEvent } from "react";
 import "../../styles/ConfirmDeleteDialog.css";
+import type { ProductSummary } from "../../types/product";
 
-function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }) {
-    const dialogRef = useRef(null);
+interface ConfirmDeleteDialogProps {
+    product: Pick<ProductSummary, "id" | "title">; // chỉ cần id + title -> dùng được cho cả list và detail
+    isDeleting: boolean;
+    error: string | null;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }: ConfirmDeleteDialogProps) {
+    const dialogRef = useRef<HTMLDialogElement>(null);
 
     // open as a modal when mounted: gives backdrop, Esc, focus trap
     useEffect(() => {
@@ -11,7 +21,7 @@ function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }
     }, []);
 
     // a click on the dark backdrop is reported on the <dialog> itself
-    const handleBackdropClick = (e) => {
+    const handleBackdropClick = (e: MouseEvent<HTMLDialogElement>) => {
         if (e.target === dialogRef.current && !isDeleting) onCancel();
     };
 

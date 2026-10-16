@@ -1,7 +1,13 @@
 import "../../styles/Button.css";
 import { useState } from "react";
 
-function Button({ text, type = "button", onClick }) {
+interface ButtonProps {
+    text: string;
+    type?: "button" | "submit" | "reset";
+    onClick?: () => void;
+}
+
+function Button({ text, type = "button", onClick }: ButtonProps) {
     return (
         <button type={type} className="button-container" onClick={onClick}>
             {text}

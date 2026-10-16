@@ -3,9 +3,18 @@ import defaultProductImg from "../../assets/website-7-kh-2026-08-12t163109-795.j
 import { Link } from "react-router-dom";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 import CardMenu from "./CardMenu";
+import type { Review, ProductSummary } from "../../types/product";
+
+// dummyjson (khi chưa đặt VITE_API_URL) trả reviews thay vì reviewCount
+type CardProduct = ProductSummary & { reviews?: Review[] };
+
+interface ProductCardProps {
+    product: CardProduct;
+    onDelete: (product: ProductSummary) => void;
+}
 
 // onDelete: fucntion to handle xoá product
-function ProductCard({ product, onDelete }) {
+function ProductCard({ product, onDelete }: ProductCardProps) {
     const title = product.title;
     const category = product.category;
     const brand = product.brand;

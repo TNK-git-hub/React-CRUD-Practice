@@ -1,9 +1,17 @@
 import "../../styles/ProList.css";
 import ProductCard from "./ProductCard";
 import ProductCardSkeleton from "./ProductCardSkeleton";
+import type { ProductSummary } from "../../types/product";
+
+// lúc loading chỉ truyền isLoading -> products, onDelete không có
+interface ProListProps {
+    products?: ProductSummary[];
+    isLoading?: boolean;
+    onDelete?: (product: ProductSummary) => void;
+}
 
 // onDelete
-function ProList({ products, isLoading, onDelete}) {
+function ProList({ products, isLoading, onDelete}: ProListProps) {
     console.log("prolist rendered");
     return (
         <div className='pro-list-container'>

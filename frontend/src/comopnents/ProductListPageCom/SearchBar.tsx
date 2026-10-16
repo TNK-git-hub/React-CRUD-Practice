@@ -1,7 +1,13 @@
 import { useState } from "react";
 import "../../styles/SearchBar.css";
 
-function SearchBar({ value, onChange, isError = false }) {
+interface SearchBarProps {
+    value: string;
+    onChange: (value: string) => void;
+    isError?: boolean;
+}
+
+function SearchBar({ value, onChange, isError = false }: SearchBarProps) {
     const [isFocus, setIsFocus] = useState(false); // track glow border màu nâu
     return (
         <div className={(isFocus ? "search-div-focus" : "search-div") + (isError ? " search-div-error" : "")}>

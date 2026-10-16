@@ -1,6 +1,13 @@
 import "../styles/Header.css"
 
-function Header({ theme, toggleTheme }) {
+export type Theme = "light" | "dark";
+
+interface HeaderProps {
+    theme: Theme;
+    toggleTheme: () => void;
+}
+
+function Header({ theme, toggleTheme }: HeaderProps) {
 
     return (
         <header className="header-container">

@@ -1,20 +1,26 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import "../../styles/CardMenu.css";
+import type { ProductSummary } from "../../types/product";
+
+interface CardMenuProps {
+    product: ProductSummary;
+    onDelete: (product: ProductSummary) => void;
+}
 
 // phần menu ... để bám sửa hoặc xoá sản phẩm
-function CardMenu({ product, onDelete }) {
+function CardMenu({ product, onDelete }: CardMenuProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     // close when the user clicks outside the menu or presses Esc
     useEffect(() => {
         if (!isOpen) return;
 
-        const handleClickOutside = (e) => {
-            if (!menuRef.current.contains(e.target)) setIsOpen(false);
+        const handleClickOutside = (e: MouseEvent) => {
+            if (!menuRef.current.contains(e.target as Node)) setIsOpen(false);
         };
-        const handleEsc = (e) => {
+        const handleEsc = (e: KeyboardEvent) => {
             if (e.key === "Escape") setIsOpen(false);
         };
 

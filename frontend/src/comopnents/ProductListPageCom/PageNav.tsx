@@ -2,7 +2,13 @@ import '../../styles/PageNav.css';
 import PageButton from './PageButton';
 import genPageArray from '../../utils/genPageArray'
 
-export default function PageNav({ totalPage, currentPage, setPage }) {
+interface PageNavProps {
+    totalPage: number;
+    currentPage: number;
+    setPage: (page: number) => void;
+}
+
+export default function PageNav({ totalPage, currentPage, setPage }: PageNavProps) {
     const pageArray = genPageArray(totalPage, currentPage);
 
     return (
