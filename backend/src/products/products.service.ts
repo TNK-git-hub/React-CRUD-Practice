@@ -8,6 +8,12 @@ import { QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { Product } from './product.entity';
 import { ProductImage } from './product-image.entity';
+import { CacheService } from '../redis/cache.service';
+
+// Redis cache: key của 1 product + thời gian sống (giây)
+const DETAIL_TTL = 60;
+const detailKey = (id: number) => `products:detail:${id}`;
+type ProductDetail = Awaited<ReturnType<ProductsService['loadOne']>>;
 
 /* FLOW: Controller calls a service method -> service give TypeORM options
 -> based on options, TypeORM gen query -> and vice versa
@@ -23,6 +29,7 @@ export class ProductsService {
         @InjectRepository(Tag)
         private readonly tagRepo: Repository<Tag>,
         private readonly dataSource: DataSource,
+        private readonly cache: CacheService,
     ) { }
 
     // GET /products: 
@@ -39,8 +46,22 @@ export class ProductsService {
         return { products, total, skip, limit };
     }
 
-    // GET /products/:id: returns one product, or a 404 if it doesn't exist
+    // GET /products/:id: cache-aside
+    //   có trong Redis (HIT) -> trả luôn, ko đụng Postgres
+    //   ko có (MISS) -> đọc Postgres -> lưu Redis 60s -> trả
+    // 404 throw trong loadOne -> ko bao giờ cache "ko tồn tại"
     async findOne(id: number) {
+        const cached = await this.cache.get<ProductDetail>(detailKey(id));
+        if (cached) return cached;
+
+        const product = await this.loadOne(id);
+        await this.cache.set(detailKey(id), product, DETAIL_TTL);
+        return product;
+    }
+
+    // đọc thẳng Postgres, ko qua cache: create / update / remove dùng hàm này
+    // (nếu dùng findOne, update sẽ trả về bản CŨ còn nằm trong cache)
+    private async loadOne(id: number) {
         const product = await this.productRepo.findOne({
             where: { id },
             relations: { images: true, reviews: true, tags: true }, // JOIN 3 bảng productImage, review, tag để cho vào đây
@@ -95,7 +116,7 @@ export class ProductsService {
                 const saved = await manager.save(product);
                 return saved.id;
             });
-            return this.findOne(id); // after the commit, so findOne can see the new row
+            return this.loadOne(id); // after the commit, so loadOne can see the new row
         } catch (err) {
             this.handleUniqueError(err);
         }
@@ -147,8 +168,9 @@ export class ProductsService {
 
     // DELETE /products/:id
     async remove(id: number) {
-        const product = await this.findOne(id); // throws 404 if not found
+        const product = await this.loadOne(id); // throws 404 if not found (ko lấy từ cache: có thể đã cũ)
         await this.productRepo.delete(id);      // DB cascade removes images/reviews/product_tags
+        await this.cache.del(detailKey(id));    // xoá khỏi cache, ko thì GET /products/:id vẫn trả về 60s nữa
         return { ...product, isDeleted: true, deletedOn: new Date().toISOString() };
     }
 
@@ -179,7 +201,8 @@ export class ProductsService {
 
                 await manager.save(product);
             });
-            return this.findOne(id); // same response shape as GET /products/:id
+            await this.cache.del(detailKey(id)); // sau commit: xoá bản cũ, GET kế tiếp đọc lại Postgres
+            return this.loadOne(id); // same response shape as GET /products/:id
         } catch (err) {
             this.handleUniqueError(err);
         }
