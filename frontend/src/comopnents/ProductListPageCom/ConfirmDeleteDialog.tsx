@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { MouseEvent } from "react";
 import "../../styles/ConfirmDeleteDialog.css";
+import { btn } from "../../utils/buttonStyles";
 import type { ProductSummary } from "../../types/product";
 
 interface ConfirmDeleteDialogProps {
@@ -47,10 +48,10 @@ function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }
                 {error && <p className="confirm-dialog-error" role="alert">Xoá thất bại: {error}</p>}
 
                 <div className="confirm-dialog-actions">
-                    <button type="button" className="button-secondary" onClick={onCancel} disabled={isDeleting}>
+                    <button type="button" className={btn.secondary} onClick={onCancel} disabled={isDeleting}>
                         Huỷ
                     </button>
-                    <button type="button" className="button-container danger" onClick={onConfirm} disabled={isDeleting}>
+                    <button type="button" className={btn.danger} onClick={onConfirm} disabled={isDeleting}>
                         {isDeleting ? "Đang xoá…" : "Xoá sản phẩm"}
                     </button>
                 </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import '../../styles/ConfirmDeleteDialog.css';   // dùng lại giao diện dialog xoá
-import '../../styles/Button.css';
+import { btn } from '../../utils/buttonStyles';
 
 // changeCount: số thay đổi chưa lưu
 // onStay: blocker.reset   onLeave: blocker.proceed
@@ -36,11 +36,11 @@ function LeaveConfirmDialog({ changeCount, onStay, onLeave }: LeaveConfirmDialog
                     Rời trang bây giờ sẽ mất các thay đổi đó.
                 </p>
                 <div className="confirm-dialog-actions">
-                    <button type="button" className="button-secondary" onClick={onStay}>
+                    <button type="button" className={btn.secondary} onClick={onStay}>
                         Ở lại
                     </button>
                     {/* proceed -> blocker.state 'proceeding' -> dialog unmount (không bắn close -> không gọi onStay) */}
-                    <button type="button" className="button-container danger" onClick={onLeave}>
+                    <button type="button" className={btn.danger} onClick={onLeave}>
                         Rời trang
                     </button>
                 </div>

@@ -4,11 +4,11 @@ import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
 import { isSortField, isSortOrder } from '../utils/sortParams';
+import { btn } from '../utils/buttonStyles';
 import type { ProductSummary, SortField, SortOrder } from '../types/product';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
 
 import '../styles/pages/ProductList.css';
-import '../styles/Button.css';
 
 import SearchForm from '../comopnents/ProductListPageCom/SearchForm';
 import ProList from '../comopnents/ProductListPageCom/ProList';
@@ -123,7 +123,7 @@ function ProductList() {
                 </div>
                 <div className='pro-intro-actions'>
                     <span className='product-route-badge vanish-in-mobile'>/PRODUCTS</span>
-                    <Link to="/products/add" className='button-container add-product-btn'>
+                    <Link to="/products/add" className={`${btn.primary} add-product-btn`}>
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" />
                         </svg>

@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { uploadImage } from '../api/productsQuerParam';
 import { useCreateProduct } from '../hooks/useProductMutations';
 import { toError } from '../api/client';
+import { btn } from '../utils/buttonStyles';
 
 import '../styles/pages/CreateProduct.css'
-import '../styles/Button.css';
 
 import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
 import { useProductForm } from '../hooks/useProductForm';
@@ -67,8 +67,8 @@ function CreateProduct() {
             <div className="create-title-row">
                 <h1>Thêm sản phẩm</h1>
                 <div className="create-actions">
-                    <Link to="/" className="button-secondary">Huỷ</Link>
-                    <button type="submit" form="create-product-form" className="button-container"
+                    <Link to="/" className={btn.secondary}>Huỷ</Link>
+                    <button type="submit" form="create-product-form" className={btn.primary}
                         disabled={status === 'submitting'}>
                         {status === 'submitting' ? 'Đang lưu…' : 'Lưu sản phẩm'}
                     </button>

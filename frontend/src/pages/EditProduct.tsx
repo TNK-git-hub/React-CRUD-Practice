@@ -7,12 +7,12 @@ import { uploadImage } from '../api/productsQuerParam';
 import { useUpdateProduct, useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
 import { toError } from '../api/client';
+import { btn } from '../utils/buttonStyles';
 import FormSection from '../comopnents/ProductFormCom/FormSection';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
 import '../styles/pages/EditProduct.css';     // only the Edit-only bits
 import '../styles/pages/CreateProduct.css';
-import '../styles/Button.css';
 
 import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import { useProductForm } from '../hooks/useProductForm';
@@ -132,8 +132,8 @@ function EditProductForm({ product }: { product: Product }) {
                 </div>
                 <div className="create-actions">
                     {changeCount > 0 && <span className="dirty-count">{changeCount} thay đổi chưa lưu</span>}
-                    <Link to={`/products/${product.id}`} className="button-secondary">Huỷ</Link>
-                    <button type="submit" form="edit-product-form" className="button-container"
+                    <Link to={`/products/${product.id}`} className={btn.secondary}>Huỷ</Link>
+                    <button type="submit" form="edit-product-form" className={btn.primary}
                         disabled={status === 'submitting' || changeCount === 0}>
                         {status === 'submitting' ? 'Đang lưu…' : 'Lưu thay đổi'}
                     </button>

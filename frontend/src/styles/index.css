@@ -48,26 +48,30 @@
      = đúng scale --space-4 ... --space-44 */
 }
 
-/* styles border-box full screen */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* styles border-box full screen
+   @layer base: CSS ko có layer thắng MỌI utility (kể cả * {padding: 0} thắng p-4)
+   -> reset + style global để trong base, utility mới ghi đè được */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  scrollbar-gutter: stable;
-}
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    scrollbar-gutter: stable;
+  }
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* styles design tokens */

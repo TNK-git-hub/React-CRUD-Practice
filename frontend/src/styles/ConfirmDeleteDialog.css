@@ -64,10 +64,6 @@
     margin-top: 8px;
 }
 
-.button-container.danger {
-    background: var(--focus-ring-error-color);
-}
-
 .confirm-dialog-actions button:disabled {
     opacity: var(--button-disabled-opacity);
     cursor: not-allowed;
