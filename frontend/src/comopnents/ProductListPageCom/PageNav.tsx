@@ -1,4 +1,3 @@
-import '../../styles/PageNav.css';
 import PageButton from './PageButton';
 import genPageArray from '../../utils/genPageArray'
 
@@ -12,17 +11,17 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
     const pageArray = genPageArray(totalPage, currentPage);
 
     return (
-        <div className="page-nav-div">
+        <div className="flex items-center gap-1.5">
             <>
                 <PageButton
 
                     disabled={currentPage === 1}
                     onClick={() => setPage(currentPage - 1)}
                 >
-                    <svg className='previous-arrow-svg' viewBox="0 0 24 24">
-                        <path className='previous-arrow-path'></path>
+                    <svg viewBox="0 0 24 24" className="size-3.5 stroke-ink" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M 15 5 l -6 7 l 6 7" />
                     </svg>
-                    <span className='page-nav-label'>Previous</span>
+                    <span className="max-xs:hidden">Previous</span>
                 </PageButton>
 
                 {/*  map các nút còn lại */}
@@ -30,13 +29,13 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
                 {
                     pageArray.map((item, index) =>
                         item === '...' ? (
-                            <span key={`dots-${index}`} className="page-dots">...</span>
+                            <span key={`dots-${index}`} className="select-none px-1">...</span>
                         ) : (
                             <PageButton
                                 key={item}
                                 children={item}
                                 onClick={() => setPage(item)}
-                                className={item === currentPage ? 'active' : ''}
+                                active={item === currentPage}
                             />
                         )
                     )
@@ -47,10 +46,10 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
                     onClick={() => setPage(currentPage + 1)}
                 >
                     {/* className chủ yếu để hiển thị mobile */}
-                    <span className='page-nav-label'>Next</span>
+                    <span className="max-xs:hidden">Next</span>
 
-                    <svg className='next-arrow-svg' viewBox="0 0 24 24">
-                        <path className='next-arrow-path'></path>
+                    <svg viewBox="0 0 24 24" className="size-3.5 stroke-ink" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M 9 5 l 6 7 l -6 7" />
                     </svg>
                 </PageButton>
             </>

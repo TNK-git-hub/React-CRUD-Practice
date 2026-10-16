@@ -4,11 +4,10 @@ import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
 import { isSortField, isSortOrder } from '../utils/sortParams';
+import { btn } from '../utils/buttonStyles';
 import type { ProductSummary, SortField, SortOrder } from '../types/product';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
 
-import '../styles/pages/ProductList.css';
-import '../styles/Button.css';
 
 import SearchForm from '../comopnents/ProductListPageCom/SearchForm';
 import ProList from '../comopnents/ProductListPageCom/ProList';
@@ -115,23 +114,23 @@ function ProductList() {
 
 
     return (
-        <main className="product-list-main">
-            <div className='pro-intro'>
-                <div className='pro-intro-first-div'>
+        <main className="flex grow flex-col gap-[22px] bg-bg px-12 pt-9 pb-10 max-xs:gap-3.5 max-xs:overflow-x-clip max-xs:px-4 max-xs:pt-[18px] max-xs:pb-5">
+            <div className="flex items-end justify-between">
+                <div className="flex flex-col gap-1.5">
                     <h1>Products</h1>
-                    <p className='vanish-in-mobile'>Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
+                    <p className="max-xs:hidden">Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
                 </div>
-                <div className='pro-intro-actions'>
-                    <span className='product-route-badge vanish-in-mobile'>/PRODUCTS</span>
-                    <Link to="/products/add" className='button-container add-product-btn'>
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                <div className="flex items-center gap-3.5">
+                    <span className="text-meta font-semibold tracking-[0.06em] text-muted uppercase max-xs:hidden">/PRODUCTS</span>
+                    <Link to="/products/add" className={`${btn.primary} gap-[7px] hover:brightness-108`}>
+                        <svg viewBox="0 0 24 24" className="size-[15px]" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" />
                         </svg>
                         Thêm sản phẩm
                     </Link>
                 </div>
             </div>
-            <div className='search-sorting-container'>
+            <div>
                 <SearchForm
                     key={query}
                     initialValue={query}
@@ -143,13 +142,14 @@ function ProductList() {
                 />
             </div>
             {status === 'success' &&
-                <span className='display-product-indexs mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+                <span className="hidden max-xs:block">Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
             }
             {renderContent()}
-            <div className={`display-page-div ${status === 'error' || (products.length === 0) ? 'vanish' : ''}`}>
-                <nav className={'display-page-nav' + (status === 'loading' ? ' shift-right' : '')}>
+            <div className={`mt-auto pt-1.5 ${status === 'error' || (products.length === 0) ? 'hidden' : ''}`}>
+                {/* loading: chưa có dòng "Hiển thị..." -> đẩy PageNav sang phải; mobile: căn giữa */}
+                <nav className={`flex items-center max-xs:mt-auto max-xs:gap-2 max-xs:pt-1 ${status === 'loading' ? 'justify-end' : 'justify-between max-xs:justify-center'}`}>
                     {status === 'success' &&
-                        <span className='display-product-indexs vanish-in-mobile'>Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
+                        <span className="max-xs:hidden">Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
                     }
                     <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
                 </nav>

@@ -200,7 +200,7 @@
         <mxCell id="vWnJGSs0cbLeqI2l_333-48" edge="1" parent="1" source="vWnJGSs0cbLeqI2l_333-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="vWnJGSs0cbLeqI2l_333-47">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="vWnJGSs0cbLeqI2l_333-43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Xoá thành công + hoàn toác" vertex="1">
+        <mxCell id="vWnJGSs0cbLeqI2l_333-43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="Xoá thành công + hoàn toác" vertex="1">
           <mxGeometry height="60" width="140" x="1450" y="268" as="geometry" />
         </mxCell>
         <mxCell id="vWnJGSs0cbLeqI2l_333-49" edge="1" parent="1" source="vWnJGSs0cbLeqI2l_333-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="vWnJGSs0cbLeqI2l_333-47">
@@ -209,7 +209,7 @@
         <mxCell id="vWnJGSs0cbLeqI2l_333-44" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Lỗi server khi lưu" vertex="1">
           <mxGeometry height="60" width="140" x="1450" y="342" as="geometry" />
         </mxCell>
-        <mxCell id="vWnJGSs0cbLeqI2l_333-47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="optimistic loading" vertex="1">
+        <mxCell id="vWnJGSs0cbLeqI2l_333-47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="optimistic loading" vertex="1">
           <mxGeometry height="60" width="140" x="1620" y="268" as="geometry" />
         </mxCell>
         <mxCell id="vWnJGSs0cbLeqI2l_333-51" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Rời khỏi trang khi form dirty&amp;nbsp;&lt;div&gt;&amp;nbsp;-chưa có&lt;/div&gt;" vertex="1">
@@ -344,10 +344,10 @@
         <mxCell id="WEGbizGDeDjbc7hUN-D_-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="jsx --&amp;gt; typescript" vertex="1">
           <mxGeometry height="60" width="120" x="1630" y="750" as="geometry" />
         </mxCell>
-        <mxCell id="WEGbizGDeDjbc7hUN-D_-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="tailwind css" vertex="1">
+        <mxCell id="WEGbizGDeDjbc7hUN-D_-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="tailwind css" vertex="1">
           <mxGeometry height="60" width="120" x="1630" y="905" as="geometry" />
         </mxCell>
-        <mxCell id="WEGbizGDeDjbc7hUN-D_-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="tanstack query" vertex="1">
+        <mxCell id="WEGbizGDeDjbc7hUN-D_-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="tanstack query" vertex="1">
           <mxGeometry height="60" width="120" x="1630" y="830" as="geometry" />
         </mxCell>
         <mxCell id="WEGbizGDeDjbc7hUN-D_-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="redis" vertex="1">

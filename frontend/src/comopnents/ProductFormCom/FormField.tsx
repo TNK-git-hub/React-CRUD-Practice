@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import "../../styles/ProductFormStyle/FormField.css";
 
 interface FormFieldProps {
     label: string;
@@ -12,14 +11,14 @@ interface FormFieldProps {
 
 function FormField({ label, htmlFor, required = false, hint, error, children }: FormFieldProps) {
     return (
-        <div className="form-field">
-            <label htmlFor={htmlFor} className="form-label">
+        <div>
+            <label htmlFor={htmlFor} className="mb-1.5 block font-sans text-[11.5px] font-semibold text-ink">
                 {label}
-                {required && <span className="form-required"> *</span>}
-                {hint && <span className="form-hint"> · {hint}</span>}
+                {required && <span className="text-danger"> *</span>}
+                {hint && <span className="font-normal"> · {hint}</span>}
             </label>
             {children}
-            {error && <p className="form-error" id={`${htmlFor}-error`}>{error}</p>}
+            {error && <p className="mt-[5px] text-[11.5px] font-medium text-danger" id={`${htmlFor}-error`}>{error}</p>}
         </div>
     )
 }

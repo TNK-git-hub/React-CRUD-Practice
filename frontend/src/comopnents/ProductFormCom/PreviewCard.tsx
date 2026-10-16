@@ -1,4 +1,3 @@
-import "../../styles/ProductFormStyle/PreviewCard.css";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 
 // giá trị lấy thẳng từ form -> string
@@ -17,19 +16,19 @@ function PreviewCard({ title, category, price, discountPercentage, thumbnail }: 
     const hasDiscount = discount > 0 && discount < 100;
 
     return (
-        <div className="preview-card">
-            <div className="preview-media">
+        <div className="overflow-hidden rounded-xl border border-line">
+            <div className="flex h-28 items-center justify-center bg-media font-display text-[38px] text-muted">
                 {thumbnail // IMG_Han
-                    ? <img src={thumbnail} alt="" /> // IMG_Han
+                    ? <img className="size-full object-cover" src={thumbnail} alt="" /> // IMG_Han
                     : (title.trim().charAt(0).toUpperCase() || '?')} {/* IMG_Han: no image -> first letter */}
             </div>
-            <div className="preview-body">
-                <div className="preview-category">{category || 'Danh mục'}</div>
-                <span className="preview-title">{title.trim() || 'Tên sản phẩm'}</span>
-                <div className="preview-price-row">
-                    <span className="preview-price">${priceNum.toFixed(2)}</span>
+            <div className="flex flex-col gap-[5px] px-3 pt-[11px] pb-[13px]">
+                <div className="text-[9.5px] font-bold tracking-[0.08em] text-muted uppercase">{category || 'Danh mục'}</div>
+                <span className="text-[13px] leading-[1.3] font-semibold text-ink">{title.trim() || 'Tên sản phẩm'}</span>
+                <div className="flex items-baseline gap-[7px] pt-0.5">
+                    <span className="text-[16px] font-bold text-ink">${priceNum.toFixed(2)}</span>
                     {hasDiscount && (
-                        <span className="preview-old-price">${getPreviousPrice(priceNum, discount)}</span>
+                        <span className="text-[11px] line-through">${getPreviousPrice(priceNum, discount)}</span>
                     )}
                 </div>
             </div>

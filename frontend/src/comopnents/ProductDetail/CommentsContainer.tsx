@@ -1,5 +1,3 @@
-import "../../styles/ProductDetailElementStyle/CommentsContainer.css"
-
 import ReviewCard from "./ReviewCard";
 import type { Review } from "../../types/product";
 
@@ -9,7 +7,7 @@ interface CommentsContainerProps {
 
 export default function CommentsContainer({ reviews }: CommentsContainerProps) {
     return (
-        <div className="comments-container">
+        <div className="flex gap-8">
             {reviews.map(review => (
                 <ReviewCard key={review.id} review={review} />
             ))}

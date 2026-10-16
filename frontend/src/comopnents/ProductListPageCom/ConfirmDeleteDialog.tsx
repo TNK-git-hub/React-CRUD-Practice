@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { MouseEvent } from "react";
-import "../../styles/ConfirmDeleteDialog.css";
+import { btn } from "../../utils/buttonStyles";
+import { dialog } from "../../utils/dialogStyles";
 import type { ProductSummary } from "../../types/product";
 
 interface ConfirmDeleteDialogProps {
@@ -26,31 +27,31 @@ function ConfirmDeleteDialog({ product, isDeleting, error, onCancel, onConfirm }
     };
 
     return (
-        <dialog ref={dialogRef} className="confirm-dialog"
+        <dialog ref={dialogRef} className={dialog.box}
             onCancel={(e) => { if (isDeleting) e.preventDefault(); }}   // Esc: chặn đóng khi đang xoá
             onClose={onCancel}
             onClick={handleBackdropClick}>
-            <div className="confirm-dialog-body">
-                <span className="confirm-dialog-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
+            <div className={dialog.body}>
+                <span className="flex size-[46px] items-center justify-center rounded-pill bg-danger-soft" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" className="size-[21px] stroke-danger" fill="none" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
                         <path d="M10.5 11v5.5M13.5 11v5.5" />
                     </svg>
                 </span>
-                <h2>Xoá sản phẩm này?</h2>
-                <p>
+                <h2 className={dialog.title}>Xoá sản phẩm này?</h2>
+                <p className={dialog.text}>
                     <strong>{product.title}</strong> #{product.id} sẽ bị gỡ khỏi danh sách.
                     Hành động này không thể hoàn tác.
                 </p>
-                <code>DELETE /products/{product.id}</code>
+                <code className="text-meta text-muted">DELETE /products/{product.id}</code>
 
-                {error && <p className="confirm-dialog-error" role="alert">Xoá thất bại: {error}</p>}
+                {error && <p className="rounded-control bg-danger-soft px-3 py-2.5 text-[13px] leading-[1.4] text-danger" role="alert">Xoá thất bại: {error}</p>}
 
-                <div className="confirm-dialog-actions">
-                    <button type="button" className="button-secondary" onClick={onCancel} disabled={isDeleting}>
+                <div className={dialog.actions}>
+                    <button type="button" className={btn.secondary} onClick={onCancel} disabled={isDeleting}>
                         Huỷ
                     </button>
-                    <button type="button" className="button-container danger" onClick={onConfirm} disabled={isDeleting}>
+                    <button type="button" className={btn.danger} onClick={onConfirm} disabled={isDeleting}>
                         {isDeleting ? "Đang xoá…" : "Xoá sản phẩm"}
                     </button>
                 </div>

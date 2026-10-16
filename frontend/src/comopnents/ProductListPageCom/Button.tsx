@@ -1,5 +1,4 @@
-import "../../styles/Button.css";
-import { useState } from "react";
+import { btn } from "../../utils/buttonStyles";
 
 interface ButtonProps {
     text: string;
@@ -9,7 +8,7 @@ interface ButtonProps {
 
 function Button({ text, type = "button", onClick }: ButtonProps) {
     return (
-        <button type={type} className="button-container" onClick={onClick}>
+        <button type={type} className={btn.primary} onClick={onClick}>
             {text}
         </button>
     )

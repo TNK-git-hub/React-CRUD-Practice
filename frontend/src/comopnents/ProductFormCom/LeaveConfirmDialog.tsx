@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent } from 'react';
-import '../../styles/ConfirmDeleteDialog.css';   // dùng lại giao diện dialog xoá
-import '../../styles/Button.css';
+import { btn } from '../../utils/buttonStyles';
+import { dialog } from '../../utils/dialogStyles';   // dùng lại giao diện dialog xoá
 
 // changeCount: số thay đổi chưa lưu
 // onStay: blocker.reset   onLeave: blocker.proceed
@@ -26,21 +26,21 @@ function LeaveConfirmDialog({ changeCount, onStay, onLeave }: LeaveConfirmDialog
     };
 
     return (
-        <dialog ref={dialogRef} className="confirm-dialog"
+        <dialog ref={dialogRef} className={dialog.box}
             onClose={onStay}                     // Esc -> close -> ở lại
             onClick={handleBackdropClick}>
-            <div className="confirm-dialog-body">
-                <h2>Bỏ các thay đổi?</h2>
-                <p>
+            <div className={dialog.body}>
+                <h2 className={dialog.title}>Bỏ các thay đổi?</h2>
+                <p className={dialog.text}>
                     Bạn có <strong>{changeCount}</strong> thay đổi chưa lưu.
                     Rời trang bây giờ sẽ mất các thay đổi đó.
                 </p>
-                <div className="confirm-dialog-actions">
-                    <button type="button" className="button-secondary" onClick={onStay}>
+                <div className={dialog.actions}>
+                    <button type="button" className={btn.secondary} onClick={onStay}>
                         Ở lại
                     </button>
                     {/* proceed -> blocker.state 'proceeding' -> dialog unmount (không bắn close -> không gọi onStay) */}
-                    <button type="button" className="button-container danger" onClick={onLeave}>
+                    <button type="button" className={btn.danger} onClick={onLeave}>
                         Rời trang
                     </button>
                 </div>

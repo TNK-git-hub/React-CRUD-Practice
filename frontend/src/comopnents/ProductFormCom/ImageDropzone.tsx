@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'; //IMG_Han
 import type { DragEvent } from 'react';
 import type { FormImage } from '../../utils/productForm';
-import "../../styles/ProductFormStyle/ImageDropzone.css";
 
 // images: [{ id, previewUrl }], onAdd(fileList) -> error messages, onRemove(id)
 interface ImageDropzoneProps {
@@ -32,26 +31,27 @@ function ImageDropzone({ images, onAdd, onRemove }: ImageDropzoneProps) { //IMG_
     return (
         <>
             {images.length > 0 && ( // IMG_Han
-                <ul className="dropzone-thumbs"> {/* IMG_Han */}
+                <ul className="mb-2.5 grid grid-cols-5 gap-1.5"> {/* IMG_Han */}
                     {images.map((img, i) => ( // IMG_Han
-                        <li key={img.id}> {/* IMG_Han */}
-                            <img src={img.previewUrl} alt="" /> {/* IMG_Han */}
-                            {i === 0 && <span className="thumb-badge">Ảnh bìa</span>} {/* IMG_Han: first image = thumbnail */}
-                            <button type="button" aria-label="Xoá ảnh" onClick={() => onRemove(img.id)}>×</button> {/* IMG_Han */}
+                        <li key={img.id} className="relative aspect-square overflow-hidden rounded-lg border border-line"> {/* IMG_Han */}
+                            <img className="size-full object-cover" src={img.previewUrl} alt="" /> {/* IMG_Han */}
+                            {i === 0 && <span className="absolute bottom-[3px] left-[3px] rounded-sm bg-accent px-[5px] py-px text-[9px] font-bold text-[#fff]">Ảnh bìa</span>} {/* IMG_Han: first image = thumbnail */}
+                            <button type="button" aria-label="Xoá ảnh"
+                                className="absolute top-[3px] right-[3px] size-[18px] cursor-pointer rounded-full bg-[rgba(0,0,0,.55)] text-[12px] leading-none text-[#fff]" onClick={() => onRemove(img.id)}>×</button> {/* IMG_Han */}
                         </li>
                     ))}
                 </ul>
             )}
-            <div className={isDragging ? 'image-dropzone is-dragging' : 'image-dropzone'} //IMG_Han
+            <div className={`flex flex-col items-center gap-[7px] rounded-[11px] border-[1.5px] border-dashed px-3.5 py-[18px] text-center ${isDragging ? 'border-accent bg-accent-soft' : 'border-line'}`} //IMG_Han: kéo file vào -> viền + nền accent
                 onDragEnter={handleDragEnter} onDragOver={handleDragOver} //IMG_Han
                 onDragLeave={handleDragLeave} onDrop={handleDrop}> {/* IMG_Han */}
-                <svg viewBox="0 0 24 24" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="size-[22px] stroke-muted" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M12 16V4.5M7.5 9L12 4.5 16.5 9" />
                     <path d="M4 16v2.5a1.5 1.5 0 001.5 1.5h13a1.5 1.5 0 001.5-1.5V16" />
                 </svg>
-                <span className="dropzone-title">Kéo ảnh vào đây</span>
-                <span className="dropzone-hint">PNG, JPG, WEBP · tối đa 2 MB</span>
-                <button type="button" className="dropzone-button"
+                <span className="text-[12.5px] font-semibold text-ink">Kéo ảnh vào đây</span>
+                <span className="text-[11px]">PNG, JPG, WEBP · tối đa 2 MB</span>
+                <button type="button" className="mt-[3px] h-8 cursor-pointer rounded-lg border border-line bg-surface px-[13px] font-sans text-[12.5px] font-semibold text-ink"
                     onClick={() => inputRef.current?.click()}>Chọn tệp</button> {/* IMG_Han: opens the file dialog */}
                 <input ref={inputRef} type="file" hidden multiple //IMG_Han
                     accept="image/png,image/jpeg,image/webp" //IMG_Han
@@ -59,7 +59,7 @@ function ImageDropzone({ images, onAdd, onRemove }: ImageDropzoneProps) { //IMG_
             </div>
 
             {errors.length > 0 && ( // IMG_Han
-                <ul className="dropzone-errors">{errors.map(err => <li key={err}>{err}</li>)}</ul> // IMG_Han
+                <ul className="mt-2 list-disc pl-4 text-[11px] text-danger">{errors.map(err => <li key={err}>{err}</li>)}</ul> // IMG_Han
             )}
 
         </>

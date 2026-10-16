@@ -1,23 +1,88 @@
-/* styles border-box full screen */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Tailwind v4: preflight (reset) + theme + utilities, đều nằm trong @layer
+   -> CSS cũ ko có layer luôn thắng utilities, migrate component nào thì xoá file .css của nó luôn */
+@import "tailwindcss";
+
+/* đưa design tokens ở :root vào Tailwind -> viết được bg-accent, text-muted, rounded-card...
+   inline: class dùng thẳng var(--accent) -> [data-theme="dark"] đổi biến là class đổi màu theo, ko cần dark: */
+@theme inline {
+  --color-*: initial; /* bỏ bảng màu mặc định (red-500, blue-600...) -> chỉ dùng màu của design */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-chip: var(--chip);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--bt-hover-color);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus-ring: var(--focus-ring-color);
+  --color-ok: var(--status-pill-text);
+  --color-ok-soft: var(--ok-bg);
+  --color-danger: var(--focus-ring-error-color);
+  --color-danger-soft: var(--danger-bg);
+  --color-media: var(--media-bg);
+  --color-skeleton: var(--skeleton);
+  --color-star-empty: var(--star-empty);
+
+  /* font-display (Instrument Serif) / font-sans (Public Sans, cũng là font mặc định) / font-mono */
+  --font-display: var(--typeface-dis-h1);
+  --font-sans: var(--typeface-body);
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* text-h1, text-h2, text-body... (chỉ size, ko kèm line-height) */
+  --text-h1: var(--fs-dis-h1);
+  --text-h2: var(--fs-h2);
+  --text-body: var(--fs-body);
+  --text-price: var(--fs-price);
+  --text-meta: var(--fs-cap-meta);
+  --text-overline: var(--fs-overline);
+
+  /* rounded-pill, rounded-panel, rounded-card, rounded-control, rounded-badge */
+  --radius-pill: var(--bd-pill);
+  --radius-panel: var(--bd-panel);
+  --radius-card: var(--bd-card);
+  --radius-control: var(--bd-control);
+  --radius-badge: var(--bd-badge);
+
+  /* max-xs: = màn hình <= 400px (thay cho @media (max-width: 400px) cũ)
+     max-xs nghĩa là "nhỏ hơn 401px" vì max-* của Tailwind ko tính đúng mốc */
+  --breakpoint-xs: 401px;
+
+  /* animate-skeleton: nhấp nháy nhẹ cho card đang loading (animate-pulse mặc định chậm + mờ hơn design) */
+  --animate-skeleton: skeleton-pulse 1.4s ease-in-out infinite;
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  /* spacing ko cần khai báo: mặc định 1 bước = 4px -> p-1 = 4px, p-3 = 12px, gap-6 = 24px, p-11 = 44px
+     = đúng scale 4 / 8 / 12 / 16 / 20 / 24 / 32 / 44 của design */
 }
 
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-  scrollbar-gutter: stable;
-}
+/* styles border-box full screen
+   @layer base: CSS ko có layer thắng MỌI utility (kể cả * {padding: 0} thắng p-4)
+   -> reset + style global để trong base, utility mới ghi đè được */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* styles design tokens */
@@ -46,8 +111,7 @@ body,
   /* màu nền pill trên badge của product detail */
   --accent-soft: #F7EAE1;
 
-  /* màu nền status pill tại product detail data chỗ "in stock" */
-  --status-pill: #e6f0e8;
+  /* chữ status pill tại product detail chỗ "in stock" (nền = --ok-bg) */
   --status-pill-text: #2f6b42;
 
   /* màu nền skeleton */
@@ -65,16 +129,7 @@ body,
     Georgia,
     serif;
   --typeface-body: "Public Sans", system-ui, sans-serif;
-  --typeface-card-title: "Public Sans",
-    system-ui,
-    sans-serif;
-  --typeface-price: "Public Sans",
-    system-ui,
-    sans-serif;
   --typeface-cap-meta: "Public Sans",
-    system-ui,
-    sans-serif;
-  --typeface-overline: "Public Sans",
     system-ui,
     sans-serif;
 
@@ -82,51 +137,15 @@ body,
   --fs-dis-h1: 42px;
   --fs-h2: 24px;
   --fs-body: 14px;
-  --fs-card-title: 14px;
   --fs-price: 18px;
   --fs-cap-meta: 12px;
   --fs-overline: 10px;
 
   /* Font weight */
-  --fw-price: 700;
-  --fw-card-title: 600;
   --fw-others: 400;
 
   /* Font color */
-  --fc-muted: var(--muted);
   --fc-text: var(--ink);
-
-  /*  Button input and state */
-  --button-default: var(--accent);
-  --button-hover: var(--bt-hover-color);
-  --button-secondary-border: var(--line);
-  --button-secondary-bg: var(--surface);
-  --button-secondary-text: var(--ink);
-  --button-disabled-opacity: 0.42;
-
-  --input-border-default: 1px solid var(--line);
-  --input-border-focus: 1px solid var(--accent);
-  --input-bshadow-focus: var(--focus-ring-color) 0px 0px 0px 3px;
-  --input-border-error: 1px solid var(--focus-ring-error-color);
-
-  --page-bt-default: var(--surface);
-  --page-bt-hover-color: var(--accent);
-  --page-bt-hover-bg: var(--focus-ring-color);
-  --page-bt-hover-border: var(--accent);
-  --page-bt-hover-text: var(--accent);
-
-  --page-bt-current: var(--accent);
-  --page-bt-disabled-opacity: 0.5;
-
-  /* ---- Spacing scale ---- */
-  --space-4: 4px;
-  --space-8: 8px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-32: 32px;
-  --space-44: 44px;
 
   /* ---- Border Radius ---- */
   --bd-pill: 999px;
@@ -134,57 +153,6 @@ body,
   --bd-card: 14px;
   --bd-control: 10px;
   --bd-badge: 7px;
-
-  /* typography */
-  .typo-h1 {
-    font-family: var(--typeface-dis-h1);
-    font-size: var(--fs-dis-h1);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-h2 {
-    font-family: var(--typeface-h2);
-    font-size: var(--fs-h2);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-body {
-    font-family: var(--typeface-body);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-card-title {
-    font-family: var(--typeface-card-title);
-    font-size: var(--fs-card-title);
-    font-weight: var(--fw-card-title);
-    color: var(--fc-text);
-  }
-
-  .typo-price {
-    font-family: var(--typeface-price);
-    font-size: var(--fs-price);
-    font-weight: var(--fw-price);
-    color: var(--fc-text);
-  }
-
-  .typo-cap-meta {
-    font-family: var(--typeface-cap-meta);
-    font-size: var(--fs-cap-meta);
-    font-weight: var(--fw-others);
-    color: var(--fc-muted);
-  }
-
-  .typo-overline {
-    font-family: var(--typeface-overline);
-    font-size: var(--fs-overline);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
 }
 
 /* Dark theme */
@@ -201,6 +169,5 @@ body,
   --danger-bg: #2C1B18;
 
   --accent-soft: #2a211b;
-  --status-pill: #1c2a21;
   --status-pill-text: #8fcfa3;
 }

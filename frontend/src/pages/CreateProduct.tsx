@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { uploadImage } from '../api/productsQuerParam';
 import { useCreateProduct } from '../hooks/useProductMutations';
 import { toError } from '../api/client';
+import { btn } from '../utils/buttonStyles';
+import { page } from '../utils/formPageStyles';
 
-import '../styles/pages/CreateProduct.css'
-import '../styles/Button.css';
 
 import ProductFormFields from '../comopnents/ProductFormCom/ProductFormFields';
 import { useProductForm } from '../hooks/useProductForm';
@@ -52,23 +52,23 @@ function CreateProduct() {
     };
 
     return (
-        <main className="create-product-main">
+        <main className={page.main}>
             {/* breadcrumb + API badge */}
-            <div className="create-top-row">
-                <nav aria-label="Breadcrumb" className="breadcrumb">
-                    <Link to="/">Products</Link>
+            <div className={page.topRow}>
+                <nav aria-label="Breadcrumb" className={page.breadcrumb}>
+                    <Link to="/" className={page.breadcrumbLink}>Products</Link>
                     <span>/</span>
-                    <span className="breadcrumb-current">Thêm sản phẩm</span>
+                    <span className={page.breadcrumbCurrent}>Thêm sản phẩm</span>
                 </nav>
-                <span className="api-badge">POST /products/add</span>
+                <span className={page.apiBadge}>POST /products/add</span>
             </div>
 
             {/* title + nút */}
-            <div className="create-title-row">
-                <h1>Thêm sản phẩm</h1>
-                <div className="create-actions">
-                    <Link to="/" className="button-secondary">Huỷ</Link>
-                    <button type="submit" form="create-product-form" className="button-container"
+            <div className={page.titleRow}>
+                <h1 className={page.title}>Thêm sản phẩm</h1>
+                <div className={page.actions}>
+                    <Link to="/" className={btn.secondary}>Huỷ</Link>
+                    <button type="submit" form="create-product-form" className={btn.primary}
                         disabled={status === 'submitting'}>
                         {status === 'submitting' ? 'Đang lưu…' : 'Lưu sản phẩm'}
                     </button>
@@ -76,9 +76,9 @@ function CreateProduct() {
             </div>
 
             {errorCount > 0 && (
-                <div role="alert" className="form-invalid-banner">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.2M12 16.3v.2" /></svg>
-                    <p>Không lưu được — còn <strong>{errorCount} field</strong> chưa hợp lệ.</p>
+                <div role="alert" className="flex items-center gap-2.5 rounded-[11px] bg-danger-soft px-[13px] py-[11px] text-[12.5px] leading-normal text-ink">
+                    <svg viewBox="0 0 24 24" className="size-[18px] shrink-0 stroke-danger" fill="none" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.2M12 16.3v.2" /></svg>
+                    <p className="text-[12.5px] text-ink">Không lưu được — còn <strong>{errorCount} field</strong> chưa hợp lệ.</p>
                 </div>
             )}
 
@@ -86,8 +86,8 @@ function CreateProduct() {
 
             <ProductFormFields formId="create-product-form" onSubmit={handleSubmit} formState={formState} />
 
-            <p className="create-footnote">
-                <span>*</span>  bắt buộc
+            <p className={page.footnote}>
+                <span className="text-danger">*</span>  bắt buộc
             </p>
 
             {blocker.state === 'blocked' && (
