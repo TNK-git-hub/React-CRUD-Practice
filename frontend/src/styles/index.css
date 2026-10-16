@@ -2,6 +2,52 @@
    -> CSS cũ ko có layer luôn thắng utilities, migrate component nào thì xoá file .css của nó luôn */
 @import "tailwindcss";
 
+/* đưa design tokens ở :root vào Tailwind -> viết được bg-accent, text-muted, rounded-card...
+   inline: class dùng thẳng var(--accent) -> [data-theme="dark"] đổi biến là class đổi màu theo, ko cần dark: */
+@theme inline {
+  --color-*: initial; /* bỏ bảng màu mặc định (red-500, blue-600...) -> chỉ dùng màu của design */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-chip: var(--chip);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--bt-hover-color);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus-ring: var(--focus-ring-color);
+  --color-ok: var(--status-pill-text);
+  --color-ok-soft: var(--ok-bg);
+  --color-danger: var(--focus-ring-error-color);
+  --color-danger-soft: var(--danger-bg);
+  --color-media: var(--media-bg);
+  --color-skeleton: var(--skeleton);
+  --color-star-empty: var(--star-empty);
+
+  /* font-display (Instrument Serif) / font-sans (Public Sans, cũng là font mặc định) / font-mono */
+  --font-display: var(--typeface-dis-h1);
+  --font-sans: var(--typeface-body);
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* text-h1, text-h2, text-body... (chỉ size, ko kèm line-height) */
+  --text-h1: var(--fs-dis-h1);
+  --text-h2: var(--fs-h2);
+  --text-body: var(--fs-body);
+  --text-price: var(--fs-price);
+  --text-meta: var(--fs-cap-meta);
+  --text-overline: var(--fs-overline);
+
+  /* rounded-pill, rounded-panel, rounded-card, rounded-control, rounded-badge */
+  --radius-pill: var(--bd-pill);
+  --radius-panel: var(--bd-panel);
+  --radius-card: var(--bd-card);
+  --radius-control: var(--bd-control);
+  --radius-badge: var(--bd-badge);
+
+  /* spacing ko cần khai báo: mặc định 1 bước = 4px -> p-1 = 4px, p-3 = 12px, gap-6 = 24px, p-11 = 44px
+     = đúng scale --space-4 ... --space-44 */
+}
+
 /* styles border-box full screen */
 * {
   margin: 0;
