@@ -8,11 +8,10 @@ import { useUpdateProduct, useDeleteProduct } from '../hooks/useProductMutations
 import { useToast } from '../hooks/useToast';
 import { toError } from '../api/client';
 import { btn } from '../utils/buttonStyles';
+import { page } from '../utils/formPageStyles';
 import FormSection from '../comopnents/ProductFormCom/FormSection';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
-import '../styles/pages/EditProduct.css';     // only the Edit-only bits
-import '../styles/pages/CreateProduct.css';
 
 import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import { useProductForm } from '../hooks/useProductForm';
@@ -28,7 +27,7 @@ function EditProduct() {
     const { product, status, error, retry } = useProduct(id!); // route /products/:id/edit -> luôn có id
     const navigate = useNavigate();
 
-    if (status === 'loading') return <main className="create-product-main"></main>; // tạm, giống ProductDetail
+    if (status === 'loading') return <main className={page.main}></main>; // tạm, giống ProductDetail
     if (status === 'error') return <StatusMessage
         icon="exclamation"
         title="Không tải được sản phẩm"
@@ -38,7 +37,7 @@ function EditProduct() {
     if (status === 'notfound') return <StatusMessage
         icon="404"
         title="Sản phẩm không tồn tại"
-        description={<>Server trả về <code className="four04-code-style">404</code> cho id này.</>}
+        description={<>Server trả về <code className="font-mono text-[11px]">404</code> cho id này.</>}
         action={() => navigate('/')} />;
 
     if (!product) return null; // status === 'success' -> luôn có product
@@ -111,27 +110,27 @@ function EditProductForm({ product }: { product: Product }) {
     return (
 
 
-        <main className="create-product-main">
+        <main className={page.main}>
             {/* breadcrumb + API badge */}
-            <div className="create-top-row">
-                <nav aria-label="Breadcrumb" className="breadcrumb">
-                    <Link to="/">Products</Link>
+            <div className={page.topRow}>
+                <nav aria-label="Breadcrumb" className={page.breadcrumb}>
+                    <Link to="/" className={page.breadcrumbLink}>Products</Link>
                     <span>/</span>
-                    <Link to={`/products/${product.id}`}>{product.title}</Link>
+                    <Link to={`/products/${product.id}`} className={page.breadcrumbLink}>{product.title}</Link>
                     <span>/</span>
-                    <span className="breadcrumb-current">Sửa</span>
+                    <span className={page.breadcrumbCurrent}>Sửa</span>
                 </nav>
-                <span className="api-badge">PATCH /products/{product.id}</span>
+                <span className={page.apiBadge}>PATCH /products/{product.id}</span>
             </div>
 
             {/* title + nút */}
-            <div className="create-title-row">
-                <div className="edit-title-group">
-                    <h1>Sửa sản phẩm</h1>
-                    <span className="id-chip">#{product.id}</span>
+            <div className={page.titleRow}>
+                <div className="flex items-center gap-[11px]">
+                    <h1 className={page.title}>Sửa sản phẩm</h1>
+                    <span className="rounded-badge bg-chip px-[9px] py-1 font-mono text-meta text-muted">#{product.id}</span>
                 </div>
-                <div className="create-actions">
-                    {changeCount > 0 && <span className="dirty-count">{changeCount} thay đổi chưa lưu</span>}
+                <div className={page.actions}>
+                    {changeCount > 0 && <span className="text-[12.5px] font-semibold text-accent">{changeCount} thay đổi chưa lưu</span>}
                     <Link to={`/products/${product.id}`} className={btn.secondary}>Huỷ</Link>
                     <button type="submit" form="edit-product-form" className={btn.primary}
                         disabled={status === 'submitting' || changeCount === 0}>
@@ -150,10 +149,11 @@ function EditProductForm({ product }: { product: Product }) {
             >
                 {/* children -> rendered at the bottom of the left column */}
                 <FormSection title="Xoá sản phẩm" variant="danger">
-                    <div className="danger-row">
-                        <p>Gỡ sản phẩm này khỏi danh sách. Không thể hoàn tác sau khi xác nhận — luôn hỏi lại bằng dialog trước khi gọi <code>DELETE</code>.</p>
-                        <button type="button" className="button-danger-outline" onClick={() => setIsConfirmOpen(true)}>
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <div className="flex items-center justify-between gap-5 max-[601px]:flex-col max-[601px]:items-start"> {/* mobile: chữ trên, nút dưới */}
+                        <p className="max-w-[460px] text-[13px] leading-[1.55] text-muted">Gỡ sản phẩm này khỏi danh sách. Không thể hoàn tác sau khi xác nhận — luôn hỏi lại bằng dialog trước khi gọi <code className="text-[11.5px]">DELETE</code>.</p>
+                        <button type="button" onClick={() => setIsConfirmOpen(true)}
+                            className="inline-flex h-[38px] shrink-0 cursor-pointer items-center gap-[7px] rounded-control border border-danger bg-transparent px-[17px] font-sans text-[13.5px] leading-normal font-semibold text-danger hover:bg-danger-soft">
+                            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
                                 <path d="M10.5 11v5.5M13.5 11v5.5" />
                             </svg>
@@ -163,8 +163,8 @@ function EditProductForm({ product }: { product: Product }) {
                 </FormSection>
             </ProductFormFields>
 
-            <p className="create-footnote">
-                <span>*</span> bắt buộc. Nút lưu chỉ bật khi có thay đổi.
+            <p className={page.footnote}>
+                <span className="text-danger">*</span> bắt buộc. Nút lưu chỉ bật khi có thay đổi.
             </p>
 
             {isConfirmOpen && (
