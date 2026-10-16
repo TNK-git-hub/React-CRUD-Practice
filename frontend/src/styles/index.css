@@ -1,3 +1,7 @@
+/* Tailwind v4: preflight (reset) + theme + utilities, đều nằm trong @layer
+   -> CSS cũ ko có layer luôn thắng utilities, migrate component nào thì xoá file .css của nó luôn */
+@import "tailwindcss";
+
 /* styles border-box full screen */
 * {
   margin: 0;
