@@ -1,31 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query';
 import { getProductById } from '../api/productsQuerParam';
+import { productKeys } from '../api/queryKeys';
 import type { ApiError } from '../api/client';
 import type { Product } from '../types/product';
 
 export type ProductStatus = 'loading' | 'success' | 'error' | 'notfound';
 
 export function useProduct(id: number | string) {
-    const [product, setProduct] = useState<Product | null>(null);
-    const [status, setStatus] = useState<ProductStatus>("loading");
-    const [error, setError] = useState<ApiError | null>(null);
-    const [retryCount, setRetryCount] = useState(0); // đổi số này → useEffect chạy lại
+    // TanStack Query lo state data / loading / error + cache theo key, ko cần useState + useEffect nữa
+    const { data, status, error, refetch } = useQuery<Product, ApiError>({
+        queryKey: productKeys.detail(id),
+        queryFn: () => getProductById(id),
+    });
 
-    useEffect(() => {
-        setStatus('loading');
-        getProductById(id)
-            .then(data => {
-                setProduct(data);
-                setStatus('success');
-            })
-            .catch((err) => {
-                setError(err);
-                setStatus(err.status === 404 ? 'notfound' : 'error');
-            })
-    }, [id, retryCount])
+    // đổi status của TanStack ('pending' | 'error' | 'success') về status cũ -> page ko phải sửa
+    let productStatus: ProductStatus = 'success';
+    if (status === 'pending') productStatus = 'loading';
+    else if (status === 'error') productStatus = error?.status === 404 ? 'notfound' : 'error';
 
-    // retry (thử lại): gọi lại API, truyền id nhưng tăng retryCount để useEffect chạy
-    const retry = () => setRetryCount((prev) => prev + 1);
+    // retry (thử lại): gọi lại API
+    const retry = () => { refetch(); };
 
-    return { product, status, error, retry }
+    return { product: data ?? null, status: productStatus, error, retry }
 }
