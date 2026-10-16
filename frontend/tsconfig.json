@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+
+    // tạm thời trong lúc migrate: cho phép file .js/.jsx và vẫn check type của chúng
+    "allowJs": true,
+    "checkJs": true,
+    "strict": false
+  },
+  "include": ["src"]
+}
