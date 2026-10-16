@@ -56,7 +56,7 @@
   }
 
   /* spacing ko cần khai báo: mặc định 1 bước = 4px -> p-1 = 4px, p-3 = 12px, gap-6 = 24px, p-11 = 44px
-     = đúng scale --space-4 ... --space-44 */
+     = đúng scale 4 / 8 / 12 / 16 / 20 / 24 / 32 / 44 của design */
 }
 
 /* styles border-box full screen
@@ -111,8 +111,7 @@
   /* màu nền pill trên badge của product detail */
   --accent-soft: #F7EAE1;
 
-  /* màu nền status pill tại product detail data chỗ "in stock" */
-  --status-pill: #e6f0e8;
+  /* chữ status pill tại product detail chỗ "in stock" (nền = --ok-bg) */
   --status-pill-text: #2f6b42;
 
   /* màu nền skeleton */
@@ -130,16 +129,7 @@
     Georgia,
     serif;
   --typeface-body: "Public Sans", system-ui, sans-serif;
-  --typeface-card-title: "Public Sans",
-    system-ui,
-    sans-serif;
-  --typeface-price: "Public Sans",
-    system-ui,
-    sans-serif;
   --typeface-cap-meta: "Public Sans",
-    system-ui,
-    sans-serif;
-  --typeface-overline: "Public Sans",
     system-ui,
     sans-serif;
 
@@ -147,51 +137,15 @@
   --fs-dis-h1: 42px;
   --fs-h2: 24px;
   --fs-body: 14px;
-  --fs-card-title: 14px;
   --fs-price: 18px;
   --fs-cap-meta: 12px;
   --fs-overline: 10px;
 
   /* Font weight */
-  --fw-price: 700;
-  --fw-card-title: 600;
   --fw-others: 400;
 
   /* Font color */
-  --fc-muted: var(--muted);
   --fc-text: var(--ink);
-
-  /*  Button input and state */
-  --button-default: var(--accent);
-  --button-hover: var(--bt-hover-color);
-  --button-secondary-border: var(--line);
-  --button-secondary-bg: var(--surface);
-  --button-secondary-text: var(--ink);
-  --button-disabled-opacity: 0.42;
-
-  --input-border-default: 1px solid var(--line);
-  --input-border-focus: 1px solid var(--accent);
-  --input-bshadow-focus: var(--focus-ring-color) 0px 0px 0px 3px;
-  --input-border-error: 1px solid var(--focus-ring-error-color);
-
-  --page-bt-default: var(--surface);
-  --page-bt-hover-color: var(--accent);
-  --page-bt-hover-bg: var(--focus-ring-color);
-  --page-bt-hover-border: var(--accent);
-  --page-bt-hover-text: var(--accent);
-
-  --page-bt-current: var(--accent);
-  --page-bt-disabled-opacity: 0.5;
-
-  /* ---- Spacing scale ---- */
-  --space-4: 4px;
-  --space-8: 8px;
-  --space-12: 12px;
-  --space-16: 16px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-32: 32px;
-  --space-44: 44px;
 
   /* ---- Border Radius ---- */
   --bd-pill: 999px;
@@ -199,57 +153,6 @@
   --bd-card: 14px;
   --bd-control: 10px;
   --bd-badge: 7px;
-
-  /* typography */
-  .typo-h1 {
-    font-family: var(--typeface-dis-h1);
-    font-size: var(--fs-dis-h1);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-h2 {
-    font-family: var(--typeface-h2);
-    font-size: var(--fs-h2);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-body {
-    font-family: var(--typeface-body);
-    font-size: var(--fs-body);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
-  .typo-card-title {
-    font-family: var(--typeface-card-title);
-    font-size: var(--fs-card-title);
-    font-weight: var(--fw-card-title);
-    color: var(--fc-text);
-  }
-
-  .typo-price {
-    font-family: var(--typeface-price);
-    font-size: var(--fs-price);
-    font-weight: var(--fw-price);
-    color: var(--fc-text);
-  }
-
-  .typo-cap-meta {
-    font-family: var(--typeface-cap-meta);
-    font-size: var(--fs-cap-meta);
-    font-weight: var(--fw-others);
-    color: var(--fc-muted);
-  }
-
-  .typo-overline {
-    font-family: var(--typeface-overline);
-    font-size: var(--fs-overline);
-    font-weight: var(--fw-others);
-    color: var(--fc-text);
-  }
-
 }
 
 /* Dark theme */
@@ -266,6 +169,5 @@
   --danger-bg: #2C1B18;
 
   --accent-soft: #2a211b;
-  --status-pill: #1c2a21;
   --status-pill-text: #8fcfa3;
 }
