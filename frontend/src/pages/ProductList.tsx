@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
-import { deleteProduct } from '../api/productsQuerParam';
+import { useDeleteProduct } from '../hooks/useProductMutations';
 import { toError } from '../api/client';
 import { isSortField, isSortOrder } from '../utils/sortParams';
 import type { ProductSummary, SortField, SortOrder } from '../types/product';
@@ -53,26 +53,26 @@ function ProductList() {
     const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
 
     const [productToDelete, setProductToDelete] = useState<ProductSummary | null>(null); // null = dialog đóng
-    const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const deleteMutation = useDeleteProduct();
 
-    const handleConfirmDelete = async () => {
+    // optimistic: đóng dialog + card biến mất ngay, request chạy nền
+    const handleConfirmDelete = () => {
         if (!productToDelete) return;               // dialog chỉ mở khi đã chọn sản phẩm
-        setIsDeleting(true); // track to disable delete button
+        const product = productToDelete;
         setDeleteError(null);
-        try {
-            await deleteProduct(productToDelete.id);   // DELETE /products/:id (send request)
+        setProductToDelete(null);                   // đóng dialog luôn, ko chờ server
 
-            // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước -- sau khi xoá set lại page về trang 1
-            if (products.length === 1 && page > 1) setPage(page - 1);
-            else retry();                              // tải lại trang hiện tại từ server
+        // xoá card cuối cùng của 1 trang (không phải trang 1) → lùi về trang trước
+        if (products.length === 1 && page > 1) setPage(page - 1);
 
-            setProductToDelete(null);                  // đóng dialog
-        } catch (err) {
-            setDeleteError(toError(err).message);               // giữ dialog mở, hiện lỗi
-        } finally {
-            setIsDeleting(false);
-        }
+        deleteMutation.mutate(product.id, {         // DELETE /products/:id (send request)
+            // lỗi: card đã được trả lại (rollback trong hook) -> mở lại dialog kèm lỗi để thử lại
+            onError: (err) => {
+                setProductToDelete(product);
+                setDeleteError(toError(err).message);
+            },
+        });
     };
 
 
@@ -164,7 +164,7 @@ function ProductList() {
             {productToDelete && (
                 <ConfirmDeleteDialog
                     product={productToDelete}
-                    isDeleting={isDeleting}
+                    isDeleting={false} // optimistic: dialog đóng ngay, ko có trạng thái đang xoá
                     error={deleteError}
                     onCancel={() => { setProductToDelete(null); setDeleteError(null); }}
                     onConfirm={handleConfirmDelete}
