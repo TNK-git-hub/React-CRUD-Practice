@@ -1,7 +1,12 @@
 import { useState } from "react";
 import "../../styles/ProductDetailElementStyle/ImageGallery.css";
 
-export default function ImageGallery({ images = [], title }) {
+interface ImageGalleryProps {
+    images?: string[];
+    title: string;
+}
+
+export default function ImageGallery({ images = [], title }: ImageGalleryProps) {
     const [selectedIndex, setSelectedIndex] = useState(0); // track xem bấm image nào
 
     return (

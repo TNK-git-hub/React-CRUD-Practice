@@ -1,6 +1,10 @@
 import "../../styles/ProductDetailElementStyle/TagsContainer.css"
 
-export default function TagsContainer({ tags }) {
+interface TagsContainerProps {
+    tags: string[];
+}
+
+export default function TagsContainer({ tags }: TagsContainerProps) {
     return (
         <>
             <div className="tags-div-container">

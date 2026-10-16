@@ -1,8 +1,9 @@
 import "../../styles/ProductDetailElementStyle/ReviewCard.css"
+import type { Review } from "../../types/product";
 
 const SVG_STAR_PATH = "M 12 2 l 3.09 6.26 L 22 9.27 l -5 4.87 l 1.18 6.88 L 12 17.77 l -6.18 3.25 L 7 14.14 l -5 -4.87 l 6.91 -1.01 L 12 2 Z";
 
-function formatDate(iso) { // chuẩn iso
+function formatDate(iso: string) { // chuẩn iso
     return new Date(iso).toLocaleDateString("en-GB", {
         day: "numeric",
         month: "short",
@@ -10,7 +11,11 @@ function formatDate(iso) { // chuẩn iso
     });
 }
 
-export default function ReviewCard({ review }) {
+interface ReviewCardProps {
+    review: Review;
+}
+
+export default function ReviewCard({ review }: ReviewCardProps) {
     return (
         <article className="review-card-container">
             <div className="name-and-rating-container">

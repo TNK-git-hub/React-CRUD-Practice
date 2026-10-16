@@ -1,5 +1,15 @@
 import "../../styles/ProductDetailElementStyle/SpecGrid.css"
-import SpecDiv from "./SpecDiv.jsx";
+import SpecDiv from "./SpecDiv";
+import type { Dimensions } from "../../types/product";
+
+interface SpecGridProps {
+    weight: number | null;
+    dimensions: Dimensions;
+    warrantyInformation: string | null;
+    shippingInformation: string | null;
+    returnPolicy: string | null;
+    barcode: string | null;
+}
 
 export default function SpecGrid({
     weight,
@@ -7,7 +17,7 @@ export default function SpecGrid({
     warrantyInformation,
     shippingInformation,
     returnPolicy,
-    barcode }) {
+    barcode }: SpecGridProps) {
     return (
         <div className="spec-grid-container">
             <SpecDiv name="Weight" value={weight} unit={"g"} />

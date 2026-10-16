@@ -1,6 +1,13 @@
 import "../../styles/ProductDetailElementStyle/SpecDiv.css"
+import type { Dimensions } from "../../types/product";
 
-export default function SpecDiv({ name, value, unit = "" }) {
+interface SpecDivProps {
+    name: string;
+    value: string | number | Dimensions | null | undefined;
+    unit?: string;
+}
+
+export default function SpecDiv({ name, value, unit = "" }: SpecDivProps) {
     const isEmpty = value === null || value === undefined;
     const isObject = !isEmpty && typeof value === "object"; // typeof null === "object", so check isEmpty first
 
