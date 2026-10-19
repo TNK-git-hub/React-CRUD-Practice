@@ -6,6 +6,10 @@ export const MAX_IMAGES = 5; //IMG_Han
 const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']; //IMG_Han
 const MAX_SIZE = 2 * 1024 * 1024; //IMG_Han: 2 MB, same as the backend
 
+// crypto.randomUUID only exists on https/localhost -> on http://<ec2-ip> it's undefined, so fall back
+// only used as React keys -> doesn't need to be cryptographically strong
+const makeId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
 // initialImageUrls: image urls already in the db (Edit only), e.g. dummyjson cdn or /uploads/...
 export function useProductForm(initialForm: ProductFormValues, initialTags: string[] = [], initialImageUrls: string[] = []) {
     const [form, setForm] = useState(initialForm);
@@ -14,7 +18,7 @@ export function useProductForm(initialForm: ProductFormValues, initialTags: stri
     const [errors, setErrors] = useState<FormErrors>({});   // { fieldId: 'message' }
     // new image: { id, file, previewUrl: blob: } | old image: { id, url, previewUrl: url } (no file -> nothing to upload)
     const [images, setImages] = useState<FormImage[]>(() => initialImageUrls.map(url => ({ //IMG_Edit: runs on the first render only
-        id: crypto.randomUUID(), //IMG_Edit: not the url -> the same url twice still gets 2 keys
+        id: makeId(), //IMG_Edit: not the url -> the same url twice still gets 2 keys
         url, //IMG_Edit
         previewUrl: url, //IMG_Edit: a normal http url works in <img src> too
     })));
@@ -58,7 +62,7 @@ export function useProductForm(initialForm: ProductFormValues, initialTags: stri
         if (valid.length > room) errs.push(`Tối đa ${MAX_IMAGES} ảnh`); //IMG_Han
 
         const added = valid.slice(0, room).map(file => ({ //IMG_Han: keep only as many as fit
-            id: crypto.randomUUID(), //IMG_Han: stable key for React lists
+            id: makeId(), //IMG_Han: stable key for React lists
             file, //IMG_Han: kept for the upload (Phase B)
             previewUrl: URL.createObjectURL(file), //IMG_Han: blob: URL for <img src>
         })); //IMG_Han
