@@ -26,6 +26,8 @@ COPY --from=prod-deps /app/backend/node_modules backend/node_modules
 COPY --from=build /app/backend/dist backend/dist
 COPY backend/package.json backend/
 WORKDIR /app/backend
+# Tạo sẵn thư mục uploads cho user node (volume mới mount vào sẽ lấy quyền này), ko thì multer bị EACCES
+RUN mkdir uploads && chown node:node uploads
 USER node
 EXPOSE 3000
 CMD ["node", "dist/main"]
