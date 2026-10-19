@@ -42,6 +42,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-crud_practice}
       REDIS_URL: redis://redis:6379
+      # url ảnh trả về = /api/uploads/xxx -> nginx proxy /api/ sang backend
+      PUBLIC_URL: /api
+    # Ảnh upload lưu ra volume, rebuild/tạo lại container ko bị mất
+    volumes:
+      - uploads:/app/backend/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,3 +67,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:
