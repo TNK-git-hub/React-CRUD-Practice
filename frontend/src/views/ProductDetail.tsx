@@ -1,4 +1,6 @@
-import { Link, useParams, useNavigate } from "react-router-dom";
+'use client';
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { useProduct } from "../hooks/useProduct";
 import ImageGallery from "../comopnents/ProductDetail/ImageGallery";
 import StarRating from "../comopnents/ProductDetail/StarRating";
@@ -12,11 +14,11 @@ import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 const main = "flex grow flex-col gap-[22px] bg-bg px-12 pt-[26px] pb-9";
 
 function ProductDetail() {
-    const { id } = useParams();
-    const { product, status, error, retry } = useProduct(id!) // route /products/:id -> luôn có id
-    const navigate = useNavigate(); // hook của react router dom, trả về một hàm navigate chuyển trang theo tham số đường dẫn 
+    const { id } = useParams<{ id: string }>(); // route /products/[id] -> luôn có id
+    const { product, status, error, retry } = useProduct(id)
+    const router = useRouter(); // hook của next/navigation, router.push(path) để chuyển trang
 
-    const returnToProductPage = () => navigate("/");
+    const returnToProductPage = () => router.push("/");
 
     if (status === "loading") return <main className={main}></main>;// tạm
     if (status === "error") return <StatusMessage // TH: lỗi API
@@ -36,7 +38,7 @@ function ProductDetail() {
         <main className={main}>
             <div className="flex items-center justify-between">
                 <nav className="flex items-center gap-2 text-[12.5px] text-muted">
-                    <Link to="/" className="font-sans font-semibold text-accent no-underline">Products</Link>
+                    <Link href="/" className="font-sans font-semibold text-accent no-underline">Products</Link>
                     <span>/</span>
                     <span>{product.category}</span>
                     <span>/</span>

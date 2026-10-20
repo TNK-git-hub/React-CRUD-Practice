@@ -33,10 +33,9 @@ export default function PageNav({ totalPage, currentPage, setPage }: PageNavProp
                         ) : (
                             <PageButton
                                 key={item}
-                                children={item}
                                 onClick={() => setPage(item)}
                                 active={item === currentPage}
-                            />
+                            >{item}</PageButton>
                         )
                     )
                 }

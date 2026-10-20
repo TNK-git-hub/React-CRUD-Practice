@@ -1,8 +1,11 @@
+'use client';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { uploadImage } from '../api/productsQuerParam';
 import { useCreateProduct } from '../hooks/useProductMutations';
+import { useToast } from '../hooks/useToast';
 import { toError } from '../api/client';
 import { btn } from '../utils/buttonStyles';
 import { page } from '../utils/formPageStyles';
@@ -17,7 +20,8 @@ import SaveErrorBanner from '../comopnents/ProductFormCom/SaveErrorBanner';
 
 function CreateProduct() {
     const formState = useProductForm(EMPTY_FORM);
-    const navigate = useNavigate();
+    const router = useRouter();
+    const showToast = useToast();
     const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
     const [error, setError] = useState<Error | null>(null);
     const createMutation = useCreateProduct(); // thành công -> cache detail + list cập nhật
@@ -25,7 +29,7 @@ function CreateProduct() {
 
     // dirty = khác form rỗng ban đầu (lúc đầu: không tag, không ảnh)
     const changeCount = getChangedFields(formState.form, EMPTY_FORM, formState.tags, [], formState.images, []).size;
-    // tắt khi đang lưu -> navigate() lúc tạo thành công không bị chặn
+    // tắt khi đang lưu -> router.push() lúc tạo thành công không bị chặn
     const blocker = useUnsavedChangesGuard(changeCount > 0 && status !== 'submitting');
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -43,8 +47,9 @@ function CreateProduct() {
             const uploaded = await Promise.all(formState.images.map(img => uploadImage(img.file!))); //IMG_FeToBe: all uploads at once -> [{ url }, ...]
             const urls = uploaded.map(r => r.url); //IMG_FeToBe  (file!: trang Create chỉ có ảnh mới -> luôn có file)
             const created = await createMutation.mutateAsync(buildPayload(formState.form, formState.withPendingTag(), urls)); //IMG_FeToBe: urls -> product images
-            // gửi toast kèm điều hướng: trang này unmount ngay, RootLayout sẽ hiện toast
-            navigate(`/products/${created.id}`, { state: { toast: { kind: 'created', title: created.title, id: created.id } } });
+            // toast nằm ở Providers (ko unmount khi đổi trang) -> hiện toast rồi chuyển trang, toast vẫn còn
+            showToast({ kind: 'created', title: created.title, id: created.id });
+            router.push(`/products/${created.id}`);
         } catch (err) {
             setError(toError(err));                          // giữ cả object: banner cần .status
             setStatus('error');
@@ -56,7 +61,7 @@ function CreateProduct() {
             {/* breadcrumb + API badge */}
             <div className={page.topRow}>
                 <nav aria-label="Breadcrumb" className={page.breadcrumb}>
-                    <Link to="/" className={page.breadcrumbLink}>Products</Link>
+                    <Link href="/" className={page.breadcrumbLink}>Products</Link>
                     <span>/</span>
                     <span className={page.breadcrumbCurrent}>Thêm sản phẩm</span>
                 </nav>
@@ -67,7 +72,7 @@ function CreateProduct() {
             <div className={page.titleRow}>
                 <h1 className={page.title}>Thêm sản phẩm</h1>
                 <div className={page.actions}>
-                    <Link to="/" className={btn.secondary}>Huỷ</Link>
+                    <Link href="/" className={btn.secondary}>Huỷ</Link>
                     <button type="submit" form="create-product-form" className={btn.primary}
                         disabled={status === 'submitting'}>
                         {status === 'submitting' ? 'Đang lưu…' : 'Lưu sản phẩm'}

@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+'use client';
+import { useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
@@ -16,8 +18,8 @@ import PageNav from '../comopnents/ProductListPageCom/PageNav';
 import ConfirmDeleteDialog from '../comopnents/ProductListPageCom/ConfirmDeleteDialog';
 
 function ProductList() {
-    const [searchParams] = useSearchParams(); //----{cần đọc thêm }
-    const navigate = useNavigate();
+    const searchParams = useSearchParams(); //----{cần đọc thêm }
+    const router = useRouter();
 
     // URL là "nơi lưu state": đọc giá trị từ URL, không lưu trong useState nữa ----{cần đọc thêm }
     const query = searchParams.get('q') ?? '';
@@ -46,7 +48,7 @@ function ProductList() {
 
         const path = ordered.get('q') ? '/products/search' : '/'; // (4) có từ khoá → trang search
         const qs = ordered.toString();                           // (5) tự encode: "iphone 15" → "iphone+15"
-        navigate(qs ? `${path}?${qs}` : path);                   // (6) đổi URL
+        router.push(qs ? `${path}?${qs}` : path, { scroll: false }); // (6) đổi URL, giữ vị trí cuộn như cũ
     };
     // useProducts values
     const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
@@ -122,7 +124,7 @@ function ProductList() {
                 </div>
                 <div className="flex items-center gap-3.5">
                     <span className="text-meta font-semibold tracking-[0.06em] text-muted uppercase max-xs:hidden">/PRODUCTS</span>
-                    <Link to="/products/add" className={`${btn.primary} gap-[7px] hover:brightness-108`}>
+                    <Link href="/products/add" className={`${btn.primary} gap-[7px] hover:brightness-108`}>
                         <svg viewBox="0 0 24 24" className="size-[15px]" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" />
                         </svg>

@@ -1,7 +1,9 @@
+'use client';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Product } from '../types/product';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import { useProduct } from '../hooks/useProduct';
 import { uploadImage } from '../api/productsQuerParam';
 import { useUpdateProduct, useDeleteProduct } from '../hooks/useProductMutations';
@@ -23,9 +25,9 @@ import SaveErrorBanner from '../comopnents/ProductFormCom/SaveErrorBanner';
 
 // ---- parent: load the product, handle loading / error / 404 (check if the product exist yet)----
 function EditProduct() {
-    const { id } = useParams();
-    const { product, status, error, retry } = useProduct(id!); // route /products/:id/edit -> luôn có id
-    const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>(); // route /products/[id]/edit -> luôn có id
+    const { product, status, error, retry } = useProduct(id);
+    const router = useRouter();
 
     if (status === 'loading') return <main className={page.main}></main>; // tạm, giống ProductDetail
     if (status === 'error') return <StatusMessage
@@ -38,7 +40,7 @@ function EditProduct() {
         icon="404"
         title="Sản phẩm không tồn tại"
         description={<>Server trả về <code className="font-mono text-[11px]">404</code> cho id này.</>}
-        action={() => navigate('/')} />;
+        action={() => router.push('/')} />;
 
     if (!product) return null; // status === 'success' -> luôn có product
 
@@ -61,7 +63,7 @@ function EditProductForm({ product }: { product: Product }) {
     const changedFields = getChangedFields(form, initialForm, tags, initialTags, images, initialImageUrls); // hàm thay đổi fields khi ngừoi dùng nhập
     const changeCount = changedFields.size;
 
-    const navigate = useNavigate();
+    const router = useRouter();
     const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
     const [error, setError] = useState<Error | null>(null);
     const updateMutation = useUpdateProduct(); // thành công -> cache detail = response mới
@@ -78,7 +80,7 @@ function EditProductForm({ product }: { product: Product }) {
                 ? await Promise.all(images.map(img => img.file ? uploadImage(img.file).then(r => r.url) : img.url))
                 : undefined;
             await updateMutation.mutateAsync({ id: product.id, data: { ...buildPayload(form, formState.withPendingTag()), images: urls } });
-            navigate(`/products/${product.id}`);
+            router.push(`/products/${product.id}`);
         } catch (err) {
             setError(toError(err));                          // giữ cả object: banner cần .status
             setStatus('error');                     // form data stays: nothing resets it
@@ -90,7 +92,7 @@ function EditProductForm({ product }: { product: Product }) {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    // chặn rời trang khi form dirty; tắt khi đang lưu / xoá -> navigate() lúc thành công không bị chặn
+    // chặn rời trang khi form dirty; tắt khi đang lưu / xoá -> router.push() lúc thành công không bị chặn
     const blocker = useUnsavedChangesGuard(changeCount > 0 && status !== 'submitting' && !isDeleting);
 
     const handleConfirmDelete = async () => {
@@ -98,7 +100,7 @@ function EditProductForm({ product }: { product: Product }) {
         setDeleteError(null);
         try {
             await deleteMutation.mutateAsync({ id: product.id, title: product.title }); // ko undo: chờ xong mới rời trang, lỗi thì vẫn ở lại form
-            navigate('/');                       // the product is gone -> back to the list
+            router.push('/');                    // the product is gone -> back to the list
             showToast({ kind: 'deleted', title: product.title });
         } catch (err) {
             setDeleteError(toError(err).message);
@@ -114,9 +116,9 @@ function EditProductForm({ product }: { product: Product }) {
             {/* breadcrumb + API badge */}
             <div className={page.topRow}>
                 <nav aria-label="Breadcrumb" className={page.breadcrumb}>
-                    <Link to="/" className={page.breadcrumbLink}>Products</Link>
+                    <Link href="/" className={page.breadcrumbLink}>Products</Link>
                     <span>/</span>
-                    <Link to={`/products/${product.id}`} className={page.breadcrumbLink}>{product.title}</Link>
+                    <Link href={`/products/${product.id}`} className={page.breadcrumbLink}>{product.title}</Link>
                     <span>/</span>
                     <span className={page.breadcrumbCurrent}>Sửa</span>
                 </nav>
@@ -131,7 +133,7 @@ function EditProductForm({ product }: { product: Product }) {
                 </div>
                 <div className={page.actions}>
                     {changeCount > 0 && <span className="text-[12.5px] font-semibold text-accent">{changeCount} thay đổi chưa lưu</span>}
-                    <Link to={`/products/${product.id}`} className={btn.secondary}>Huỷ</Link>
+                    <Link href={`/products/${product.id}`} className={btn.secondary}>Huỷ</Link>
                     <button type="submit" form="edit-product-form" className={btn.primary}
                         disabled={status === 'submitting' || changeCount === 0}>
                         {status === 'submitting' ? 'Đang lưu…' : 'Lưu thay đổi'}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import type { ProductSummary } from "../../types/product";
 
 interface CardMenuProps {
@@ -53,7 +53,7 @@ function CardMenu({ product, onDelete }: CardMenuProps) {
 
             {isOpen && (
                 <div role="menu" className="absolute top-10 right-2 z-5 flex w-[146px] flex-col gap-0.5 rounded-control border border-line bg-surface p-[5px] shadow-[0_10px_26px_rgba(0,0,0,0.18)]">
-                    <Link role="menuitem" to={`/products/${product.id}/edit`} className={`${item} text-ink hover:bg-chip`}>
+                    <Link role="menuitem" href={`/products/${product.id}/edit`} className={`${item} text-ink hover:bg-chip`}>
                         <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L20 8l-4-4L4 16z" /><path d="M14.5 5.5L18.5 9.5" /></svg>
                         Sửa
                     </Link>
