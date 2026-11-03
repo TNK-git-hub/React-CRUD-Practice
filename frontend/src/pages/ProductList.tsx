@@ -122,7 +122,7 @@ function ProductList() {
                 </div>
                 <div className="flex items-center gap-3.5">
                     <span className="text-meta font-semibold tracking-[0.06em] text-muted uppercase max-xs:hidden">/PRODUCTS</span>
-                    <Link to="/products/add" className={`${btn.primary} gap-[7px] hover:brightness-108`}>
+                    <Link to="/products/add" className={`${btn.danger} gap-[7px] hover:brightness-108`}>
                         <svg viewBox="0 0 24 24" className="size-[15px]" fill="none" stroke="currentColor" strokeWidth={2.3} strokeLinecap="round" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" />
                         </svg>
