@@ -28,7 +28,7 @@ function SearchForm({ initialValue = "", onSearch, sortBy, order, handleSort, is
     return (
         <form onSubmit={handleSubmit}>
             <SearchBar value={searchInput} onChange={setSearchInput} isError={isError} />
-            <Button text="Search" type="submit" />
+            <Button text="Search" type="submit" className="bg-yellow-400! text-gray-900! hover:bg-yellow-300!" />
             <div style={{ flexGrow: 1 }}></div>
             <Sorting sortBy={sortBy} order={order} onChange={handleSort} />
         </form>
