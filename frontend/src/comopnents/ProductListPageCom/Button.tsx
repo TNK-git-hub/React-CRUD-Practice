@@ -4,11 +4,12 @@ interface ButtonProps {
     text: string;
     type?: "button" | "submit" | "reset";
     onClick?: () => void;
+    className?: string;
 }
 
-function Button({ text, type = "button", onClick }: ButtonProps) {
+function Button({ text, type = "button", onClick, className }: ButtonProps) {
     return (
-        <button type={type} className={btn.primary} onClick={onClick}>
+        <button type={type} className={className ? `${btn.primary} ${className}` : btn.primary} onClick={onClick}>
             {text}
         </button>
     )
