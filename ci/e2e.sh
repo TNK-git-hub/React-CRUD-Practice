@@ -49,8 +49,10 @@ echo "==> Building backend and frontend (frontend -> API http://localhost:3100)"
 pnpm --filter backend build
 VITE_API_URL=http://localhost:3100 pnpm --filter frontend build
 
-echo "==> Chromium for Playwright"
-pnpm --filter frontend exec playwright install chromium
+if [[ "${GITHUB_ACTIONS:-}" != true ]]; then
+  echo "==> Chromium for Playwright"
+  pnpm --filter frontend exec playwright install chromium
+fi   # CI: Chromium is baked into the E2E runner image (read-only /ms-playwright)
 
 echo "==> Running Playwright"
 pnpm --filter frontend exec playwright test "$@"
