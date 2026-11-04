@@ -24,7 +24,7 @@ data:
     strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
 
     # Files the agent must not touch: changing them could make CI pass without fixing the code.
-    PROTECTED='^(ci/|package\.json$|pnpm-lock\.yaml$|frontend/package\.json$|backend/package\.json$|frontend/eslint\.config\.js$|frontend/tsconfig[^/]*\.json$|backend/tsconfig[^/]*\.json$)'
+    PROTECTED='^(\.github/|ci/|package\.json$|pnpm-lock\.yaml$|frontend/package\.json$|backend/package\.json$|frontend/eslint\.config\.js$|frontend/tsconfig[^/]*\.json$|backend/tsconfig[^/]*\.json$)'
     ALLOWED_TOOLS=("Read" "Edit" "Glob" "Grep" "Bash(pnpm ci:local)")
 
     log "Trusting corporate CA (MWG TLS inspection)"
