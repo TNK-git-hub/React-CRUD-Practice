@@ -27,6 +27,23 @@ The kind node also trusts the MWG CA (`/usr/local/share/ca-certificates/mwg-ca.c
 `claude-demo-control-plane` container); without it the node cannot pull images from `ghcr.io`.
 If the cluster is recreated, redo that step and the ConfigMaps.
 
+## Two scale sets
+
+| Scale set | Job | Pod | Values |
+|---|---|---|---|
+| `arc-runner-set` | `ci` (lint, typecheck, unit tests, build) | runner only | `arc-runner-values.yaml` |
+| `arc-runner-e2e` | `e2e` (Playwright) | runner with Chromium + Postgres + Redis native sidecars on localhost | `arc-runner-e2e-values.yaml` |
+
+The E2E runner image is built locally and loaded into kind (no registry):
+
+```bash
+docker build -t arc-runner-e2e:2.338.2-pw1.64.1 --build-context certs=<folder with mwg-ca.crt> dummy/k8s/runner-e2e
+kind load docker-image arc-runner-e2e:2.338.2-pw1.64.1 --name claude-demo
+```
+When `@playwright/test` is upgraded, bump `PLAYWRIGHT_VERSION` in the Dockerfile and the image tag in both places.
+Results: the `e2e` check on the PR, a table in the run's **Summary**, and the `playwright-report` artifact
+(download, then `npx playwright show-report <folder>`).
+
 ## Everyday commands
 
 ```bash

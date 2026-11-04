@@ -1,0 +1,97 @@
+# Helm values for the E2E runner scale set (ARC) in the kind cluster: job "e2e" in .github/workflows/ci.yml.
+# Install / upgrade:
+#   helm upgrade --install arc-runner-e2e --namespace arc-runners --version 0.15.1 \
+#     -f dummy/k8s/arc-runner-e2e-values.yaml \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+#
+# Each job gets ONE fresh pod with three containers, all deleted when the job ends:
+#   runner    - custom image with Playwright's Chromium (dummy/k8s/runner-e2e/Dockerfile, loaded with `kind load`)
+#   postgres  - native sidecar, empty database "crud_e2e", listens on localhost only, data in memory-backed emptyDir
+#   redis     - native sidecar, listens on localhost only, no persistence
+# Same security choices as arc-runner-values.yaml: this repo only, ephemeral, no privileged / hostPath / sudo,
+# all capabilities dropped, no Kubernetes token. The DB password below is a throwaway that only works inside the pod.
+githubConfigUrl: https://github.com/TNK-git-hub/React-CRUD-Practice
+githubConfigSecret: arc-github-pat
+runnerScaleSetName: arc-runner-e2e        # = "runs-on:" of the e2e job
+minRunners: 0
+maxRunners: 2
+
+githubServerTLS:
+  certificateFrom:
+    configMapKeyRef:
+      name: mwg-ca
+      key: ca.crt
+  runnerMountPath: /usr/local/share/ca-certificates/
+
+template:
+  spec:
+    automountServiceAccountToken: false
+    initContainers:
+      - name: postgres
+        image: postgres:16
+        restartPolicy: Always               # native sidecar: starts first, stops when the runner is done
+        args: ["-c", "listen_addresses=localhost", "-c", "fsync=off"]
+        env:
+          - { name: POSTGRES_USER, value: postgres }
+          - { name: POSTGRES_PASSWORD, value: e2e-throwaway }
+          - { name: POSTGRES_DB, value: crud_e2e }
+          - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+        volumeMounts:
+          - { name: pgdata, mountPath: /var/lib/postgresql/data }
+        startupProbe:
+          exec: { command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "crud_e2e"] }
+          periodSeconds: 2
+          failureThreshold: 30
+        resources:
+          requests: { cpu: 100m, memory: 128Mi }
+          limits: { cpu: 500m, memory: 512Mi }
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities: { drop: [ALL] }
+      - name: redis
+        image: redis:8-alpine
+        restartPolicy: Always
+        args: ["--bind", "127.0.0.1", "--save", "", "--appendonly", "no"]
+        startupProbe:
+          exec: { command: ["redis-cli", "-h", "127.0.0.1", "ping"] }
+          periodSeconds: 2
+          failureThreshold: 15
+        resources:
+          requests: { cpu: 50m, memory: 32Mi }
+          limits: { cpu: 200m, memory: 128Mi }
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities: { drop: [ALL] }
+    containers:
+      - name: runner
+        image: arc-runner-e2e:2.338.2-pw1.64.1
+        imagePullPolicy: Never              # loaded into kind with `kind load docker-image`
+        command: ["/home/runner/run.sh"]
+        env:
+          - { name: RUNNER_UPDATE_CA_CERTS, value: "0" }
+          - { name: SSL_CERT_FILE, value: /etc/ca-bundle/ca-certificates.crt }
+          - { name: GIT_SSL_CAINFO, value: /etc/ca-bundle/ca-certificates.crt }
+        volumeMounts:
+          - { name: ca-bundle, mountPath: /etc/ca-bundle, readOnly: true }
+          - { name: dshm, mountPath: /dev/shm }   # Chromium needs more than the default 64 MB
+        resources:
+          requests: { cpu: "1", memory: 1Gi }
+          limits: { cpu: "2", memory: 4Gi }
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities: { drop: [ALL] }
+    volumes:
+      - name: ca-bundle
+        configMap: { name: ca-bundle }
+      - name: pgdata
+        emptyDir: { medium: Memory, sizeLimit: 512Mi }
+      - name: dshm
+        emptyDir: { medium: Memory, sizeLimit: 1Gi }

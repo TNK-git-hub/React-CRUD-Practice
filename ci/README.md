@@ -26,6 +26,18 @@ backend:   build
 - Every job still runs, so one run shows all the jobs that are broken.
 - At the end it prints a ✅ / ❌ / ⏭ summary of every step.
 
+## End-to-end tests
+
+```bash
+pnpm e2e             # Playwright + Chromium against Postgres + Redis + backend (:3100) + frontend (:4173)
+pnpm e2e -g E2E-4    # only one test
+```
+
+[`e2e.sh`](e2e.sh) uses its own database `crud_e2e` and Redis db 1, reset on every run, so dev data is never touched.
+Locally it reuses a Postgres / Redis that is already running (e.g. `brew services`), otherwise it starts docker compose.
+`pnpm ci:local` does **not** run E2E (the agent pods have no database); on PRs the `e2e` job runs it on the E2E runner.
+Spec: [`docs/specs/e2e-product-crud.spec.md`](../docs/specs/e2e-product-crud.spec.md).
+
 ## Leftover build folders
 
 `frontend/.next/` (an old build folder) is ignored by both git (`.gitignore`) and ESLint (`globalIgnores` in
