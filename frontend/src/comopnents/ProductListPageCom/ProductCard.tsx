@@ -1,4 +1,3 @@
-import defaultProductImg from "../../assets/website-7-kh-2026-08-12t163109-795.jpg";
 import { Link } from "react-router-dom";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 import CardMenu from "./CardMenu";

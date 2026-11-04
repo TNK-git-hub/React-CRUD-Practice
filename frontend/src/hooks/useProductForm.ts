@@ -29,7 +29,8 @@ export function useProductForm(initialForm: ProductFormValues, initialTags: stri
         // the user is fixing this field -> remove its error
         setErrors(prev => {
             if (!prev[id]) return prev;              // no error -> same object, no re-render
-            const { [id]: _, ...rest } = prev;
+            const rest = { ...prev };
+            delete rest[id];
             return rest;
         });
     };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';

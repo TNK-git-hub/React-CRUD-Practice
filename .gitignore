@@ -43,3 +43,11 @@ backend/uploads/
 *.tfstate.*
 *.tfvars
 crash.log
+
+# Build output / generated files
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Agent job logs (saved locally while k8s jobs run)
+dummy/k8s/logs/

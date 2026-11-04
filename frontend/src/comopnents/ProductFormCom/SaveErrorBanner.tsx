@@ -7,7 +7,7 @@ interface SaveErrorBannerProps {
     formId: string;
 }
 
-function SaveErrorBanner({ error, formId }: SaveErrorBannerProps) {
+function SaveErrorBanner({ formId }: SaveErrorBannerProps) {
     const ref = useRef<HTMLDivElement>(null);
 
     // design: hiện banner ở đầu form và cuộn tới nó (mount lại mỗi lần lỗi -> cuộn lại)

@@ -4,7 +4,7 @@ interface StockStatusProps {
     minimum: number;
 }
 
-export default function StockStatus({ status, stock, minimum }: StockStatusProps) {
+export default function StockStatus({ stock, minimum }: StockStatusProps) {
     return (
         <div className="flex items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 rounded-pill bg-ok-soft px-[11px] py-[5px] text-[12.5px] font-semibold text-ok">
