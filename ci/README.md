@@ -15,7 +15,7 @@ pnpm ci:local        # from the repo root (or: bash ci/local-ci.sh)
 
 ```
 setup:     install (pnpm install --frozen-lockfile)
-frontend:  lint → typecheck → build
+frontend:  lint → typecheck → test (Vitest) → build
 backend:   build
                                     all ✅ → "CI PASSED", exit 0
                                     any ❌ → "CI FAILED", exit 1

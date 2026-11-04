@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local CI: the only CI for this repo. Runs lint, typecheck and builds directly on the machine (no cloud).
+# Local CI: the only CI for this repo. Runs lint, typecheck, unit tests and builds directly on the machine (no cloud).
 # Each job stops at its first failing step, but every job still runs.
 # Exit code is 0 only if every job passes.
 #
@@ -44,6 +44,7 @@ fi
 JOB_FAILED=0
 run_step frontend "Lint"      pnpm --filter frontend lint
 run_step frontend "Typecheck" pnpm --filter frontend typecheck
+run_step frontend "Test"      pnpm --filter frontend test --reporter=verbose
 run_step frontend "Build"     pnpm --filter frontend build
 
 JOB_FAILED=0
