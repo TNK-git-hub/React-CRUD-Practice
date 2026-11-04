@@ -117,7 +117,7 @@ function ProductList() {
         <main className="flex grow flex-col gap-[22px] bg-bg px-12 pt-9 pb-10 max-xs:gap-3.5 max-xs:overflow-x-clip max-xs:px-4 max-xs:pt-[18px] max-xs:pb-5">
             <div className="flex items-end justify-between">
                 <div className="flex flex-col gap-1.5">
-                    <h1>Products</h1>
+                    <h1>Product</h1>
                     <p className="max-xs:hidden">Dữ liệu từ <code>GET /products?limit=10&skip=0</code></p>
                 </div>
                 <div className="flex items-center gap-3.5">
