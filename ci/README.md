@@ -1,8 +1,9 @@
 # Local CI for React-CRUD-Practice
 
 CI (Continuous Integration) checks every change automatically, so broken code never reaches a PR.
-This repo has **no cloud CI**: the only pipeline is [`local-ci.sh`](local-ci.sh), run on your machine
-or inside the agent pods before they open a PR.
+The pipeline is [`local-ci.sh`](local-ci.sh). It runs in three places, never on GitHub's cloud machines:
+your machine, the agent pods (before they open a PR), and the self-hosted runner in the local kind
+cluster for every PR (`.github/workflows/ci.yml`, see [`dummy/k8s/RUNNER.md`](../dummy/k8s/RUNNER.md)).
 
 ```bash
 pnpm ci:local        # from the repo root (or: bash ci/local-ci.sh)
@@ -33,4 +34,4 @@ backend:   build
 ## Agents
 
 The agent jobs run `pnpm ci:local` after changing the code, and only open a PR if it passes.
-See `dummy/k8s/README.md` (local only, not committed).
+See [`dummy/k8s/README.md`](../dummy/k8s/README.md).

@@ -9,6 +9,7 @@ through an OAuth token, not the API.
 | `live-pod.yaml` | Long-lived pod, run `claude -p` in it with `kubectl exec` |
 | `agent-jobs.yaml` | **3 parallel agents**: each changes the code → runs local CI → opens a PR only if CI passes |
 | `run-jobs.sh` | Starts chosen jobs from `agent-jobs.yaml` and saves their logs to `logs/` |
+| `arc-runner-values.yaml` | Self-hosted GitHub Actions runner (ARC) for PR checks, see `RUNNER.md` |
 
 ## Agent jobs: change code → local CI → PR
 
@@ -22,7 +23,8 @@ clone BASE_BRANCH (local-ci) → pnpm install
      pnpm ci:local ✅ → commit, push, gh pr create (CI summary in the PR body)
 ```
 
-CI runs only inside the pod (`ci/local-ci.sh`); there is no cloud CI. PRs target `local-ci`.
+PRs target `local-ci`. Each PR is then checked again by the self-hosted runner in the kind cluster
+(`ci` check on the PR, see [`RUNNER.md`](RUNNER.md)). Nothing runs on GitHub's cloud machines.
 
 ## Run
 
