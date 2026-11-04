@@ -1,0 +1,43 @@
+# Long-lived pod with Claude Code installed. It never exits (sleep infinity),
+# so you can call `claude -p "..."` inside it as many times as you like via kubectl exec.
+#
+# Auth (Claude subscription): Secret "agent-secrets" with key CLAUDE_CODE_OAUTH_TOKEN
+# (from `claude setup-token`). The secret is optional so the pod can start without it,
+# but env vars are only read at pod start: create the secret first, or recreate the pod after.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: claude-live
+  labels:
+    app: claude-live
+spec:
+  restartPolicy: Always
+  containers:
+    - name: claude
+      image: node:22-bookworm
+      workingDir: /work
+      envFrom:
+        - secretRef:
+            name: agent-secrets
+            optional: true
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+          mkdir -p /work && cd /work
+          echo "Tôi đang sống ở trong pod $(hostname) (tạo lúc $(date -u +%Y-%m-%dT%H:%M:%SZ))." > testingPod.md
+          npm install -g @anthropic-ai/claude-code >/dev/null
+          claude --version
+          touch /tmp/ready
+          echo "Ready. Pod stays alive; use kubectl exec to run claude -p."
+          exec sleep infinity
+      readinessProbe:
+        exec:
+          command: ["test", "-f", "/tmp/ready"]
+        periodSeconds: 5

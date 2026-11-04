@@ -1,0 +1,74 @@
+# One-shot pod: runs a headless Claude Code session that adds dummy/hello.md
+# to this repo and opens a PR against main.
+#
+# Requires a Secret named "agent-secrets" with:
+#   CLAUDE_CODE_OAUTH_TOKEN  - from `claude setup-token` (Claude Pro/Max subscription)
+#   GH_TOKEN                 - GitHub token with Contents + Pull requests write access
+# Do NOT add ANTHROPIC_API_KEY: it would take precedence over the subscription token.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: claude-agent
+  labels:
+    app: claude-agent
+spec:
+  restartPolicy: Never
+  containers:
+    - name: agent
+      image: node:22-bookworm
+      envFrom:
+        - secretRef:
+            name: agent-secrets
+      env:
+        - name: REPO
+          value: TNK-git-hub/React-CRUD-Practice
+        - name: BASE_BRANCH
+          value: main
+        - name: GH_VERSION
+          value: "2.62.0"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -euo pipefail
+
+          echo "==> Installing gh CLI and Claude Code"
+          ARCH="$(dpkg --print-architecture)"
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+            | tar -xz -C /tmp
+          mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh
+          npm install -g @anthropic-ai/claude-code >/dev/null
+          claude --version
+
+          echo "==> Cloning ${REPO}"
+          git clone --depth 1 --branch "${BASE_BRANCH}" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
+          cd /work
+          git config user.name "claude-k8s-agent"
+          git config user.email "claude-k8s-agent@users.noreply.github.com"
+          BRANCH="agent/dummy-$(date +%s)"
+          git checkout -b "${BRANCH}"
+
+          echo "==> Running Claude Code agent"
+          NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          claude -p "Create the file dummy/hello.md. It should contain a short markdown note saying it was created by a Claude Code agent running inside a Kubernetes pod, and include this timestamp: ${NOW}. Do not modify any other files." \
+            --allowedTools "Write" "Read"
+
+          test -f dummy/hello.md || { echo "Agent did not create dummy/hello.md"; exit 1; }
+          echo "----- dummy/hello.md -----"; cat dummy/hello.md; echo "--------------------------"
+
+          echo "==> Committing and opening PR"
+          git add dummy/hello.md
+          git commit -m "Add dummy file created by k8s Claude agent"
+          git push -u origin "${BRANCH}"
+          gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH}" \
+            --title "Add dummy file from k8s Claude agent" \
+            --body "Test PR: \`dummy/hello.md\` was created by a headless Claude Code session running in a Kubernetes pod (\`dummy/k8s/agent-pod.yaml\`).
+
+          🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+          echo "==> Done"

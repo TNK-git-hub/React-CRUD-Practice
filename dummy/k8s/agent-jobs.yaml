@@ -1,0 +1,268 @@
+# 3 one-shot Jobs, each runs its own headless Claude Code session that:
+#   1. makes one small UI change,
+#   2. runs the local CI (pnpm ci:local) and fixes what it reports,
+#   3. passes a final CI gate run by this script (not by the agent),
+#   4. only then opens a PR against BASE_BRANCH.
+# If CI still fails after MAX_FIX_ATTEMPTS fix rounds, no PR is opened and the Job fails.
+# Pods are deleted automatically as soon as they finish (ttlSecondsAfterFinished: 0),
+# so save logs while they run (see README.md).
+#
+# Requires a Secret named "agent-secrets" (see README.md):
+#   CLAUDE_CODE_OAUTH_TOKEN  - from `claude setup-token`
+#   GH_TOKEN                 - GitHub token with Contents + Pull requests write access
+# and a ConfigMap "mwg-ca" with the corporate root CA (the office proxy re-signs HTTPS for github.com):
+#   security find-certificate -c MWG -p /Library/Keychains/System.keychain > mwg-ca.pem
+#   kubectl create configmap mwg-ca --from-file=mwg-ca.crt=mwg-ca.pem
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-script
+data:
+  run.sh: |
+    set -euo pipefail
+    log() { echo "==> [${JOB_NAME}] $*"; }
+    strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
+
+    # Files the agent must not touch: changing them could make CI pass without fixing the code.
+    PROTECTED='^(ci/|package\.json$|pnpm-lock\.yaml$|frontend/package\.json$|backend/package\.json$|frontend/eslint\.config\.js$|frontend/tsconfig[^/]*\.json$|backend/tsconfig[^/]*\.json$)'
+    ALLOWED_TOOLS=("Read" "Edit" "Glob" "Grep" "Bash(pnpm ci:local)")
+
+    log "Trusting corporate CA (MWG TLS inspection)"
+    update-ca-certificates >/dev/null
+
+    log "Installing gh CLI, Claude Code and pnpm"
+    ARCH="$(dpkg --print-architecture)"
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" | tar -xz -C /tmp
+    mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh
+    npm install -g @anthropic-ai/claude-code >/dev/null
+    corepack enable
+    export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+    claude --version
+
+    log "Cloning ${REPO} (${BASE_BRANCH})"
+    git clone --depth 1 --branch "${BASE_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
+    cd /work
+    git config user.name "claude-k8s-agent"
+    git config user.email "claude-k8s-agent@users.noreply.github.com"
+    BRANCH="${BRANCH_PREFIX}-$(date +%s)"
+    git checkout -b "${BRANCH}"
+    pnpm --version   # corepack downloads the pnpm version from package.json "packageManager"
+
+    log "Installing project dependencies"
+    pnpm install --frozen-lockfile
+
+    log "Running Claude Code agent"
+    claude -p "${TASK} Make the smallest possible change. Do not modify any other files or other usages.
+    When you are done, run \`pnpm ci:local\` (exactly that command) and fix anything it reports, until it prints CI PASSED.
+    Do not change CI, lint, TypeScript or package configuration, and do not add eslint-disable or @ts-ignore comments." \
+      --allowedTools "${ALLOWED_TOOLS[@]}"
+
+    test -n "$(git status --porcelain)" || { log "Agent made no changes, NOT opening a PR"; exit 1; }
+
+    # Final CI gate: run by this script, so the agent can't skip or fake it.
+    attempt=0
+    while true; do
+      log "CI gate: checking protected files"
+      CHANGED="$(git status --porcelain | awk '{print $NF}')"
+      if echo "${CHANGED}" | grep -Eq "${PROTECTED}"; then
+        log "Agent changed protected files, NOT opening a PR:"
+        echo "${CHANGED}" | grep -E "${PROTECTED}"
+        exit 1
+      fi
+
+      log "CI gate: running pnpm ci:local (round $((attempt + 1)))"
+      if pnpm ci:local 2>&1 | tee /tmp/ci.log; then
+        log "CI gate: PASSED"
+        break
+      fi
+      if (( attempt >= MAX_FIX_ATTEMPTS )); then
+        log "CI still failing after ${MAX_FIX_ATTEMPTS} fix attempts, NOT opening a PR"
+        exit 1
+      fi
+      attempt=$((attempt + 1))
+      log "CI gate: FAILED, asking Claude to fix it (attempt ${attempt}/${MAX_FIX_ATTEMPTS})"
+      claude -p "The local CI failed after a change made for this task: ${TASK}
+    Fix the problems with the smallest possible change. Do not modify unrelated files.
+    Do not change CI, lint, TypeScript or package configuration, and do not add eslint-disable or @ts-ignore comments.
+    After fixing, run \`pnpm ci:local\` again to confirm it prints CI PASSED.
+    CI output (last 150 lines):
+    $(tail -n 150 /tmp/ci.log | strip_colors)" \
+        --allowedTools "${ALLOWED_TOOLS[@]}"
+    done
+
+    CI_SUMMARY="$(strip_colors < /tmp/ci.log | sed -n '/== Summary ==/,$p')"
+    git diff --stat
+    git --no-pager diff
+
+    log "Committing and opening PR"
+    git add -A
+    git commit -m "${PR_TITLE}"
+    git push -u origin "${BRANCH}"
+    gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH}" \
+      --title "${PR_TITLE}" \
+      --body "${TASK}
+
+    ## Local CI (run in the agent pod before opening this PR)
+    \`\`\`
+    ${CI_SUMMARY}
+    \`\`\`
+    Fix rounds needed after the first agent run: ${attempt}
+
+    Change made by a headless Claude Code session running in Kubernetes Job \`${JOB_NAME}\` (\`dummy/k8s/agent-jobs.yaml\`).
+
+    🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+    log "Done"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-search-yellow
+spec:
+  ttlSecondsAfterFinished: 0
+  backoffLimit: 0
+  activeDeadlineSeconds: 1500
+  template:
+    metadata:
+      labels:
+        app: claude-agent-job
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: script
+          configMap:
+            name: agent-script
+        - name: mwg-ca
+          configMap:
+            name: mwg-ca
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          command: ["bash", "/scripts/run.sh"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: mwg-ca
+              mountPath: /usr/local/share/ca-certificates/mwg
+          envFrom:
+            - secretRef:
+                name: agent-secrets
+          env:
+            - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
+            - { name: BASE_BRANCH, value: local-ci }
+            - { name: GH_VERSION, value: "2.62.0" }
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }
+            - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
+            - { name: JOB_NAME, value: agent-search-yellow }
+            - { name: BRANCH_PREFIX, value: agent/search-btn-yellow }
+            - { name: PR_TITLE, value: "Make the Search button on ProductList yellow" }
+            - name: TASK
+              value: >-
+                In frontend/src/comopnents/ProductListPageCom/SearchForm.tsx, the Search
+                button (<Button text="Search" type="submit" />) must get a yellow background
+                (e.g. Tailwind bg-yellow-400 with dark text). Button is a shared component:
+                change only the Search button, not every Button (add an optional className
+                prop to Button if needed).
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 3Gi }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-add-red
+spec:
+  ttlSecondsAfterFinished: 0
+  backoffLimit: 0
+  activeDeadlineSeconds: 1500
+  template:
+    metadata:
+      labels:
+        app: claude-agent-job
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: script
+          configMap:
+            name: agent-script
+        - name: mwg-ca
+          configMap:
+            name: mwg-ca
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          command: ["bash", "/scripts/run.sh"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: mwg-ca
+              mountPath: /usr/local/share/ca-certificates/mwg
+          envFrom:
+            - secretRef:
+                name: agent-secrets
+          env:
+            - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
+            - { name: BASE_BRANCH, value: local-ci }
+            - { name: GH_VERSION, value: "2.62.0" }
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }
+            - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
+            - { name: JOB_NAME, value: agent-add-red }
+            - { name: BRANCH_PREFIX, value: agent/add-btn-red }
+            - { name: PR_TITLE, value: "Make the Add product button red" }
+            - name: TASK
+              value: >-
+                In frontend/src/pages/ProductList.tsx, the "Thêm sản phẩm" Link button
+                currently uses btn.primary. Make only this button red (e.g. use btn.danger
+                or Tailwind red background classes). Do not change btn.primary itself.
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 3Gi }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-title-product
+spec:
+  ttlSecondsAfterFinished: 0
+  backoffLimit: 0
+  activeDeadlineSeconds: 1500
+  template:
+    metadata:
+      labels:
+        app: claude-agent-job
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: script
+          configMap:
+            name: agent-script
+        - name: mwg-ca
+          configMap:
+            name: mwg-ca
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          command: ["bash", "/scripts/run.sh"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: mwg-ca
+              mountPath: /usr/local/share/ca-certificates/mwg
+          envFrom:
+            - secretRef:
+                name: agent-secrets
+          env:
+            - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
+            - { name: BASE_BRANCH, value: local-ci }
+            - { name: GH_VERSION, value: "2.62.0" }
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }
+            - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
+            - { name: JOB_NAME, value: agent-title-product }
+            - { name: BRANCH_PREFIX, value: agent/title-product }
+            - { name: PR_TITLE, value: "Rename ProductList heading to Product" }
+            - name: TASK
+              value: >-
+                In frontend/src/pages/ProductList.tsx, change the page heading
+                <h1>Products</h1> to <h1>Product</h1>. Change only that heading text.
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 3Gi }
