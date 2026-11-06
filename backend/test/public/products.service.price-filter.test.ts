@@ -46,7 +46,7 @@ describe('ProductsService.findAll price range', () => {
     expect(res.data.total).toBe(1);
   });
 
-  it('minPrice 0 still filters as a bound, not "no filter" (bug: if (minPrice) treats 0 as absent)', async () => {
+  it('maxPrice 0 still filters as a bound, not "no filter" (bug: if (maxPrice) treats 0 as absent)', async () => {
     const res = await serviceOver(rows).findAll(query({ maxPrice: 0 }));
     expect(pricesOf(res)).toEqual([]);
     expect(res.data.total).toBe(0);

@@ -60,7 +60,9 @@ export function memRepo(rows: MemProduct[]) {
           const y = (b as any)[field];
           if (x === y) continue;
           const cmp = x < y ? -1 : 1;
-          return String(dir).toLowerCase() === 'desc' ? -cmp : cmp;
+          const d = String(dir).toLowerCase();
+          if (d !== 'asc' && d !== 'desc') throw new Error(`memrepo: unsupported sort direction "${dir}"`);
+          return d === 'desc' ? -cmp : cmp;
         }
         return 0;
       });
