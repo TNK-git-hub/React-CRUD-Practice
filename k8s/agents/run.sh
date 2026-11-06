@@ -144,7 +144,7 @@ run_new_tests() {
   return "$rc"
 }
 
-# Mutation score trên file src đã đổi kể từ BASE_SHA. Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
+# Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
 mutation_gate() {
   local pkg files mutate report="/tmp/out/mutation.txt" ok=1
   : > "$report"
@@ -159,20 +159,37 @@ mutation_gate() {
       tail -n 40 /tmp/out/stryker-$pkg.log | strip_colors >> "$report"
       ok=0; continue
     fi
+    # Dòng đã thêm/sửa kể từ BASE_SHA, mỗi dòng "<file trong pkg> <từ> <đến>" (lấy từ hunk "+c,d" của diff -U0).
+    # Gate chỉ chấm mutant nằm trên các dòng này: mutant sống trong code cũ của file không phải lỗi của task.
+    git diff -U0 --no-renames "$BASE_SHA" -- "$pkg/src" | awk -v pfx="${pkg}/" '
+      /^\+\+\+ / { f = substr($2, 3); sub("^" pfx, "", f); next }
+      /^@@ / { split(substr($3, 2), a, ","); n = (a[2] == "" ? 1 : a[2]); if (n > 0) print f, a[1], a[1] + n - 1 }
+    ' > /tmp/out/changed-lines-$pkg.txt
     node -e '
+      const fs = require("fs");
       const r = require(process.argv[1]); const min = Number(process.argv[2]);
-      let det = 0, undet = 0; const survivors = [];
+      const ranges = {};
+      for (const l of fs.readFileSync(process.argv[3], "utf8").split("\n").filter(Boolean)) {
+        const [f, s, e] = l.split(" "); (ranges[f] ??= []).push([Number(s), Number(e)]);
+      }
+      const touches = (file, loc) => (ranges[file] ?? []).some(([s, e]) => loc.start.line <= e && loc.end.line >= s);
+      let det = 0, undet = 0, allDet = 0, allTotal = 0; const survivors = [];
       for (const [file, f] of Object.entries(r.files)) for (const m of f.mutants) {
-        if (m.status === "Killed" || m.status === "Timeout") det++;
-        else if (m.status === "Survived" || m.status === "NoCoverage") {
+        const killed = m.status === "Killed" || m.status === "Timeout";
+        const alive = m.status === "Survived" || m.status === "NoCoverage";
+        if (killed || alive) { allTotal++; if (killed) allDet++; }
+        if (!touches(file, m.location)) continue;
+        if (killed) det++;
+        else if (alive) {
           undet++; survivors.push(`  ${file}:${m.location.start.line} ${m.mutatorName} -> ${JSON.stringify(m.replacement ?? "")} (${m.status})`);
         }
       }
       const total = det + undet, score = total ? (100 * det / total) : 100;
-      console.log(`score=${score.toFixed(1)}% (killed ${det}/${total}, min ${min}%)`);
-      if (survivors.length) console.log("surviving mutants:\n" + survivors.slice(0, 30).join("\n"));
+      const all = allTotal ? (100 * allDet / allTotal).toFixed(1) : "100.0";
+      console.log(`score=${score.toFixed(1)}% on changed lines (killed ${det}/${total}, min ${min}%); whole files ${all}% (info only)`);
+      if (survivors.length) console.log("surviving mutants on changed lines:\n" + survivors.slice(0, 30).join("\n"));
       process.exit(score >= min ? 0 : 3);
-    ' "$PWD/$pkg/reports/mutation/mutation.json" "$MUTATION_MIN" > /tmp/out/mut-$pkg.txt || ok=0
+    ' "$PWD/$pkg/reports/mutation/mutation.json" "$MUTATION_MIN" /tmp/out/changed-lines-$pkg.txt > /tmp/out/mut-$pkg.txt || ok=0
     { echo "## ${pkg}"; cat /tmp/out/mut-$pkg.txt; } >> "$report"
     rm -rf "$pkg/reports" "$pkg/.stryker-tmp"
   done
