@@ -1,0 +1,45 @@
+# CI for pull requests. GitHub only schedules the job; it RUNS on the self-hosted runner
+# in the local kind cluster (ARC scale set "arc-runner-set", see k8s/runner/arc-runner-values.yaml).
+#
+# Security:
+# - "pull_request" (never "pull_request_target"): fork PRs get no secrets and a read-only token.
+# - Repo setting "Require approval for all external contributors" is the real guard against
+#   strangers: a fork PR can edit this file, so the `if:` below only stops accidental runs.
+# - Actions are pinned to full commit SHAs; the token can only read; checkout keeps no credentials.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch: # run by hand from the Actions tab or `gh workflow run CI --ref <branch>`
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: arc-runner-set
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Enable pnpm (version from package.json)
+        run: corepack enable && pnpm --version
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Local CI (install, lint, typecheck, build, test)
+        run: pnpm ci:local

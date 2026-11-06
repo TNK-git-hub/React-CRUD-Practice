@@ -53,3 +53,11 @@ reports/
 
 # Môi trường Python cho webapp-testing (Playwright)
 .venv/
+
+# Build output / generated files
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Log của agent job (lưu local khi job k8s chạy)
+k8s/agents/logs/

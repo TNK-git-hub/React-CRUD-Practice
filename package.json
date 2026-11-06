@@ -11,6 +11,7 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "test:private": "pnpm -r test:private"
+    "test:private": "pnpm -r test:private",
+    "ci:local": "bash ci/local-ci.sh"
   }
 }
