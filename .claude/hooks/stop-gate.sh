@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 input=$(cat)
 
+# Bước RED trong pod (k8s/agents/run.sh): test mới phải fail theo thiết kế, script tự kiểm gate riêng
+if [ "${SKIP_STOP_GATE:-}" = "1" ]; then
+  exit 0
+fi
+
 # Đã bị chặn một lần thì cho dừng, tránh lặp vô hạn
 if echo "$input" | grep -q '"stop_hook_active": *true'; then
   exit 0

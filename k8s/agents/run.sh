@@ -17,6 +17,9 @@
 # Dòng cuối log luôn là "==> RESULT: SUCCESS pr=<url>" hoặc "==> RESULT: FAILED reason=<lý do>".
 set -euo pipefail
 
+# Không sinh file core dump khi process crash: file "core" ở gốc repo sẽ làm gate assert_only fail oan
+ulimit -c 0
+
 MODE="${MODE:-full}"
 MAX_FIX_ATTEMPTS="${MAX_FIX_ATTEMPTS:-2}"
 REVIEW_ROUNDS="${REVIEW_ROUNDS:-2}"
@@ -234,6 +237,8 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
 
   # ---------- 2. RED ----------
   stage "RED: test-writer writes failing tests"
+  # Ở bước RED test phải fail -> tắt stop-gate (nó đòi pnpm test pass). Gate RED bên dưới vẫn do script kiểm.
+  export SKIP_STOP_GATE=1
   run_agent test-writer /tmp/out/test.txt "Write the tests for this task BEFORE the production code exists.
 The new tests MUST FAIL on the current code (that is expected: the code-writer will implement the change afterwards).
 Do not try to make them pass and do not touch production code. Make sure they fail because the behaviour is missing,
@@ -247,6 +252,7 @@ ${TEST_PLAN}
 
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+  unset SKIP_STOP_GATE
   assert_only "$BASE_SHA" "$TEST_RE" "test-writer"
   [[ -n "$(changed_since "$BASE_SHA")" ]] || fail "test-writer wrote no tests"
   log "RED gate: new tests must fail on the current code"
