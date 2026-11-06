@@ -1,6 +1,8 @@
 # React-CRUD-Practice
 
-Monorepo pnpm gồm `frontend/` (React 19, Vite, TanStack Query) và `backend/` (NestJS, TypeORM, PostgreSQL, Redis).
+Monorepo pnpm gồm `frontend/` (Next.js 16 App Router, React 19, TanStack Query, Tailwind) và `backend/` (NestJS, TypeORM, PostgreSQL, Redis).
+
+Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js này khác với kiến thức cũ, phải xem docs trong `node_modules/next/dist/docs/`.
 
 ## Lệnh
 - Test public (CI chạy, bắt buộc pass): `pnpm test`
