@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { QueryFailedError } from 'typeorm';
+import { FindOperator, QueryFailedError } from 'typeorm';
 import { ProductsService } from '../../src/products/products.service';
 import { CacheService } from '../../src/redis/cache.service';
 import { RedisService } from '../../src/redis/redis.service';
@@ -101,7 +101,8 @@ export interface FakeDb {
   // what productRepo.findOne returns for a given id (null = not in the db)
   findOne: (id: number) => Row | null;
   // what productRepo.findAndCount returns (called once per list MISS)
-  findAndCount: () => [unknown[], number];
+  // opts is whatever loadList passes to TypeORM (where / order / skip / take)
+  findAndCount: (opts?: any) => [unknown[], number];
   // what manager.findOneBy(Product, where) returns inside update's transaction
   managerFindOneBy: (where: Record<string, unknown>) => Record<string, unknown> | null;
   // what manager.save does inside the transaction (throw to simulate a db error)
@@ -121,8 +122,8 @@ export function makeService(db: Partial<FakeDb> = {}, redis: RedisService = fake
     async findOne(opts: { where: { id: number } }) {
       return cfg.findOne(opts.where.id);
     },
-    async findAndCount() {
-      return cfg.findAndCount();
+    async findAndCount(opts?: unknown) {
+      return cfg.findAndCount(opts);
     },
     async existsBy() {
       return false; // every generated barcode is free
@@ -162,6 +163,72 @@ export function makeService(db: Partial<FakeDb> = {}, redis: RedisService = fake
     dataSource as any,
     new CacheService(redis),
   );
+}
+
+// ---- in-memory evaluation of the TypeORM find options used by loadList ----
+// Unknown operators THROW: silently accepting them would make filter tests pass for the wrong reason.
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function matchesValue(cond: unknown, actual: any): boolean {
+  if (!(cond instanceof FindOperator)) return actual === cond;
+  const op = cond as any;
+  const v = op._value;
+  switch (op._type) {
+    case 'between':
+      return actual >= v[0] && actual <= v[1];
+    case 'moreThanOrEqual':
+      return actual >= v;
+    case 'lessThanOrEqual':
+      return actual <= v;
+    case 'moreThan':
+      return actual > v;
+    case 'lessThan':
+      return actual < v;
+    case 'equal':
+      return actual === v;
+    case 'and':
+      return (v as unknown[]).every((c) => matchesValue(c, actual));
+    case 'ilike': {
+      const re = String(v).split('%').map(escapeRegex).join('.*');
+      return new RegExp(`^${re}$`, 'is').test(String(actual));
+    }
+    default:
+      throw new Error(`fake findAndCount does not support FindOperator "${op._type}"`);
+  }
+}
+
+function matchesObject(obj: Record<string, unknown>, row: Record<string, any>): boolean {
+  // undefined properties are ignored, like TypeORM does
+  return Object.entries(obj).every(([k, c]) => c === undefined || matchesValue(c, row[k]));
+}
+
+function matchesWhere(where: unknown, row: Record<string, any>): boolean {
+  if (where === undefined) return true;
+  if (Array.isArray(where)) return where.some((w) => matchesObject(w, row)); // array = OR
+  return matchesObject(where as Record<string, unknown>, row); // object = AND
+}
+
+// findAndCount over fixed rows: filter -> count total -> sort -> skip/take
+export function inMemoryProducts(rows: Record<string, any>[]) {
+  return (opts: any = {}): [unknown[], number] => {
+    const filtered = rows.filter((r) => matchesWhere(opts.where, r));
+    const total = filtered.length;
+    const keys = Object.entries(opts.order ?? {}) as [string, string | undefined][];
+    const sorted = [...filtered].sort((a, b) => {
+      for (const [k, dir] of keys) {
+        if (a[k] === b[k]) continue;
+        const asc = a[k] < b[k] ? -1 : 1;
+        return String(dir ?? 'asc').toLowerCase() === 'desc' ? -asc : asc;
+      }
+      return 0;
+    });
+    const start = opts.skip ?? 0;
+    const end = opts.take === undefined ? undefined : start + opts.take;
+    return [sorted.slice(start, end), total];
+  };
 }
 
 // await a promise that must reject, and hand back the error for detailed checks
