@@ -1,5 +1,5 @@
 import {
-    Body, Controller, Delete, Get, HttpCode,
+    BadRequestException, Body, Controller, Delete, Get, HttpCode,
     Param, ParseIntPipe, Patch, Post, Query, Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -20,6 +20,10 @@ export class ProductsController {
     // passthrough: true -> vẫn return data như bình thường, chỉ mượn res để thêm header
     @Get()
     async findAll(@Query() query: QueryProductDto, @Res({ passthrough: true }) res: Response) {
+        const { minPrice, maxPrice } = query;
+        if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+            throw new BadRequestException('maxPrice must be greater than or equal to minPrice');
+        }
         const { data, cache } = await this.productsService.findAll(query);
         res.setHeader('X-Cache', cache);
         return data;

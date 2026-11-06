@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+    IsIn,
+    IsInt,
+    IsNumber,
+    IsOptional,
+    IsString,
+    Max,
+    Min,
+}from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
 
 /* 
@@ -16,7 +24,7 @@ export const SORTABLE_FIELDS = ['title', 'price', 'rating', 'stock'] as const;
 
 /* Under stand as an form templete, then validate the filled form request from client
 before send to service*/
-// GET /products?q=<string>&limit=10&skip=0&sortBy=<title>&order=<asc/desc>
+// GET /products?q=<string>&limit=10&skip=0&sortBy=<title>&order=<asc/desc>&minPrice=<number>&maxPrice=<number>
 export class QueryProductDto {
     @ApiPropertyOptional({ description: 'Description: search ' })
     @IsOptional()
@@ -50,4 +58,18 @@ export class QueryProductDto {
     @IsOptional()
     @IsIn(['asc', 'desc'])
     order?: 'asc' | 'desc' = 'asc';
+
+    @ApiPropertyOptional({ description: 'Minimum price (inclusive)', minimum: 0 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    minPrice?: number;
+
+    @ApiPropertyOptional({ description: 'Maximum price (inclusive)', minimum: 0 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    maxPrice?: number;
 }
