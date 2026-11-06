@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test:*)",
+      "Bash(pnpm --filter backend test:*)",
+      "Bash(pnpm --filter frontend test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm exec stryker:*)",
+      "Bash(pnpm --filter backend exec stryker:*)",
+      "Bash(pnpm --filter frontend exec stryker:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/test/private/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

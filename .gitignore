@@ -43,3 +43,13 @@ backend/uploads/
 *.tfstate.*
 *.tfvars
 crash.log
+
+# Test private: chỉ nằm trên máy, không commit
+**/test/private/
+
+# Kết quả mutation testing
+reports/
+.stryker-tmp/
+
+# Môi trường Python cho webapp-testing (Playwright)
+.venv/
