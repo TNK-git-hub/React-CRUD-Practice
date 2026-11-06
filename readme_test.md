@@ -33,7 +33,8 @@ Do `.claude/hooks/guard.mjs` quyết định, dựa trên trường `agent_type`
 | `backend/src`, `frontend/src`, `frontend/public` | ❌ | ✅ | ❌ | ❌ |
 | `<package>/test/public`, `frontend/test/e2e` | ❌ | ❌ | ✅ | ❌ |
 | `<package>/test/private` | ❌ | ❌ | ❌ | ❌ |
-| Harness: `.claude/`, `CLAUDE.md`, `package.json`, `pnpm-*.yaml`, `vitest/stryker.config.*` | ❓ hỏi | ❓ hỏi | ❌ | ❌ |
+| Harness: `.claude/`, `CLAUDE.md`, `package.json`, `pnpm-*.yaml`, `vitest/stryker.config.*`, `.github/`, `ci/`, `k8s/` (trừ `k8s/agents/tasks/`) | ❓ hỏi | ❓ hỏi | ❌ | ❌ |
+| `k8s/agents/tasks/` (file task cho agent trong pod) | ✅ | ❌ | ❌ | ❌ |
 | `.env*` | ❌ | ❌ | ❌ | ❌ |
 | Còn lại (`docs/`, `README.md`, `infra/`…) | ✅ | ❌ | ❌ | ❌ |
 
@@ -58,7 +59,8 @@ Do `.claude/hooks/guard.mjs` quyết định, dựa trên trường `agent_type`
 - **`agent_type` chỉ là tên**: subagent nào tên `code-writer`/`test-writer` cũng có quyền tương ứng. Agent không tự tạo được vì `.claude/` là harness (phải hỏi).
 - **Hook lọc Bash theo chuỗi lệnh nên không kín 100%** (vd. `node -e "fs.writeFileSync(...)"`). Muốn chặn ở cấp hệ thống file thì bật `sandbox` của Claude Code.
 - **Output test có thể lộ nội dung `test/private`** khi fail. Nên chạy với reporter gọn (vd. `--reporter=dot`).
-- **Chưa có workflow CI**, nên `test/private` hiện chưa được chạy ở đâu.
+- **CI (`pnpm ci:local`, `.github/workflows/ci.yml`) chưa chạy `test/private`**: cần quyết định file test private lấy từ đâu trên CI.
+- **Agent trong pod chạy `claude -p --agent code-writer`**: guard áp dụng quyền của `code-writer`; hook Stop trong frontmatter (`code-gate.sh`) không chạy với `-p`, nên `k8s/agents/run.sh` tự chạy CI gate.
 - **Sửa agent/settings phải khởi động lại Claude Code** (hoặc mở `/agents`, `/hooks`) mới có hiệu lực.
 
 ## Các file settings khác (để phân biệt)

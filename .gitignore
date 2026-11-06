@@ -61,3 +61,7 @@ next-env.d.ts
 
 # Log của agent job (lưu local khi job k8s chạy)
 k8s/agents/logs/
+
+# File task do Claude tổng viết khi dispatch (chỉ giữ file mẫu)
+k8s/agents/tasks/*
+!k8s/agents/tasks/EXAMPLE.md

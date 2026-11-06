@@ -23,7 +23,12 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Thứ tự: `code-planner` + `test-planner` → `test-writer` (test fail trước) → `code-writer` (code cho pass) → `code-reviewer` + `test-critic`. Có vấn đề thì quay lại writer tương ứng.
 - Quyền ghi: `code-writer` chỉ `backend/src`, `frontend/src`, `frontend/public`; `test-writer` chỉ `<package>/test/public`, `frontend/test/e2e`. Không ai đọc/sửa `test/private`.
 - Không giao cho writer này sửa phần của writer kia (vd. nhờ `test-writer` sửa test cho khớp code sai).
-- Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test) luôn phải hỏi người dùng.
+- Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
+- Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
+
+## CI
+- `pnpm ci:local`: install → lint, typecheck, build frontend → build backend → `pnpm test`. Phải ra `CI PASSED`.
+- PR chạy cùng pipeline đó qua `.github/workflows/ci.yml` trên runner tự host ARC trong kind (`k8s/runner/RUNNER.md`).
 
 ## Thế nào là xong
 Chỉ được báo hoàn thành khi `pnpm lint`, `pnpm --filter frontend typecheck` và `pnpm test` vừa chạy và pass, có output làm bằng chứng.

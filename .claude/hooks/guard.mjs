@@ -42,7 +42,8 @@ const PRIVATE = /(^|\/)test\/private(\/|$)/;
 const TEST_ANY = /(^|\/)test(\/|$)/;
 const TEST_WRITABLE = /^((backend|frontend)\/test\/public|frontend\/test\/e2e)(\/|$)/;
 const SRC = /^(backend\/src|frontend\/src|frontend\/public)(\/|$)/;
-const HARNESS = /^(\.claude\/|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/;
+// k8s/agents/tasks/ không phải harness: Claude tổng viết file task ở đó (skill dispatch-agents)
+const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/;
 
 // ---------- Edit / Write ----------
 if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
@@ -103,7 +104,7 @@ if (tool === "Bash") {
   if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(cmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
   }
-  if (/(^|[\s'"=])(\.claude\/|CLAUDE\.md)/.test(cmd)) {
+  if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/.test(cmd)) {
     if (agent === "main") ask("Session chính muốn sửa file harness bằng Bash.");
     block(`${who} không được sửa file harness.`);
   }
