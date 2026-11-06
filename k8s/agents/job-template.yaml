@@ -1,4 +1,4 @@
-# Template cho MỘT agent Job. Không dùng trực tiếp: dispatch.sh thay __JOB_ID__ và __BASE_BRANCH__
+# Template cho MỘT agent Job. Không dùng trực tiếp: dispatch.sh thay __JOB_ID__, __BASE_BRANCH__, __MODE__, __DEADLINE__
 # (đã kiểm tra chỉ gồm ký tự an toàn), còn task và tiêu đề PR nằm trong ConfigMap "task-__JOB_ID__".
 #
 # Cần sẵn trong namespace (xem README.md):
@@ -15,7 +15,7 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 600   # giữ pod 10 phút sau khi xong để còn xem log
   backoffLimit: 0
-  activeDeadlineSeconds: 2400
+  activeDeadlineSeconds: __DEADLINE__   # full: 5400 (plan → red → green → review), code-only: 2400
   template:
     metadata:
       labels:
@@ -49,7 +49,10 @@ spec:
             - { name: BASE_BRANCH, value: __BASE_BRANCH__ }
             - { name: JOB_ID, value: __JOB_ID__ }
             - { name: GH_VERSION, value: "2.62.0" }
-            - { name: MAX_FIX_ATTEMPTS, value: "2" }
+            - { name: MODE, value: __MODE__ }               # full | code-only
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }        # số vòng code-writer sửa khi ci:local fail
+            - { name: REVIEW_ROUNDS, value: "2" }           # số vòng quay lại writer sau review
+            - { name: MUTATION_MIN, value: "70" }           # mutation score tối thiểu (%) trên file src đã đổi
             - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
           resources:
             requests: { cpu: 500m, memory: 512Mi }

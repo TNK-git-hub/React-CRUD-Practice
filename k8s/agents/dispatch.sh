@@ -2,28 +2,35 @@
 # Giao MỘT task cho một agent chạy headless trong pod (kind cluster), đợi xong, in kết quả.
 #
 # Usage (từ gốc repo):
-#   bash k8s/agents/dispatch.sh <job-id> <task-file> --title "<PR title>" [--base level-3] [--no-wait]
+#   bash k8s/agents/dispatch.sh <job-id> <task-file> --title "<PR title>" [--mode full|code-only] [--base level-3]
+#                               [--no-wait] [--no-private] [--dry-run]
 #
 #   <job-id>     chữ thường, số, dấu "-" (vd: search-btn-yellow). Branch sẽ là agent/<job-id>-<timestamp>.
 #   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
+#   --mode       full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
+#                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
 #   --base       branch để clone và mở PR vào (mặc định: level-3). Phải đã push lên origin.
 #   --no-wait    tạo Job rồi thoát ngay, không theo dõi log.
+#   --no-private không chạy hidden test (test/private, chỉ có trên máy này) trên branch của PR.
 #   --dry-run    chỉ kiểm tra đầu vào và in manifest, KHÔNG tạo gì trong cluster.
 #
 # Muốn chạy song song: gọi nhiều lệnh cùng lúc (mỗi task một job-id khác nhau).
+# Khi SUCCESS: in thêm "PRIVATE: PASS|FAIL|SKIPPED" (chỉ số lượng, không in nội dung test để không lộ cho agent).
 # Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
 set -euo pipefail
 
-usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 fail() { echo "RESULT: FAILED reason=$*"; exit 1; }
 
 [[ $# -ge 2 ]] || usage
 JOB_ID="$1"; TASK_FILE="$2"; shift 2
-TITLE=""; BASE="level-3"; WAIT=1; DRY=0
+TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; PRIVATE=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
     --base) BASE="${2:-}"; shift 2 ;;
+    --mode) MODE="${2:-}"; shift 2 ;;
+    --no-private) PRIVATE=0; shift ;;
     --no-wait) WAIT=0; shift ;;
     --dry-run) DRY=1; shift ;;
     *) usage ;;
@@ -38,13 +45,17 @@ DIR="$ROOT/k8s/agents"
 [[ "$BASE" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "invalid base branch '$BASE'"
 [[ -s "$TASK_FILE" ]] || fail "task file '$TASK_FILE' not found or empty"
 [[ -n "${TITLE// }" ]] || fail "missing --title"
+case "$MODE" in full) DEADLINE=5400 ;; code-only) DEADLINE=2400 ;; *) fail "invalid --mode '$MODE' (full|code-only)" ;; esac
 
-render() { sed -e "s|__JOB_ID__|$JOB_ID|g" -e "s|__BASE_BRANCH__|$BASE|g" "$DIR/job-template.yaml"; }
+render() {
+  sed -e "s|__JOB_ID__|$JOB_ID|g" -e "s|__BASE_BRANCH__|$BASE|g" -e "s|__MODE__|$MODE|g" -e "s|__DEADLINE__|$DEADLINE|g" \
+    "$DIR/job-template.yaml"
+}
 if [[ "$DRY" == 1 ]]; then
   kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" --dry-run=client -o yaml
   echo "---"
   render
-  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE"
+  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE mode=$MODE"
   exit 0
 fi
 
@@ -61,7 +72,7 @@ kubectl delete job "agent-$JOB_ID" --ignore-not-found --wait=true >/dev/null
 kubectl delete configmap "task-$JOB_ID" --ignore-not-found >/dev/null
 kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" >/dev/null
 render | kubectl apply -f - >/dev/null
-echo "Dispatched job agent-$JOB_ID (base: $BASE)"
+echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE)"
 
 [[ "$WAIT" == 1 ]] || { echo "RESULT: DISPATCHED job=agent-$JOB_ID"; exit 0; }
 
@@ -84,5 +95,34 @@ if [[ -z "$line" ]]; then
   status="$(kubectl get job "agent-$JOB_ID" -o jsonpath='{.status.conditions[*].reason}' 2>/dev/null || true)"
   line="RESULT: FAILED reason=pod ended without a result line (job status: ${status:-unknown}); see ${LOG#$ROOT/}"
 fi
+# --- hidden test: test/private chỉ có trên máy này (gitignore), agent trong pod không bao giờ thấy ---
+# Chạy trên branch của PR trong một git worktree tạm. Chỉ in số lượng pass/fail; log đầy đủ ở logs/ cho người dùng.
+private_counts() { grep -E '^[[:space:]]*Tests[[:space:]]' "$1" | sed 's/\x1b\[[0-9;]*m//g' | tr -s ' ' | paste -sd ';' - || true; }
+run_private() {
+  local pr_url="$1" branch wt plog pkg have=0
+  for pkg in backend frontend; do
+    [[ -n "$(find "$ROOT/$pkg/test/private" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
+  done
+  [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
+  branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
+  plog="$DIR/logs/$JOB_ID-private-$(date +%Y-%m-%dT%H-%M-%S).log"
+  wt="$(mktemp -d)"
+  echo "Running hidden tests on $branch -> ${plog#"$ROOT"/}"
+  git -C "$ROOT" fetch -q origin "$branch"
+  git -C "$ROOT" worktree add -q --detach "$wt" FETCH_HEAD
+  for pkg in backend frontend; do
+    if [[ -d "$ROOT/$pkg/test/private" ]]; then cp -R "$ROOT/$pkg/test/private" "$wt/$pkg/test/"; fi
+  done
+  if (cd "$wt" && pnpm install --frozen-lockfile --prefer-offline && pnpm test:private) > "$plog" 2>&1; then
+    echo "PRIVATE: PASS ($(private_counts "$plog"))"
+  else
+    echo "PRIVATE: FAIL ($(private_counts "$plog")) - full log is for the user only, do not pass it to an agent: ${plog#"$ROOT"/}"
+  fi
+  git -C "$ROOT" worktree remove --force "$wt"
+}
+if [[ "$line" == "RESULT: SUCCESS"* && "$PRIVATE" == 1 ]]; then
+  run_private "${line#RESULT: SUCCESS pr=}" || echo "PRIVATE: SKIPPED (error while running hidden tests)"
+fi
+
 echo "$line"
 [[ "$line" == "RESULT: SUCCESS"* ]]

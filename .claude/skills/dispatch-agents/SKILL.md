@@ -4,8 +4,10 @@ description: Dùng khi người dùng muốn giao một feature/bug cho các age
 ---
 # Giao việc cho agent trong pod
 
-Bạn là Claude tổng (điều phối). Bạn không tự sửa code: agent trong pod (`--agent code-writer`) làm việc đó.
-Chi tiết hạ tầng: `k8s/agents/README.md`.
+Bạn là Claude tổng (điều phối). Bạn không tự sửa code hay test: các agent trong pod làm việc đó.
+Mode `full` (mặc định): trong pod chạy lần lượt planner → test-writer (test phải fail trước) → code-writer → mutation + review.
+Mode `code-only`: chỉ code-writer, dùng cho việc nhỏ không cần test mới (đổi style, text...).
+Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.md`.
 
 ## 0. Kiểm tra trước (dừng và báo người dùng nếu fail)
 - `kubectl get nodes` chạy được (cluster kind đang bật).
@@ -20,16 +22,21 @@ Chi tiết hạ tầng: `k8s/agents/README.md`.
 ## 2. Viết file task
 Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, gồm:
 - **Goal**: hành vi cần có, nói bằng kết quả quan sát được.
-- **Files you may change**: đường dẫn cụ thể trong `frontend/src`, `backend/src`, `frontend/public`.
+- **Behaviors to test** (mode full): input → output mong đợi, mỗi dòng phải fail trên code hiện tại. Với bug: ghi đúng input gây bug và output đúng.
+- **Files you may change**: đường dẫn cụ thể trong `frontend/src`, `backend/src`, `frontend/public` (test-writer tự chọn file trong `test/public`).
 - **Out of scope**: những gì không được đổi.
 - **Done when**: tiêu chí xong, luôn có "`pnpm ci:local` prints CI PASSED".
 
 `<job-id>`: chữ thường, số, `-`, ngắn và mô tả được việc (vd. `search-btn-yellow`). Tiêu đề PR: tiếng Anh, mệnh lệnh, ngắn.
 
 ## 3. Dispatch
-- Xem trước: `bash k8s/agents/dispatch.sh <job-id> k8s/agents/tasks/<job-id>.md --title "<PR title>" --dry-run`
-- Chạy thật: bỏ `--dry-run`. Nhiều task thì chạy song song (mỗi task một lệnh Bash chạy nền), rồi đợi tất cả.
-- Đọc dòng cuối: `RESULT: SUCCESS pr=<url>` hoặc `RESULT: FAILED reason=...`. Fail thì đọc log trong `k8s/agents/logs/<job-id>-*.log` (dòng `==>` cuối cùng cho biết bước hỏng).
+- Xem trước: `bash k8s/agents/dispatch.sh <job-id> k8s/agents/tasks/<job-id>.md --title "<PR title>" [--mode code-only] --dry-run`
+- Chạy thật: bỏ `--dry-run`. Nhiều task thì chạy song song (mỗi task một lệnh Bash chạy nền), rồi đợi tất cả. Mode full mất khoảng 20–60 phút mỗi task.
+- Đọc dòng cuối: `RESULT: SUCCESS pr=<url>` hoặc `RESULT: FAILED reason=...`. Fail thì đọc log trong `k8s/agents/logs/<job-id>-*.log` (dòng `==> ... =====` cho biết đang ở bước nào, dòng `==>` cuối cùng cho biết bước hỏng).
+- `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review. Báo người dùng, không tự dispatch lại.
+- Dòng `PRIVATE:` (hidden test, chạy trên máy local):
+  - `PASS` / `SKIPPED` → tiếp bước 4.
+  - `FAIL` → báo người dùng kèm đường dẫn log. **Không đọc log đó, không đưa nội dung hay tên test vào task sửa**: lộ hidden test cho agent là mất tác dụng chống học tủ.
 
 ## 4. Theo dõi GitHub Actions
 - Với mỗi PR: `bash k8s/agents/watch-pr.sh <pr-url>`.
@@ -38,10 +45,10 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - `CHECKS: TIMEOUT` → thường do runner ARC tắt (`k8s/runner/RUNNER.md`). Báo người dùng, không dispatch lại.
 
 ## 5. Tổng hợp cho người dùng
-Bảng: task | PR | kết quả dispatch | GitHub checks | số vòng sửa | ghi chú. Nêu rõ task nào fail và vì sao.
+Bảng: task | mode | PR | kết quả dispatch | hidden test | GitHub checks | số vòng sửa | ghi chú. Nêu rõ task nào fail và vì sao.
 Không merge PR: người dùng tự review và merge.
 
 ## Không được
 - Không sửa `run.sh`, `job-template.yaml`, `ci/`, `.github/` để task pass (đây là harness, guard sẽ hỏi người dùng).
-- Không giao task sửa test hay config test cho agent trong pod (`run.sh` sẽ chặn và không mở PR).
+- Không giao task sửa config test, và không giao task "sửa test cho khớp code" (test do test-writer trong mode full viết theo hành vi, gate chỉ cho phép `test/public`).
 - Không đặt secret hay token vào file task.

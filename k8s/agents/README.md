@@ -5,30 +5,48 @@ mỗi lần giao là một file markdown, truyền vào lúc chạy.
 
 ```
 Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) → tasks/<id>.md
-  → dispatch.sh <id> tasks/<id>.md --title "..."      (chạy song song được)
-      pod: clone level-3 → pnpm install → claude -p --agent code-writer "<task>"
-           → CI gate (file cấm sửa + pnpm ci:local, tối đa 2 vòng sửa) → push → PR vào level-3
+  → dispatch.sh <id> tasks/<id>.md --title "..." [--mode full|code-only]   (chạy song song được)
+      pod: clone level-3 → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
+        1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
+        2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
+        3. GREEN   code-writer → gate: chỉ đổi src, không dò môi trường test, pnpm ci:local (≤2 vòng sửa) → commit
+        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic → cần sửa thì quay lại 2/3 (≤2 vòng)
+        5. PR      push → PR vào level-3 (review không qua: PR draft + RESULT FAILED)
+      (mode code-only: chỉ bước 3 rồi 5)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
+  → dispatch.sh chạy hidden test (test/private, chỉ có trên máy này) trên branch PR → "PRIVATE: PASS|FAIL|SKIPPED"
   → watch-pr.sh <pr>                                   (GitHub Actions chạy ci.yml trên runner ARC)
       → "CHECKS: PASS" | "CHECKS: FAIL" (+ log step lỗi) | "CHECKS: TIMEOUT"
   → fail thì viết task sửa kèm log, giao lại; pass thì tổng hợp cho người dùng
 ```
+
+## Chống reward hacking: ai chặn cái gì
+| Rủi ro | Chặn bởi |
+|---|---|
+| code-writer sửa test / test-writer sửa code | `guard.mjs` (theo `agent_type`), `--allowedTools` theo vai, và **gate trong `run.sh`**: sau mỗi bước, mọi file đổi so với SHA của commit trước bước đó phải nằm trong vùng của vai (allow-list). Gate chạy sau khi agent thoát nên không lách được bằng Bash hay chạy code |
+| Viết lại lịch sử git để xoá commit test | Gate kiểm tra commit trước bước vẫn là tổ tiên của `HEAD` |
+| Code dò môi trường test (`VITEST`, `NODE_ENV === 'test'`) | Gate grep diff `src` |
+| Test viết sau, khớp theo code | Bước RED: test mới phải fail trên code cũ trước khi code-writer chạy; PR có 2 commit test → code |
+| Test yếu | Mutation score ≥ `MUTATION_MIN` trên file src đã đổi + test-critic |
+| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
+| Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
 
 Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/SKILL.md`.
 
 | File | Làm gì |
 |---|---|
 | `run.sh` | Script chạy trong pod (ConfigMap `agent-script`, `dispatch.sh` tự cập nhật) |
-| `job-template.yaml` | Template một Job; `dispatch.sh` điền `JOB_ID`, `BASE_BRANCH` |
-| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, in `RESULT` |
+| `job-template.yaml` | Template một Job; `dispatch.sh` điền `JOB_ID`, `BASE_BRANCH`, `MODE`, deadline. Chỉnh `REVIEW_ROUNDS`, `MUTATION_MIN` ở đây |
+| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, chạy hidden test, in `PRIVATE` và `RESULT` |
 | `watch-pr.sh` | Đợi check của PR, in log step lỗi nếu fail |
 | `tasks/EXAMPLE.md` | Mẫu file task |
 
-## Vì sao `--agent code-writer`
-Pod clone repo nên có cả `.claude/` (guard, hook). Guard chỉ cho `code-writer` sửa `src/`; chạy `claude -p` thường
-thì bị coi là session chính và bị chặn. Với `--agent code-writer`, hook nhận `agent_type=code-writer`, nên agent sửa
-được `src/` nhưng vẫn không sửa được `test/`, `.claude/`. `run.sh` còn kiểm tra lại danh sách file cấm (`PROTECTED`)
-trước khi mở PR, để agent không lách được.
+## Vì sao mỗi bước chạy `--agent <vai>`
+Pod clone repo nên có cả `.claude/` (guard, hook). Chạy `claude -p` thường thì bị coi là session chính và bị chặn sửa
+`src/`, `test/`. Với `--agent <vai>`, hook nhận `agent_type` tương ứng: `test-writer` chỉ sửa được `test/public`,
+`code-writer` chỉ sửa được `src/`, planner/reviewer không ghi được gì. Sau mỗi bước, `run.sh` còn kiểm tra lại bằng
+allow-list theo vai (so với SHA của commit trước bước đó) trước khi đi tiếp, để agent không lách được.
+Mỗi bước là một session mới: các vai chỉ chia sẻ file (plan, commit), không chung ngữ cảnh hội thoại.
 
 ## Cài đặt một lần
 ```bash
