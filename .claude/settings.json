@@ -20,8 +20,6 @@
       "Read(./.env)",
       "Read(./**/.env)",
       "Read(./**/test/private/**)",
-      "Edit(./**/test/**)",
-      "Write(./**/test/**)",
       "Bash(cat */test/private:*)",
       "Bash(head */test/private:*)",
       "Bash(tail */test/private:*)",
@@ -36,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-tests.mjs\""
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\""
           }
         ]
       }
@@ -45,7 +43,10 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "pnpm lint" }
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-changed.mjs\""
+          }
         ]
       }
     ],
