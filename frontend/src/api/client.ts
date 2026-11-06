@@ -1,6 +1,6 @@
 // chỗ lưu code call api
-// VITE_API_URL đặt lúc build (vd: /api khi deploy), chưa đặt thì dùng dummyjson
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://dummyjson.com';
+// NEXT_PUBLIC_API_URL đặt lúc build (vd: /api khi deploy), chưa đặt thì dùng dummyjson
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dummyjson.com';
 
 // lỗi khi call api: Error bình thường + status, path
 export class ApiError extends Error {

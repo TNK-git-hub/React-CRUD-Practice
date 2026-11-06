@@ -1,5 +1,5 @@
-// toast ở giữa trên màn hình — theo design CrudStates; RootLayout lo việc hiện/ẩn
-//   created: "Tạo thành công" (201) — navigate(..., { state: { toast } }) gửi object này
+// toast ở giữa trên màn hình — theo design CrudStates; Providers (app/providers.tsx) lo việc hiện/ẩn
+//   created: "Tạo thành công" (201) — showToast() rồi router.push() sang trang mới
 //   deleted: "Xoá thành công + hoàn tác" — onUndo có thì hiện nút Hoàn tác
 //   error:   API lỗi -> toast đỏ
 // khung chung: giữa trên màn hình, max 420px (trừ lề 16px mỗi bên trên mobile)

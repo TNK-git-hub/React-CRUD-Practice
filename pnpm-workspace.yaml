@@ -3,3 +3,4 @@ packages:
   - backend
 allowBuilds:
   '@scarf/scarf': false
+  unrs-resolver: false

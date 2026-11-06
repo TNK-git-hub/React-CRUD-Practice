@@ -1,10 +1,10 @@
 import defaultProductImg from "../../assets/website-7-kh-2026-08-12t163109-795.jpg";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import getPreviousPrice from "../../utils/getPreviousPrice";
 import CardMenu from "./CardMenu";
 import type { Review, ProductSummary } from "../../types/product";
 
-// dummyjson (khi chưa đặt VITE_API_URL) trả reviews thay vì reviewCount
+// dummyjson (khi chưa đặt NEXT_PUBLIC_API_URL) trả reviews thay vì reviewCount
 type CardProduct = ProductSummary & { reviews?: Review[] };
 
 interface ProductCardProps {
@@ -33,7 +33,7 @@ function ProductCard({ product, onDelete }: ProductCardProps) {
     console.log("procard re-redered");
     return (
         <article className="relative flex h-full flex-col rounded-card border border-line bg-surface transition-shadow duration-200 ease-[ease] hover:shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
-            <Link to={`/products/${product.id}`} className="flex grow flex-col text-inherit no-underline">
+            <Link href={`/products/${product.id}`} className="flex grow flex-col text-inherit no-underline">
                 <div className="relative flex h-[164px] items-center justify-center overflow-hidden rounded-t-[13px] bg-chip max-xs:h-24">
                     <span className="absolute top-2.5 left-2.5 rounded-pill bg-accent px-2 py-[3px] text-[10.5px] font-bold tracking-[0.02em] text-surface">-{discount}%</span>
                     <img className="size-full object-cover" alt="product pic" src={thumbnail ?? undefined} />

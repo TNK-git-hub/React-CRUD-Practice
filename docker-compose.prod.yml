@@ -53,16 +53,26 @@ services:
       redis:
         condition: service_healthy
 
-  web:
+  # Next.js server (standalone), chỉ nginx gọi vào
+  frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-}
+        # .env cũ trên EC2 (Terraform tạo) vẫn ghi VITE_API_URL -> dùng làm fallback
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-${VITE_API_URL:-}}
+    restart: unless-stopped
+
+  # nginx: cổng duy nhất mở ra ngoài. /api/* -> backend, còn lại -> frontend
+  web:
+    image: nginx:1.29-alpine
     restart: unless-stopped
     ports:
       - "80:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
+      - frontend
       - backend
 
 volumes:
