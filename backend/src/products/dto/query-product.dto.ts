@@ -1,5 +1,16 @@
-import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
+import {
+    IsIn,
+    IsInt,
+    IsNumber,
+    IsOptional,
+    IsString,
+    Max,
+    Min,
+    registerDecorator,
+    ValidationArguments,
+    ValidationOptions,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
 
 /* 
@@ -13,6 +24,29 @@ import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
 */
 
 export const SORTABLE_FIELDS = ['title', 'price', 'rating', 'stock'] as const;
+
+// Number('') and Number('  ') are 0, so blank strings must become NaN to be rejected
+const toPrice = ({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() === '' ? NaN : value === undefined ? value : Number(value);
+
+// minPrice must not be greater than maxPrice (only checked when both are numbers)
+function IsNotGreaterThanMaxPrice(options?: ValidationOptions) {
+    return (object: object, propertyName: string) => {
+        registerDecorator({
+            name: 'isNotGreaterThanMaxPrice',
+            target: object.constructor,
+            propertyName,
+            options: { message: 'minPrice must not be greater than maxPrice', ...options },
+            validator: {
+                validate(value: unknown, args: ValidationArguments) {
+                    const max = (args.object as { maxPrice?: unknown }).maxPrice;
+                    if (typeof value !== 'number' || typeof max !== 'number') return true;
+                    return value <= max;
+                },
+            },
+        });
+    };
+}
 
 /* Under stand as an form templete, then validate the filled form request from client
 before send to service*/
@@ -50,4 +84,19 @@ export class QueryProductDto {
     @IsOptional()
     @IsIn(['asc', 'desc'])
     order?: 'asc' | 'desc' = 'asc';
+
+    @ApiPropertyOptional({ description: 'Minimum price (inclusive)', minimum: 0 })
+    @IsOptional()
+    @Transform(toPrice)
+    @IsNumber({ allowNaN: false, allowInfinity: false })
+    @Min(0)
+    @IsNotGreaterThanMaxPrice()
+    minPrice?: number;
+
+    @ApiPropertyOptional({ description: 'Maximum price (inclusive)', minimum: 0 })
+    @IsOptional()
+    @Transform(toPrice)
+    @IsNumber({ allowNaN: false, allowInfinity: false })
+    @Min(0)
+    maxPrice?: number;
 }
