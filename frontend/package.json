@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start -p 5173",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run test/public",
+    "test:private": "vitest run test/private --passWithNoTests"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
@@ -18,6 +20,8 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.2.18",
@@ -25,7 +29,9 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.2",
+    "fast-check": "^4.10.2",
     "tailwindcss": "^4.3.3",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "vitest": "^5.1.0"
   }
 }

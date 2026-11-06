@@ -5,19 +5,28 @@
   },
   "permissions": {
     "allow": [
-      "Read(./tests/public/**)",
-      "Bash(pnpm test tests/public:*)",
-      "Bash(pnpm test tests/private:*)"
+      "Bash(pnpm test:*)",
+      "Bash(pnpm --filter backend test:*)",
+      "Bash(pnpm --filter frontend test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm exec stryker:*)",
+      "Bash(pnpm --filter backend exec stryker:*)",
+      "Bash(pnpm --filter frontend exec stryker:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)"
     ],
     "deny": [
-      "Edit(./tests/**)",
-      "Write(./tests/**)",
-      "Read(./tests/private/**)",
-      "Bash(cat tests/private:*)",
-      "Bash(head tests/private:*)",
-      "Bash(tail tests/private:*)",
-      "Bash(less tests/private:*)",
-      "Bash(ls tests/private:*)"
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/test/private/**)",
+      "Edit(./**/test/**)",
+      "Write(./**/test/**)",
+      "Bash(cat */test/private:*)",
+      "Bash(head */test/private:*)",
+      "Bash(tail */test/private:*)",
+      "Bash(less */test/private:*)",
+      "Bash(ls */test/private:*)"
     ]
   },
   "hooks": {
@@ -37,6 +46,16 @@
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "pnpm lint" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-gate.sh"
+          }
         ]
       }
     ]
