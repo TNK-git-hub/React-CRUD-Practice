@@ -51,7 +51,7 @@ let api: Api;
 let client: Client;
 
 beforeEach(async () => {
-  vi.stubEnv('VITE_API_URL', BASE);
+  vi.stubEnv('NEXT_PUBLIC_API_URL', BASE);
   vi.stubGlobal('fetch', echoFetch);
   vi.resetModules(); // BASE_URL is read once at module load
   api = await import('../../src/api/productsQuerParam');
