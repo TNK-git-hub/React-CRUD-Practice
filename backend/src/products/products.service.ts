@@ -1,7 +1,18 @@
 import { randomInt } from 'crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, In, QueryFailedError, Repository } from 'typeorm';
+import {
+    Between,
+    DataSource,
+    EntityManager,
+    FindOptionsWhere,
+    ILike,
+    In,
+    LessThanOrEqual,
+    MoreThanOrEqual,
+    QueryFailedError,
+    Repository,
+} from 'typeorm';
 import { Tag } from './tag.entity';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
@@ -46,8 +57,8 @@ export class ProductsService {
     //   vd products:list:v3:{"q":"phone","limit":20,"skip":0,"sortBy":"price","order":"desc"}
     async findAll(query: QueryProductDto) {
         const version = (await this.cache.get<number>(LIST_VERSION_KEY)) ?? 0; // chưa có / Redis tắt -> 0
-        const { q, limit, skip, sortBy, order } = query;
-        const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order })}`;
+        const { q, limit, skip, sortBy, order, minPrice, maxPrice } = query;
+        const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order, minPrice, maxPrice })}`;
 
         const cached = await this.cache.get<ProductList>(key);
         if (cached) return { data: cached, cache: 'HIT' as CacheStatus };
@@ -62,10 +73,20 @@ export class ProductsService {
         return this.cache.incr(LIST_VERSION_KEY);
     }
 
-    private async loadList({ q, limit, skip, sortBy, order }: QueryProductDto) {
+    private async loadList({ q, limit, skip, sortBy, order, minPrice, maxPrice }: QueryProductDto) {
         const pattern = ILike(`%${q}%`); // caseinsensitive search
+        const priceFilter: FindOptionsWhere<Product> = {};
+        if (minPrice !== undefined && maxPrice !== undefined) priceFilter.price = Between(minPrice, maxPrice);
+        else if (minPrice !== undefined) priceFilter.price = MoreThanOrEqual(minPrice);
+        else if (maxPrice !== undefined) priceFilter.price = LessThanOrEqual(maxPrice);
+        const hasPrice = priceFilter.price !== undefined;
+
+        let where: FindOptionsWhere<Product> | FindOptionsWhere<Product>[] | undefined;
+        if (q) where = [{ title: pattern, ...priceFilter }, { description: pattern, ...priceFilter }];
+        else if (hasPrice) where = priceFilter;
+
         const [products, total] = await this.productRepo.findAndCount({
-            where: q ? [{ title: pattern }, { description: pattern }] : undefined,
+            where,
             order: sortBy
                 ? { [sortBy]: order, id: 'ASC' }
                 : { id: order },  // fixed: decides WHICH products are on the page

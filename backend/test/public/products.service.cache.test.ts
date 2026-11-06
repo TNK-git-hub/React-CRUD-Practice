@@ -12,6 +12,7 @@ import {
   rejection,
   uniqueViolation,
 } from './products.fakes';
+import { memRepo } from './products.memrepo';
 
 const Q = { q: 'phone', limit: 10, skip: 0, sortBy: 'price', order: 'desc' } as QueryProductDto;
 
@@ -109,6 +110,86 @@ describe('ProductsService.findAll cache key (property)', () => {
           }
         }
       }),
+    );
+  });
+});
+
+describe('ProductsService.findAll cache key with price range', () => {
+  const rows = [5, 10, 20, 30].map((price, i) => ({
+    id: i + 1,
+    title: `Item ${i + 1}`,
+    description: 'plain',
+    price,
+  }));
+  const svcOver = () => makeService({}, fakeRedis(), memRepo(rows));
+  const prices = (res: { data: { products: unknown[] } }) =>
+    (res.data.products as { price: number }[]).map((p) => p.price);
+  const base = { skip: 0, order: 'asc' } as const;
+
+  it('a filtered request after an unfiltered one is a MISS with only matching products (bug: minPrice not in key)', async () => {
+    const svc = svcOver();
+    expect(prices(await svc.findAll({ ...base } as QueryProductDto))).toEqual([5, 10, 20, 30]);
+
+    const filtered = await svc.findAll({ ...base, minPrice: 20 } as QueryProductDto);
+
+    expect(filtered.cache).toBe('MISS');
+    expect(prices(filtered)).toEqual([20, 30]);
+  });
+
+  it('an unfiltered request after a filtered one is a MISS with all products (bug: minPrice not in key)', async () => {
+    const svc = svcOver();
+    await svc.findAll({ ...base, minPrice: 20 } as QueryProductDto);
+
+    const all = await svc.findAll({ ...base } as QueryProductDto);
+
+    expect(all.cache).toBe('MISS');
+    expect(prices(all)).toEqual([5, 10, 20, 30]);
+  });
+
+  it('maxPrice is part of the key: {maxPrice:10} then {maxPrice:20} is a MISS (bug: only minPrice added)', async () => {
+    const svc = svcOver();
+    await svc.findAll({ ...base, maxPrice: 10 } as QueryProductDto);
+
+    const second = await svc.findAll({ ...base, maxPrice: 20 } as QueryProductDto);
+
+    expect(second.cache).toBe('MISS');
+    expect(prices(second)).toEqual([5, 10, 20]);
+  });
+
+  it('{minPrice:10} and {maxPrice:10} use different keys; repeating the same pair HITs', async () => {
+    const svc = svcOver();
+    const lowerBound = await svc.findAll({ ...base, minPrice: 10 } as QueryProductDto);
+    const upperBound = await svc.findAll({ ...base, maxPrice: 10 } as QueryProductDto);
+
+    expect(lowerBound.cache).toBe('MISS');
+    expect(upperBound.cache).toBe('MISS');
+    expect(prices(upperBound)).toEqual([5, 10]);
+    expect((await svc.findAll({ ...base, minPrice: 10 } as QueryProductDto)).cache).toBe('HIT');
+  });
+
+  it('minPrice 0 and an absent minPrice are different keys (bug: 0 treated as falsy)', async () => {
+    const svc = svcOver();
+    await svc.findAll({ ...base } as QueryProductDto);
+
+    expect((await svc.findAll({ ...base, minPrice: 0 } as QueryProductDto)).cache).toBe('MISS');
+  });
+
+  it('property: HITs exactly when the same (minPrice, maxPrice) was queried before', async () => {
+    const bound = fc.constantFrom(undefined, 0, 10, 20);
+    await fc.assert(
+      fc.asyncProperty(
+        fc.array(fc.record({ minPrice: bound, maxPrice: bound }), { minLength: 1, maxLength: 20 }),
+        async (queries) => {
+          const svc = makeService({ findAndCount: countingList() });
+          const seen = new Set<string>();
+          for (const query of queries) {
+            const tuple = [query.minPrice, query.maxPrice].map(String).join('|');
+            const res = await svc.findAll({ skip: 0, order: 'asc', ...query } as QueryProductDto);
+            expect(res.cache).toBe(seen.has(tuple) ? 'HIT' : 'MISS');
+            seen.add(tuple);
+          }
+        },
+      ),
     );
   });
 });
