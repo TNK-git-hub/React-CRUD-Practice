@@ -2,5 +2,43 @@
   "enabledPlugins": {
     "commit-commands@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Read(./tests/public/**)",
+      "Bash(pnpm test tests/public:*)",
+      "Bash(pnpm test tests/private:*)"
+    ],
+    "deny": [
+      "Edit(./tests/**)",
+      "Write(./tests/**)",
+      "Read(./tests/private/**)",
+      "Bash(cat tests/private:*)",
+      "Bash(head tests/private:*)",
+      "Bash(tail tests/private:*)",
+      "Bash(less tests/private:*)",
+      "Bash(ls tests/private:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-tests.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "pnpm lint" }
+        ]
+      }
+    ]
   }
 }
