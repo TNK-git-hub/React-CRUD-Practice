@@ -1,0 +1,50 @@
+# Helm values for the self-hosted runner scale set (ARC) in the kind cluster.
+# Install / upgrade:
+#   helm upgrade --install arc-runner-set --namespace arc-runners --version 0.15.1 \
+#     -f k8s/runner/arc-runner-values.yaml \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+#
+# Security choices:
+# - Registered for THIS repo only (not the whole account/org).
+# - Ephemeral: every job gets a brand-new pod, deleted when the job ends.
+# - No Docker-in-Docker, not privileged, no hostPath, no sudo (allowPrivilegeEscalation: false),
+#   all Linux capabilities dropped, no Kubernetes API token in the pod.
+# - Own namespace (arc-runners), separate from "default" where agent-secrets lives.
+githubConfigUrl: https://github.com/TNK-git-hub/React-CRUD-Practice
+githubConfigSecret: arc-github-pat        # fine-grained PAT, this repo only (created by you)
+runnerScaleSetName: arc-runner-set        # = "runs-on:" in .github/workflows/ci.yml
+minRunners: 0                             # no pods while there are no jobs
+maxRunners: 3
+
+# The office gateway (MWG) re-signs HTTPS: trust its CA for the controller, listener and runners.
+githubServerTLS:
+  certificateFrom:
+    configMapKeyRef:
+      name: mwg-ca
+      key: ca.crt
+  runnerMountPath: /usr/local/share/ca-certificates/   # also sets NODE_EXTRA_CA_CERTS
+
+template:
+  spec:
+    automountServiceAccountToken: false
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:2.338.2
+        command: ["/home/runner/run.sh"]
+        env:
+          - { name: RUNNER_UPDATE_CA_CERTS, value: "0" }   # needs sudo; we use the bundle below instead
+          - { name: SSL_CERT_FILE, value: /etc/ca-bundle/ca-certificates.crt }
+          - { name: GIT_SSL_CAINFO, value: /etc/ca-bundle/ca-certificates.crt }
+        volumeMounts:
+          - { name: ca-bundle, mountPath: /etc/ca-bundle, readOnly: true }
+        resources:
+          requests: { cpu: 500m, memory: 512Mi }
+          limits: { cpu: "1", memory: 3Gi }
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities: { drop: [ALL] }
+    volumes:
+      - name: ca-bundle
+        configMap: { name: ca-bundle }

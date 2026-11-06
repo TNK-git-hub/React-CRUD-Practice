@@ -1,0 +1,56 @@
+# Template cho MỘT agent Job. Không dùng trực tiếp: dispatch.sh thay __JOB_ID__ và __BASE_BRANCH__
+# (đã kiểm tra chỉ gồm ký tự an toàn), còn task và tiêu đề PR nằm trong ConfigMap "task-__JOB_ID__".
+#
+# Cần sẵn trong namespace (xem README.md):
+#   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN)
+#   ConfigMap mwg-ca         (CA của proxy công ty)
+#   ConfigMap agent-script   (run.sh; dispatch.sh tự tạo/cập nhật từ k8s/agents/run.sh)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-__JOB_ID__
+  labels:
+    app: claude-agent-job
+    agent-job-id: __JOB_ID__
+spec:
+  ttlSecondsAfterFinished: 600   # giữ pod 10 phút sau khi xong để còn xem log
+  backoffLimit: 0
+  activeDeadlineSeconds: 2400
+  template:
+    metadata:
+      labels:
+        app: claude-agent-job
+        agent-job-id: __JOB_ID__
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: script
+          configMap:
+            name: agent-script
+        - name: task
+          configMap:
+            name: task-__JOB_ID__
+        - name: mwg-ca
+          configMap:
+            name: mwg-ca
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          command: ["bash", "/scripts/run.sh"]
+          volumeMounts:
+            - { name: script, mountPath: /scripts }
+            - { name: task, mountPath: /task }
+            - { name: mwg-ca, mountPath: /usr/local/share/ca-certificates/mwg }
+          envFrom:
+            - secretRef:
+                name: agent-secrets
+          env:
+            - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
+            - { name: BASE_BRANCH, value: __BASE_BRANCH__ }
+            - { name: JOB_ID, value: __JOB_ID__ }
+            - { name: GH_VERSION, value: "2.62.0" }
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }
+            - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
+          resources:
+            requests: { cpu: 500m, memory: 512Mi }
+            limits: { memory: 3Gi }
