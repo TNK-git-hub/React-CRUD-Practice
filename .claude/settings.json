@@ -14,7 +14,16 @@
       "Bash(pnpm --filter frontend exec stryker:*)",
       "Bash(.venv/bin/python:*)",
       "Bash(git status:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(pnpm ci:local)",
+      "Bash(bash k8s/agents/watch-pr.sh:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl logs:*)"
     ],
     "deny": [
       "Read(./.env)",
