@@ -108,7 +108,12 @@ export interface FakeDb {
   managerSave: (entity: any) => unknown;
 }
 
-export function makeService(db: Partial<FakeDb> = {}, redis: RedisService = fakeRedis()) {
+export function makeService(
+  db: Partial<FakeDb> = {},
+  redis: RedisService = fakeRedis(),
+  // optional real-ish repo (see products.memrepo.ts); its findAndCount replaces the canned one
+  repo?: { findAndCount: (opts: any) => Promise<[unknown[], number]> },
+) {
   const cfg: FakeDb = {
     findOne: () => null,
     findAndCount: () => [[], 0],
@@ -121,8 +126,8 @@ export function makeService(db: Partial<FakeDb> = {}, redis: RedisService = fake
     async findOne(opts: { where: { id: number } }) {
       return cfg.findOne(opts.where.id);
     },
-    async findAndCount() {
-      return cfg.findAndCount();
+    async findAndCount(opts: unknown) {
+      return repo ? repo.findAndCount(opts) : cfg.findAndCount();
     },
     async existsBy() {
       return false; // every generated barcode is free
