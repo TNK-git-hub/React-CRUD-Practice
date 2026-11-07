@@ -4,6 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, ILike, In, QueryFailedError, Repository } from 'typeorm';
 import { Tag } from './tag.entity';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
+import { CreateReviewDto } from './dto/create-review.dto';
+import { Review } from './review.entity';
 import { QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { Product } from './product.entity';
@@ -238,6 +240,42 @@ export class ProductsService {
         } catch (err) {
             this.handleUniqueError(err);
         }
+    }
+
+    // POST /products/:id/reviews: insert review + recompute products.rating in one transaction
+    async addReview(productId: number, dto: CreateReviewDto) {
+        const result = await this.dataSource.transaction(async (manager) => {
+            const product = await manager.findOneBy(Product, { id: productId });
+            if (!product) throw new NotFoundException(`Product ${productId} not found`);
+
+            const review = manager.create(Review, {
+                rating: dto.rating,
+                comment: dto.comment ?? null,
+                date: new Date(),
+                reviewerName: dto.reviewerName,
+                reviewerEmail: dto.reviewerEmail,
+                product: { id: productId },
+            });
+            const saved = await manager.save(review);
+
+            // all reviews of this product, including the one just inserted
+            const all = await manager.findBy(Review, { product: { id: productId } });
+            const avg = all.reduce((sum, r) => sum + r.rating, 0) / all.length;
+            product.rating = Math.round((avg + Number.EPSILON) * 100) / 100;
+            await manager.save(product);
+
+            return {
+                id: saved.id,
+                rating: saved.rating,
+                comment: saved.comment,
+                date: saved.date,
+                reviewerName: saved.reviewerName,
+                reviewerEmail: saved.reviewerEmail,
+            };
+        });
+        await this.cache.del(detailKey(productId)); // after commit
+        await this.invalidateLists();               // lists can be sorted by rating
+        return result;
     }
 
 }
