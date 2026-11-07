@@ -29,6 +29,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Test viết sau, khớp theo code | Bước RED: test mới phải fail trên code cũ trước khi code-writer chạy; PR có 2 commit test → code |
 | Test yếu | Mutation score ≥ `MUTATION_MIN` trên file src đã đổi + test-critic |
 | Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
+| Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
 | Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |

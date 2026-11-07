@@ -7,6 +7,7 @@
 #   2. RED     test-writer viết test → gate: chỉ sửa test/public, test mới phải FAIL → commit "test: ..."
 #   3. GREEN   code-writer viết code → gate: chỉ sửa src, không có code dò môi trường test,
 #              pnpm ci:local pass (tối đa MAX_FIX_ATTEMPTS vòng sửa) → commit
+#              code-writer ghi "TEST_WRONG: ..." → test-critic làm trọng tài (1 lần/task): test sai thì test-writer sửa assert đó
 #   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic (chỉ đọc)
 #              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
 #   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
@@ -62,6 +63,9 @@ You may only change files in backend/src, frontend/src, frontend/public.
 Do not change tests, CI, lint, TypeScript, package or .claude configuration, and do not add eslint-disable or @ts-ignore comments.
 Never make code behave differently under test (no checks on VITEST, NODE_ENV === 'test', etc.) and never special-case the exact inputs used in tests: implement the behaviour in general.
 If you believe a test is wrong, stop and explain why instead of working around it.
+If you are sure an assertion contradicts the task (not just your implementation), also add one line per assertion:
+\`TEST_WRONG: <file>:<line> <why>\` at the start of a line in your answer. An independent reviewer then decides
+whether the test or the code is wrong (this happens at most once per task).
 When you are done, run \`pnpm ci:local\` (exactly that command) and fix what it reports until it prints CI PASSED."
 
 RULES_TEST="Follow CLAUDE.md and the writing-good-tests skill. You may only create or change files in backend/test/public and frontend/test/public.
@@ -104,7 +108,8 @@ assert_no_env_sniff() {
   fi
 }
 
-commit_stage() { git add -A; git commit -q -m "$1"; git rev-parse HEAD; }
+# Không có gì để commit thì giữ nguyên HEAD (vd sau trọng tài, code đã được commit sẵn)
+commit_stage() { git add -A; git diff --cached --quiet || git commit -q -m "$1"; git rev-parse HEAD; }
 
 # test-writer không có quyền xoá file (pod không cho Bash rm): nó ghi dòng "DELETE: <path>" trong câu trả lời,
 # script xoá giúp, nhưng CHỈ file trong test/public do chính branch này tạo ra (không có ở BASE_SHA).
@@ -125,9 +130,66 @@ apply_test_deletions() {
   done < <({ grep -Eo '^[[:space:]]*DELETE: [^[:space:]]+' "$out" || true; } | sed -E 's/^[[:space:]]*DELETE: //; s/`//g' | sort -u)
 }
 
-# ci_gate <sha>: gate của code-writer kể từ <sha>, chạy ci:local, fail thì nhờ code-writer sửa
+# Trọng tài: code-writer khẳng định test sai (dòng "TEST_WRONG:"), CI fail. Tối đa 1 lần mỗi task (mode full).
+# test-critic (chỉ đọc) phán theo spec của task:
+#   TESTS_WRONG -> chốt code hiện tại (commit "wip"), test-writer sửa đúng các assert bị phán sai -> commit; ARB_SHA = mốc mới cho gate
+#   CODE_WRONG / không có phán quyết -> code-writer sửa tiếp, kèm lập luận của trọng tài (ARB_NOTE)
+# Gate vẫn giữ nguyên: code-writer chỉ src, test-writer chỉ test/public; test sau đó còn qua mutation + test-critic ở REVIEW.
+arbitrate() {
+  local sha="$1" code_out="$2" v wip
+  ARBITRATED=1; ARB_RESULT=CODE_WRONG
+  stage "ARBITRATION: code-writer says a test is wrong"
+  run_agent test-critic /tmp/out/arbitration.txt "The code-writer claims that some tests on this branch are wrong, and the local CI fails because of them.
+Using ONLY the task below as the source of truth, decide whether the failing assertions are wrong (they reject output the task
+allows or asks for, e.g. they match the wrong thing) or the code is wrong (it does not do what the task asks).
+Read the failing tests and the code (\`git diff ${BASE_SHA}\`) before deciding.
+For each assertion you judge wrong, give file:line and what it should check instead so that it still catches the bug it was written for.
+
+## Task
+${TASK}
+
+## Code-writer's claim
+$({ grep -E '^[[:space:]]*TEST_WRONG:' "$code_out" || true; })
+
+## Code-writer's answer
+$(tail -c 6000 "$code_out")
+
+## Failing CI output (last 120 lines)
+$(tail -n 120 /tmp/ci.log | strip_colors)
+
+End your answer with exactly one line: \`ARBITRATION: TESTS_WRONG\` or \`ARBITRATION: CODE_WRONG\`." "${TOOLS_REVIEWER[@]}"
+  v="$({ grep -Eo 'ARBITRATION: (TESTS_WRONG|CODE_WRONG)' /tmp/out/arbitration.txt || true; } | tail -n 1 | awk '{print $2}')"
+  log "ARBITRATION: ${v:-no verdict, treated as CODE_WRONG}"
+  echo "### Arbitration (code-writer said a test is wrong): ${v:-no verdict, treated as CODE_WRONG}" >> /tmp/out/review.txt
+  if [[ "$v" != TESTS_WRONG ]]; then
+    ARB_NOTE="An independent reviewer checked your claim that a test is wrong and judged that the CODE must change:
+$(cat /tmp/out/arbitration.txt)"
+    return 0
+  fi
+  ARB_RESULT=TESTS_WRONG
+  assert_only "$sha" "$SRC_RE" "code-writer"
+  wip="$(commit_stage "wip: ${PR_TITLE} (before test arbitration)")"
+  stage "ARBITRATION: test-writer fixes the assertions judged wrong"
+  run_agent test-writer /tmp/out/test-arb.txt "An independent reviewer judged some of the assertions on this branch wrong (decision below).
+Fix ONLY those assertions so they check what the task asks for and still catch the bug they were written for.
+Do not weaken, skip or remove other tests, and do not change production code.
+
+## Task
+${TASK}
+
+## Reviewer's decision
+$(cat /tmp/out/arbitration.txt)
+
+## Rules
+${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+  assert_only "$wip" "$TEST_RE" "test-writer"
+  ARB_SHA="$(commit_stage "test: fix assertions after arbitration")"
+}
+
+# ci_gate <sha> [code-writer output]: gate của code-writer kể từ <sha>, chạy ci:local, fail thì nhờ code-writer sửa.
+# [code-writer output] = câu trả lời của code-writer vừa chạy; có dòng TEST_WRONG thì gọi trọng tài trước khi sửa tiếp.
 ci_gate() {
-  local sha="$1" attempt=0
+  local sha="$1" code_out="${2:-}" attempt=0
   while true; do
     log "CI gate: checking changed files (code-writer may only touch src)"
     assert_only "$sha" "$SRC_RE" "code-writer"
@@ -138,6 +200,13 @@ ci_gate() {
       FIX_ROUNDS=$((FIX_ROUNDS + attempt))
       return 0
     fi
+    if [[ "$MODE" == full && "$ARBITRATED" == 0 && -n "$code_out" ]] && grep -Eq '^[[:space:]]*TEST_WRONG:' "$code_out"; then
+      arbitrate "$sha" "$code_out"
+      if [[ "$ARB_RESULT" == TESTS_WRONG ]]; then
+        sha="$ARB_SHA"; code_out=""
+        continue   # chạy lại CI với test đã sửa, không tính vào số vòng sửa code
+      fi
+    fi
     (( attempt < MAX_FIX_ATTEMPTS )) || fail "local CI still failing after ${MAX_FIX_ATTEMPTS} fix attempts"
     attempt=$((attempt + 1))
     log "CI gate: FAILED, asking code-writer to fix it (attempt ${attempt}/${MAX_FIX_ATTEMPTS})"
@@ -145,8 +214,10 @@ ci_gate() {
 ${TASK}
 
 ${RULES_CODE}
+${ARB_NOTE}
 CI output (last 150 lines):
 $(tail -n 150 /tmp/ci.log | strip_colors)" "${TOOLS_CODE_WRITER[@]}"
+    code_out=/tmp/out/code-fix.txt
   done
 }
 
@@ -248,6 +319,7 @@ log "Installing project dependencies"
 pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
 FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1
+ARBITRATED=0; ARB_RESULT=""; ARB_SHA=""; ARB_NOTE=""
 : > /tmp/out/red.txt; : > /tmp/out/review.txt; echo "skipped (code-only mode)" > /tmp/out/mutation.txt
 
 if [[ "$MODE" == code-only ]]; then
@@ -257,7 +329,7 @@ if [[ "$MODE" == code-only ]]; then
 
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   [[ -n "$(changed_since "$BASE_SHA")" ]] || fail "agent made no changes"
-  ci_gate "$BASE_SHA"
+  ci_gate "$BASE_SHA" /tmp/out/code.txt
   commit_stage "${PR_TITLE}" >/dev/null
   REVIEW_DONE=1
 else
@@ -317,7 +389,7 @@ ${CODE_PLAN}
 ## Rules
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   [[ -n "$(changed_since "$TEST_SHA")" ]] || fail "code-writer made no changes"
-  ci_gate "$TEST_SHA"
+  ci_gate "$TEST_SHA" /tmp/out/code.txt
   CODE_SHA="$(commit_stage "${PR_TITLE}")"
 
   # ---------- 4. REVIEW ----------
@@ -434,7 +506,8 @@ $(cat /tmp/out/code-review.txt)
 ## Rules
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
     fi
-    ci_gate "$STAGE_SHA"   # tests mới có thể làm CI fail: code-writer sửa trong gate này
+    # tests mới có thể làm CI fail: code-writer sửa trong gate này
+    ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
     if [[ -n "$(changed_since "$STAGE_SHA")" ]]; then
       CODE_SHA="$(commit_stage "fix: address review (round ${round})")"
     else
