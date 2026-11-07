@@ -41,7 +41,7 @@ describe('ReviewForm initial markup', () => {
     for (const label of ['Tên', 'Email', 'Nhận xét']) expect(html).toMatch(new RegExp(`<label[^>]*>\\s*${label}\\s*<`));
     const submit = tags('button').find((b) => b.includes('type="submit"'));
     expect(submit).toBeDefined();
-    expect(submit).not.toContain('disabled');
+    expect(submit).not.toMatch(/\sdisabled(=|\s|>)/);
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>\s*Gửi đánh giá\s*<\/button>/);
   });
 

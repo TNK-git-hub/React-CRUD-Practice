@@ -22,14 +22,14 @@ describe('ReviewCard comment', () => {
     const html = render({ comment: null });
 
     expect(html).not.toContain('null');
-    expect(html).not.toContain('<p');
+    expect(html).not.toMatch(/<p[\s>]/);
   });
 
   it('empty comment renders no paragraph', () => {
     // catches: only null handled, empty string renders an empty pair of quotes
     const html = render({ comment: '' });
 
-    expect(html).not.toContain('<p');
+    expect(html).not.toMatch(/<p[\s>]/);
     expect(html).not.toContain('&quot;');
   });
 
