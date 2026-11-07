@@ -1,5 +1,5 @@
 import apiFetch from "./client";
-import type { DeletedProduct, Product, ProductListResponse, ProductPayload, SortField, SortOrder } from "../types/product";
+import type { DeletedProduct, Product, ProductListResponse, ProductPayload, Review, ReviewPayload, SortField, SortOrder } from "../types/product";
 
 export interface ProductQuery {
     q?: string;
@@ -45,6 +45,15 @@ export function uploadImage(file: File) { //IMG_FeToBe
 // DELETE /products/:id: delete a product
 export function deleteProduct(id: number | string) {
     return apiFetch<DeletedProduct>(`/products/${id}`, { method: 'DELETE' });
+}
+
+// POST /products/:id/reviews: add a review
+export function addReview(productId: number | string, payload: ReviewPayload) {
+    return apiFetch<Review>(`/products/${productId}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
 }
 
 // PATCH /products/:id: update some fields of a product

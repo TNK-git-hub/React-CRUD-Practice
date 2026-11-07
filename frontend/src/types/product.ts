@@ -10,6 +10,13 @@ export interface Dimensions {
     depth: number | null;
 }
 
+export interface ReviewPayload {
+    rating: number;
+    reviewerName: string;
+    reviewerEmail: string;
+    comment?: string;
+}
+
 export interface Review {
     id: number;
     rating: number;
