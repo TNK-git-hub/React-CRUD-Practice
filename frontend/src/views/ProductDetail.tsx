@@ -9,6 +9,7 @@ import StockStatus from "../comopnents/ProductDetail/StockStatus";
 import SpecGrid from "../comopnents/ProductDetail/SpecGrid";
 import TagsContainer from "../comopnents/ProductDetail/TagsContainer";
 import CommentsContainer from "../comopnents/ProductDetail/CommentsContainer";
+import ReviewForm from "../comopnents/ProductDetail/ReviewForm";
 import StatusMessage from "../comopnents/ProductListPageCom/StatusMessage";
 
 const main = "flex grow flex-col gap-[22px] bg-bg px-12 pt-[26px] pb-9";
@@ -77,6 +78,7 @@ function ProductDetail() {
                     </span>
                 </h2>
                 <CommentsContainer reviews={product.reviews} />
+                <ReviewForm productId={product.id} />
             </section>
         </main>
     )

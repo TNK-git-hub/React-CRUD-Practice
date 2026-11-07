@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createProduct, deleteProduct, updateProduct } from '../api/productsQuerParam';
+import { addReview, createProduct, deleteProduct, updateProduct } from '../api/productsQuerParam';
 import { productKeys, productMutationKeys } from '../api/queryKeys';
 import { useToast } from './useToast';
 import type { ApiError } from '../api/client';
-import type { DeletedProduct, Product, ProductListResponse, ProductPayload } from '../types/product';
+import type { DeletedProduct, Product, ProductListResponse, ProductPayload, Review, ReviewPayload } from '../types/product';
 
 export const UNDO_MS = 5000; // design: giữ 5s để hoàn tác
 
@@ -62,6 +62,19 @@ export function useUpdateProduct() {
             queryClient.setQueryData(productKeys.detail(updated.id), updated); // trang detail hiện data mới luôn, ko gọi api lại
             queryClient.invalidateQueries({ queryKey: productKeys.lists() });  // title / price trong list có thể đã đổi
         },
+    });
+}
+
+// POST review: sau khi gửi, refetch detail (reviews, rating, count) và list
+export function useAddReview(productId: number) {
+    const queryClient = useQueryClient();
+
+    return useMutation<Review, ApiError, ReviewPayload>({
+        mutationFn: (payload) => addReview(productId, payload),
+        onSuccess: () => Promise.all([
+            queryClient.invalidateQueries({ queryKey: productKeys.detail(productId) }),
+            queryClient.invalidateQueries({ queryKey: productKeys.lists() }),
+        ]),
     });
 }
 

@@ -31,7 +31,7 @@ export default function ReviewCard({ review }: ReviewCardProps) {
                     ))}
                 </span>
             </div>
-            <p className="font-sans text-body leading-normal font-normal text-ink">{`"${review.comment}"`}</p>
+            {review.comment && <p className="font-sans text-body leading-normal font-normal text-ink">{`"${review.comment}"`}</p>}
             <span className="mt-auto text-[11.5px]">
                 {formatDate(review.date)}
             </span>
