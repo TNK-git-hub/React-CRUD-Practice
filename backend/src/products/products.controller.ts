@@ -5,6 +5,7 @@ import {
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
+import { CreateReviewDto } from './dto/create-review.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { ProductsService } from './products.service';
@@ -38,6 +39,12 @@ export class ProductsController {
     @Post('add')
     create(@Body() dto: CreateProductDto) {
         return this.productsService.create(dto);
+    }
+
+    // POST /products/:id/reviews
+    @Post(':id/reviews')
+    addReview(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateReviewDto) {
+        return this.productsService.addReview(id, dto);
     }
 
     // DELETE /products/:id
