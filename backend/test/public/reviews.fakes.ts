@@ -198,15 +198,13 @@ export function makeWorld(opts: WorldOptions = {}) {
     },
   };
 
-  // what GET /products/:id reads: the stored product with its reviews ordered by id ASC
+  // what GET /products/:id reads: the raw stored product and its review rows, as stored.
+  // No sorting and no reviewCount here: that is production logic, not part of the "database".
   const productRepo = {
     async findOne(options: { where: { id: number } }) {
       const p = state.products.get(options.where.id);
       if (!p) return null;
-      const reviews = reviewsOf({ productId: p.id })
-        .map((rec) => clone(rec.row))
-        .sort((x, y) => x.id - y.id);
-      return { ...clone(p), reviews, reviewCount: reviews.length };
+      return { ...clone(p), reviews: reviewsOf({ productId: p.id }).map((rec) => clone(rec.row)) };
     },
     async findAndCount() {
       return (opts.findAndCount ?? (() => [[], 0] as [unknown[], number]))();

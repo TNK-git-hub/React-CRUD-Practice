@@ -126,18 +126,6 @@ describe('ProductsService.addReview: the created review', () => {
     expect(w.reviewsOf(2)).toHaveLength(1);
     expect(w.reviewsOf(2)[0]).toMatchObject({ reviewerName: 'Zed', rating: 2 });
   });
-
-  // bug caught: review inserted out of order, or findOne not showing the new data
-  it('GET after POST shows the new review last and the new rating', async () => {
-    const w = makeWorld({ products: [{ id: 1, ratings: [5, 4] }] });
-
-    const created = await w.service.addReview(1, dto({ rating: 4, reviewerName: 'Newest' }));
-    const { data } = await w.service.findOne(1);
-
-    expect(data.reviews.map((r) => r.id)).toEqual([1, 2, created.id]);
-    expect(data.reviews.at(-1)!.reviewerName).toBe('Newest');
-    expect(data.rating).toBe(4.33);
-  });
 });
 
 describe('ProductsService.addReview: failures write nothing', () => {

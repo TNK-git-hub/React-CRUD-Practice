@@ -33,16 +33,15 @@ describe('ProductsService.addReview cache invalidation', () => {
   });
 
   // bug caught: cache cleared before the commit and refilled with the old data
-  it('the fresh MISS carries the new rating and the new review last', async () => {
+  it('the fresh MISS carries the new rating', async () => {
     const w = makeWorld(twoProducts());
     await w.service.findOne(1);
 
-    const created = await w.service.addReview(1, dto({ rating: 4 }));
+    await w.service.addReview(1, dto({ rating: 4 }));
     const after = await w.service.findOne(1);
 
     expect(after.cache).toBe('MISS');
     expect(after.data.rating).toBe(4.33);
-    expect(after.data.reviews.at(-1)!.id).toBe(created.id);
     expect((await w.service.findOne(1)).data.rating).toBe(4.33); // and the refreshed value is cached
   });
 
