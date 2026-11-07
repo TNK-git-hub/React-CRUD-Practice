@@ -47,6 +47,16 @@ describe('ReviewForm initial markup', () => {
 
   it('shows no error or success message before the user does anything', () => {
     // catches: validation errors or the thank-you rendered on mount
-    for (const text of ['Vui lòng', 'không hợp lệ', 'tối đa', 'Cảm ơn', 'Đang gửi']) expect(html).not.toContain(text);
+    // full messages from the spec, so renaming a static label cannot break this test
+    const messages = [
+      'Vui lòng chọn số sao',
+      'Vui lòng nhập tên',
+      'Tên tối đa 100 ký tự',
+      'Email không hợp lệ',
+      'Nhận xét tối đa 1000 ký tự',
+      'Cảm ơn! Đánh giá của bạn đã được gửi.',
+      'Đang gửi…',
+    ];
+    for (const text of messages) expect(html).not.toContain(text);
   });
 });
