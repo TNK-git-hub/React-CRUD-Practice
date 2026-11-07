@@ -50,7 +50,8 @@ ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["
 TEST_CMDS=("Bash(pnpm test)" "Bash(pnpm --filter backend test:*)" "Bash(pnpm --filter frontend test:*)")
 GIT_READ=("Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)")
 TOOLS_PLANNER=("Read" "Glob" "Grep")
-TOOLS_TEST_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}")
+TOOLS_TEST_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}"
+  "Bash(pnpm lint)" "Bash(pnpm --filter frontend typecheck)")
 TOOLS_CODE_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}"
   "Bash(pnpm ci:local)" "Bash(pnpm lint)" "Bash(pnpm --filter frontend lint)" "Bash(pnpm --filter frontend typecheck)"
   "Bash(pnpm --filter frontend build)" "Bash(pnpm --filter backend build)")
@@ -104,6 +105,25 @@ assert_no_env_sniff() {
 }
 
 commit_stage() { git add -A; git commit -q -m "$1"; git rev-parse HEAD; }
+
+# test-writer không có quyền xoá file (pod không cho Bash rm): nó ghi dòng "DELETE: <path>" trong câu trả lời,
+# script xoá giúp, nhưng CHỈ file trong test/public do chính branch này tạo ra (không có ở BASE_SHA).
+# Nhờ vậy review có thể đòi xoá test vô nghĩa, mà agent vẫn không xoá được test có sẵn để cho dễ pass.
+apply_test_deletions() {
+  local out="$1" p
+  while read -r p; do
+    [[ -n "$p" ]] || continue
+    if [[ ! "$p" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$ || "$p" == *..* ]]; then
+      log "DELETE ignored (not under test/public): $p"; continue
+    fi
+    if git cat-file -e "${BASE_SHA}:${p}" 2>/dev/null; then
+      log "DELETE ignored (file existed before this branch): $p"; continue
+    fi
+    [[ -f "$p" ]] || { log "DELETE ignored (no such file): $p"; continue; }
+    rm -f -- "$p"
+    log "DELETE: removed $p (requested by test-writer)"
+  done < <({ grep -Eo '^[[:space:]]*DELETE: [^[:space:]]+' "$out" || true; } | sed -E 's/^[[:space:]]*DELETE: //; s/`//g' | sort -u)
+}
 
 # ci_gate <sha>: gate của code-writer kể từ <sha>, chạy ci:local, fail thì nhờ code-writer sửa
 ci_gate() {
@@ -302,8 +322,28 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
 
   # ---------- 4. REVIEW ----------
   round=0
+  CRITIC_HISTORY=""
   while true; do
     stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic"
+    # Mỗi vòng critic là session mới: đưa nhận xét vòng trước + trả lời của test-writer để critic không đổi ý / đòi thứ không làm được
+    if (( round > 0 )); then
+      CRITIC_HISTORY="## Previous round
+This is review round $((round + 1)). Your previous review and the test-writer's answer are below.
+Rules for this round:
+- Return CHANGES only for (a) items of the previous review that are still not addressed and still valid, or
+  (b) a NEW issue that would let a real bug in the task's behaviour go unnoticed.
+- Do not reverse a request from the previous review (e.g. ask to delete a test it asked for, or the opposite)
+  unless it was plainly wrong; if so, say why.
+- Items the test-writer explained it cannot do (e.g. needs a new dependency or an HTTP-level test) go under
+  'Accepted gaps' and do not block.
+
+### Previous review
+$(cat /tmp/out/test-review-prev.txt)
+
+### Test-writer's answer
+$(cat /tmp/out/test-fix.txt)
+"
+    fi
     mutation_gate
     run_agent code-reviewer /tmp/out/code-review.txt "Review the change on this branch: \`git diff ${BASE_SHA} HEAD\` (tests were written first by another agent, then the code).
 
@@ -328,8 +368,12 @@ ${TASK}
 ## Test plan
 ${TEST_PLAN}
 
+${CRITIC_HISTORY}
+The test-writer cannot delete files itself; it asks the pipeline to delete test files added on this branch.
+Put nice-to-have remarks under 'Optional': they do not block.
 End your answer with exactly one line: \`VERDICT: APPROVE\` (tests would catch real bugs in this behaviour) or \`VERDICT: CHANGES\` (list what to fix above it)." "${TOOLS_REVIEWER[@]}"
     CODE_V="$(verdict /tmp/out/code-review.txt)"; TEST_V="$(verdict /tmp/out/test-review.txt)"
+    cp /tmp/out/test-review.txt /tmp/out/test-review-prev.txt
     CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
     {
       echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW)"
@@ -340,6 +384,7 @@ End your answer with exactly one line: \`VERDICT: APPROVE\` (tests would catch r
     fi
     (( round < REVIEW_ROUNDS )) || break
     round=$((round + 1))
+    echo "(the test-writer did not run in this round: only the code review asked for changes)" > /tmp/out/test-fix.txt
 
     if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 ]]; then
       stage "REVIEW round ${round}: test-writer addresses test review"
@@ -356,8 +401,19 @@ $(cat /tmp/out/test-review.txt)
 ## Mutation testing
 $(cat /tmp/out/mutation.txt)
 
+## Deleting a test file
+You cannot delete files yourself. To delete a test file that was ADDED on this branch, put a line
+\`DELETE: <path from the repo root>\` at the start of a line in your final answer (one line per file, no other text on it),
+e.g. \`DELETE: backend/test/public/foo.test.ts\`. The pipeline deletes it after you exit.
+Files that existed before this branch cannot be deleted.
+
+## Your answer
+End with a short 'Response to review' list: for each review item, say what you did, or why you did not do it.
+The next reviewer reads this.
+
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+      apply_test_deletions /tmp/out/test-fix.txt
       assert_only "$CODE_SHA" "$TEST_RE" "test-writer"
       if [[ -n "$(changed_since "$CODE_SHA")" ]]; then
         TEST_SHA="$(commit_stage "test: address review (round ${round})")"

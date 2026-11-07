@@ -15,7 +15,7 @@
 #   --dry-run    chỉ kiểm tra đầu vào và in manifest, KHÔNG tạo gì trong cluster.
 #
 # Muốn chạy song song: gọi nhiều lệnh cùng lúc (mỗi task một job-id khác nhau).
-# Khi SUCCESS: in thêm "PRIVATE: PASS|FAIL|SKIPPED" (chỉ số lượng, không in nội dung test để không lộ cho agent).
+# Khi có PR (SUCCESS, hoặc FAILED kèm PR draft): in thêm "PRIVATE: PASS|FAIL|SKIPPED" (chỉ số lượng, không in nội dung test để không lộ cho agent).
 # Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
 set -euo pipefail
 
@@ -120,8 +120,10 @@ run_private() {
   fi
   git -C "$ROOT" worktree remove --force "$wt"
 }
-if [[ "$line" == "RESULT: SUCCESS"* && "$PRIVATE" == 1 ]]; then
-  run_private "${line#RESULT: SUCCESS pr=}" || echo "PRIVATE: SKIPPED (error while running hidden tests)"
+# Có PR là chạy, kể cả PR draft (FAILED vì review không qua): người dùng cần biết code có đúng không để quyết định
+PR_IN_LINE="$(sed -nE 's/.*[[:space:]]pr=([^[:space:]]+).*/\1/p' <<<"$line")"
+if [[ -n "$PR_IN_LINE" && "$PRIVATE" == 1 ]]; then
+  run_private "$PR_IN_LINE" || echo "PRIVATE: SKIPPED (error while running hidden tests)"
 fi
 
 echo "$line"

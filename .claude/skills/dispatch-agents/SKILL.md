@@ -33,7 +33,7 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - Xem trước: `bash k8s/agents/dispatch.sh <job-id> k8s/agents/tasks/<job-id>.md --title "<PR title>" [--mode code-only] --dry-run`
 - Chạy thật: bỏ `--dry-run`. Nhiều task thì chạy song song (mỗi task một lệnh Bash chạy nền), rồi đợi tất cả. Mode full mất khoảng 20–60 phút mỗi task.
 - Đọc dòng cuối: `RESULT: SUCCESS pr=<url>` hoặc `RESULT: FAILED reason=...`. Fail thì đọc log trong `k8s/agents/logs/<job-id>-*.log` (dòng `==> ... =====` cho biết đang ở bước nào, dòng `==>` cuối cùng cho biết bước hỏng).
-- `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review. Báo người dùng, không tự dispatch lại.
+- `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review (hidden test vẫn chạy trên PR draft). Báo người dùng, không tự dispatch lại.
 - Dòng `PRIVATE:` (hidden test, chạy trên máy local):
   - `PASS` / `SKIPPED` → tiếp bước 4.
   - `FAIL` → báo người dùng kèm đường dẫn log. **Không đọc log đó, không đưa nội dung hay tên test vào task sửa**: lộ hidden test cho agent là mất tác dụng chống học tủ.

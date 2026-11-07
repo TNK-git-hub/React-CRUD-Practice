@@ -100,6 +100,11 @@ if (tool === "Bash") {
   const writes = /(\bsed\s+-i|>|\brm\b|\brmdir\b|\bmv\b|\bcp\b|\btee\b|\btouch\b|\bmkdir\b|\bchmod\b|\btruncate\b|\bgit\s+(checkout|restore|rm|mv|clean)\b)/;
   if (!writes.test(ops)) allow();
 
+  // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
+  const TEST_RM =
+    /^\s*(git\s+)?rm\s+(-f\s+)?((backend|frontend)\/test\/public|frontend\/test\/e2e)\/[\w./-]+\.test\.tsx?\s*$/;
+  if (agent === "test-writer" && TEST_RM.test(cmd) && !cmd.includes("..")) allow();
+
   if (/(^|[\s/'"=])test\//.test(cmd)) block("Không được sửa/tạo/xoá file trong test/ bằng Bash.");
   if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(cmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
