@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export type Theme = "light" | "dark";
 
 interface HeaderProps {
@@ -15,7 +17,9 @@ function Header({ theme, toggleTheme }: HeaderProps) {
 
     return (
         <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-line bg-surface px-12 max-xs:h-[58px] max-xs:px-[18px]">
-            <h2>ReactDummy</h2>
+            <h2>
+                <Link href="/" className="cursor-pointer text-inherit no-underline hover:text-accent">ReactDummy</Link>
+            </h2>
 
             <div className="flex items-center gap-1.5 rounded-pill border border-line bg-chip p-1">
                 <button className={theme === "light" ? toggleActive : toggleIdle} onClick={toggleTheme}>
