@@ -32,17 +32,17 @@ describe('ProductsService.addReview cache invalidation', () => {
     expect((await w.service.findOne(1)).cache).toBe('MISS');
   });
 
-  // bug caught: cache cleared before the commit and refilled with the old data
-  it('the fresh MISS carries the new rating', async () => {
+  // bug caught: the refreshed value is not cached again after the MISS (every read hits the db)
+  it('the value reloaded after the MISS is cached again', async () => {
     const w = makeWorld(twoProducts());
     await w.service.findOne(1);
 
     await w.service.addReview(1, dto({ rating: 4 }));
-    const after = await w.service.findOne(1);
+    await w.service.findOne(1);
+    const third = await w.service.findOne(1);
 
-    expect(after.cache).toBe('MISS');
-    expect(after.data.rating).toBe(4.33);
-    expect((await w.service.findOne(1)).data.rating).toBe(4.33); // and the refreshed value is cached
+    expect(third.cache).toBe('HIT');
+    expect(third.data.rating).toBe(4.33);
   });
 
   // bug caught: invalidateLists forgotten -> lists sorted by rating stay stale for 30s
