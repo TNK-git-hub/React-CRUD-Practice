@@ -8,6 +8,8 @@ import { QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto'; // Step 7
 import { Product } from './product.entity';
 import { ProductImage } from './product-image.entity';
+import { Review } from './review.entity';
+import { CreateReviewDto } from './dto/create-review.dto';
 import { CacheService } from '../redis/cache.service';
 
 // Redis cache: key của 1 product + thời gian sống (giây)
@@ -238,6 +240,49 @@ export class ProductsService {
         } catch (err) {
             this.handleUniqueError(err);
         }
+    }
+
+    // POST /products/:id/reviews: insert the review + recompute products.rating in one transaction
+    async addReview(productId: number, dto: CreateReviewDto) {
+        const created = await this.dataSource.transaction(async (manager) => {
+            // lock the product row so concurrent reviews compute the average one after another
+            const product = await manager.findOne(Product, {
+                where: { id: productId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!product) throw new NotFoundException(`Product ${productId} not found`);
+
+            const review = manager.create(Review, {
+                rating: dto.rating,
+                comment: dto.comment ?? null,
+                reviewerName: dto.reviewerName,
+                reviewerEmail: dto.reviewerEmail,
+                date: new Date(),
+                product: { id: productId },
+            });
+            const saved = await manager.save(review);
+
+            // read after the insert, so the new review is included
+            const all = await manager.find(Review, {
+                where: { product: { id: productId } },
+                select: { rating: true },
+            });
+            const sum = all.reduce((acc, r) => acc + r.rating, 0);
+            product.rating = Math.round((sum * 100) / all.length) / 100;
+            await manager.save(product);
+
+            return {
+                id: saved.id,
+                rating: saved.rating,
+                comment: saved.comment ?? null,
+                date: saved.date,
+                reviewerName: saved.reviewerName,
+                reviewerEmail: saved.reviewerEmail,
+            };
+        });
+        await this.cache.del(detailKey(productId)); // after commit
+        await this.invalidateLists();
+        return created;
     }
 
 }
