@@ -1,0 +1,155 @@
+<mxfile host="65bd71144e">
+    <diagram id="m3C_ZF8RagCL74pXb2Gb" name="Page-1">
+        <mxGraphModel dx="792" dy="340" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" source="4vyqPHEAyEjN5u6dO3jP-4" target="5" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="590" y="315.5" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-3" value="Có quyền đọc" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" parent="4vyqPHEAyEjN5u6dO3jP-2" connectable="0" vertex="1">
+                    <mxGeometry x="-0.0964" y="1" relative="1" as="geometry">
+                        <mxPoint y="1" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-4" value="Agent chính" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/png,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;" parent="1" vertex="1">
+                    <mxGeometry x="250" y="255.5" width="164" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="248" y="160" as="sourcePoint"/>
+                        <mxPoint x="414" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="9" value="Cấu trúc thư mục" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" connectable="0" vertex="1" parent="8">
+                    <mxGeometry x="-0.1456" y="2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="5" target="4vyqPHEAyEjN5u6dO3jP-8">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="515"/>
+                        </Array>
+                        <mxPoint x="620" y="351" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="10" value="CLAUDE_setup.md" style="shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#4495D1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam.2d.file;labelPerimeter=1;" vertex="1" parent="1">
+                    <mxGeometry x="690" y="690" width="36.8" height="50.8" as="geometry"/>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="5" target="4vyqPHEAyEjN5u6dO3jP-12">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="615"/>
+                        </Array>
+                        <mxPoint x="620" y="338" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="11" value="diagram/" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=right;verticalLabelPosition=middle;verticalAlign=middle;outlineConnect=0;align=left;shape=mxgraph.office.concepts.folder;fillColor=#2072B8;" vertex="1" parent="1">
+                    <mxGeometry x="690" y="790" width="50" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-8" value=".gitignore" style="shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#4495D1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam.2d.file;labelPerimeter=1;" vertex="1" parent="1">
+                    <mxGeometry x="690" y="490" width="36.8" height="50.8" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="AgentInteractFlow (1).drawio" style="shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#4495D1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam.2d.file;labelPerimeter=1;" vertex="1" parent="1">
+                    <mxGeometry x="790" y="880" width="36.8" height="50.8" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="5" target="10">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="710"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#ffe6cc;strokeColor=#d79b00;" edge="1" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="160" as="sourcePoint"/>
+                        <mxPoint x="626" y="160" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-11" value="có quyền đọc" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" connectable="0" vertex="1" parent="4vyqPHEAyEjN5u6dO3jP-10">
+                    <mxGeometry x="-0.1456" y="2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-12" value="README.md" style="shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#4495D1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam.2d.file;labelPerimeter=1;" vertex="1" parent="1">
+                    <mxGeometry x="690" y="590" width="36.8" height="50.8" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="5" target="11">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="620" y="805"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="180" as="sourcePoint"/>
+                        <mxPoint x="626" y="180" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-15" value="có quyền tạo, sửa folder/file" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" connectable="0" vertex="1" parent="4vyqPHEAyEjN5u6dO3jP-14">
+                    <mxGeometry x="-0.1456" y="2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="11" target="12">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="720" y="900"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#f8cecc;strokeColor=#b85450;" edge="1" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="460" y="200" as="sourcePoint"/>
+                        <mxPoint x="626" y="200" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-19" value="có quyền xoá file/thư mục" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" connectable="0" vertex="1" parent="4vyqPHEAyEjN5u6dO3jP-18">
+                    <mxGeometry x="-0.1456" y="2" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="4vyqPHEAyEjN5u6dO3jP-21" target="4vyqPHEAyEjN5u6dO3jP-24">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#dae8fc;strokeColor=#6c8ebf;exitX=1;exitY=0.3125;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="4vyqPHEAyEjN5u6dO3jP-4" target="5">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="540" y="293"/>
+                            <mxPoint x="540" y="293"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <UserObject label="&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Read&quot;&lt;/span&gt;                          &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// mọi lệnh đọc file&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Read(./.env)&quot;&lt;/span&gt;                  &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// chỉ file .env&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Edit(./src/**)&quot;&lt;/span&gt;                &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// sửa file trong src/ (glob kiểu .gitignore)&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Bash(pnpm test:*)&quot;&lt;/span&gt;             &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// lệnh bắt đầu bằng &quot;pnpm test&quot;&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Bash(git status)&quot;&lt;/span&gt;              &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// đúng lệnh này&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;WebFetch(domain:docs.nestjs.com)&quot;&lt;/span&gt;  &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// chỉ fetch domain này&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;mcp__github&quot;&lt;/span&gt;                   &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// mọi tool của MCP server &quot;github&quot;&lt;/span&gt;&#10;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;mcp__github__create_issue&quot;&lt;/span&gt;     &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// một tool cụ thể của MCP&lt;/span&gt;&lt;/span&gt;" link="&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Read&quot;&lt;/span&gt;                          &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// mọi lệnh đọc file&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Read(./.env)&quot;&lt;/span&gt;                  &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// chỉ file .env&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Edit(./src/**)&quot;&lt;/span&gt;                &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// sửa file trong src/ (glob kiểu .gitignore)&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Bash(pnpm test:*)&quot;&lt;/span&gt;             &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// lệnh bắt đầu bằng &quot;pnpm test&quot;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;Bash(git status)&quot;&lt;/span&gt;              &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// đúng lệnh này&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;WebFetch(domain:docs.nestjs.com)&quot;&lt;/span&gt;  &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// chỉ fetch domain này&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;mcp__github&quot;&lt;/span&gt;                   &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// mọi tool của MCP server &quot;github&quot;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;&lt;span style=&quot;color: rgb(155, 233, 99);&quot;&gt;&quot;mcp__github__create_issue&quot;&lt;/span&gt;     &lt;span style=&quot;color: rgb(129, 136, 152);&quot;&gt;// một tool cụ thể của MCP&lt;/span&gt;&lt;/span&gt;" id="4vyqPHEAyEjN5u6dO3jP-21">
+                    <mxCell style="text;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                        <mxGeometry x="810" y="245.5" width="360" height="140" as="geometry"/>
+                    </mxCell>
+                </UserObject>
+                <mxCell id="20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;fillColor=#f8cecc;strokeColor=#b85450;exitX=1;exitY=0.6875;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="4vyqPHEAyEjN5u6dO3jP-4" target="5">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="540" y="338"/>
+                            <mxPoint x="540" y="338"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-22" value="Các lệnh cơ bản set up trong settings.json" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="860" y="169.2" width="180" height="50.8" as="geometry"/>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.392;entryY=-0.011;entryDx=0;entryDy=0;entryPerimeter=0;defaultLabelBackgroundColor=page;" edge="1" parent="1" source="4vyqPHEAyEjN5u6dO3jP-22" target="4vyqPHEAyEjN5u6dO3jP-21">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="4vyqPHEAyEjN5u6dO3jP-24" value="&lt;ul dir=&quot;ltr&quot;&gt;&lt;li&gt;&lt;code dir=&quot;ltr&quot;&gt;./abc&lt;/code&gt;: tính từ thư mục hiện tại&lt;/li&gt;&#10;&lt;li&gt;&lt;code dir=&quot;ltr&quot;&gt;/abc&lt;/code&gt;: tính từ thư mục chứa file settings&lt;/li&gt;&#10;&lt;li&gt;&lt;code dir=&quot;ltr&quot;&gt;~/abc&lt;/code&gt;: tính từ thư mục home&lt;/li&gt;&#10;&lt;li&gt;&lt;code dir=&quot;ltr&quot;&gt;//abc&lt;/code&gt;: đường dẫn tuyệt đối&lt;/li&gt;&lt;/ul&gt;" style="text;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="1210" y="240.5" width="290" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="AI-native-SDLC-practice" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.concepts.folder;fillColor=#2072B8;" vertex="1" parent="1">
+                    <mxGeometry x="590" y="293" width="50" height="45" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

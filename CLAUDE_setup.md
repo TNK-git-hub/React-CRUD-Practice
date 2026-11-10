@@ -1,0 +1,3 @@
+# CLAUDE_setup.md — Brainstorm
+
+> File này dùng để brainstorm cách setup harness cho Claude Code trong dự án `AI-native-SDLC-practice`: các quyền (permissions), `CLAUDE.md`, hooks, slash commands, subagents, MCP servers…

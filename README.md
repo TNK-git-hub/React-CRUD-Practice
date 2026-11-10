@@ -1,2 +1,2 @@
-# React-CRUD-Practice
-Web dev practice
+# AI-native-Practice
+
