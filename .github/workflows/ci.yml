@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [new-project]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Required check "test". Harness self-tests always run; the app's test suite and strict
+  # type check run once the first change has added a package.json (constitution, Principle IV).
+  # A first change that picks a non-Node stack must adapt the "App" steps in its plan.md.
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Harness self-tests
+        run: |
+          python -m unittest discover -s .specify/scripts -v
+          python -m unittest discover -s .claude/hooks -v
+          python -m unittest discover -s .claude/skills/spec-archive/scripts -v
+
+      - name: Detect app
+        id: app
+        run: |
+          if [ -f package.json ]; then echo "node=true" >> "$GITHUB_OUTPUT"; else echo "node=false" >> "$GITHUB_OUTPUT"; echo "No package.json yet: app tests and type check skipped."; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.app.outputs.node == 'true'
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: App — install
+        if: steps.app.outputs.node == 'true'
+        run: npm ci
+
+      - name: App — strict type check
+        if: steps.app.outputs.node == 'true'
+        run: |
+          if npm pkg get scripts.typecheck | grep -qv '{}'; then
+            npm run typecheck
+          elif [ -f tsconfig.json ]; then
+            npx tsc --noEmit
+          else
+            echo "::error title=type-check::No 'typecheck' script and no tsconfig.json (constitution, Principle IV)"
+            exit 1
+          fi
+
+      - name: App — test suite
+        if: steps.app.outputs.node == 'true'
+        run: npm test
+
+  # Required check "spec-check": change archived, no delta keywords in capabilities,
+  # unique IDs, every scenario has a test.
+  spec-check:
+    name: spec-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: spec_check.py
+        env:
+          CHANGE: ${{ github.head_ref }}
+        run: python .specify/scripts/spec_check.py --change "$CHANGE"
