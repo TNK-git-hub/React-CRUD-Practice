@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "speckit-level4": {
+      "version": "0.1.0",
+      "source": "local",
+      "manifest_hash": "sha256:bea6e00c265840e505be34dcfe6c4939108baea0f88ad0268325c177bf1874cc",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.specify"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-specify"
+        ]
+      },
+      "installed_at": "2026-11-11T07:32:08.181981+00:00"
+    }
+  }
+}

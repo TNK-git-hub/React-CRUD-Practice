@@ -1,15 +1,31 @@
 ---
-name: "speckit-specify"
-description: "Create or update the feature specification from a natural language feature description."
+name: speckit-specify
+description: Create a delta spec for one change in specs/changes/NNN-<name>/spec.md,
+  against the living capability specs.
 argument-hint: "Describe the feature you want to specify"
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/specify.md"
+  author: github-spec-kit
+  source: preset:speckit-level4
 user-invocable: true
 disable-model-invocation: false
 ---
 
+# Speckit Specify Skill
+
+<!--
+Preset speckit-level4 (tools/speckit-level4/), thay lệnh core speckit.specify.
+Khác lệnh core ở 5 chỗ:
+  1. Số change do .specify/scripts/next_change.py cấp; thư mục là specs/changes/NNN-<tên>/.
+  2. Tự tạo branch NNN-<tên> (repo không dùng git extension của Spec Kit).
+  3. Đọc specs/_system/* và specs/capabilities/<domain>/ trước khi viết.
+  4. Requirement đã có → MODIFIED <ID cũ>; requirement mới → ADDED với ID kế tiếp của domain.
+  5. Điền frontmatter kind/change/capabilities/primary/status/source.
+  Ngoài ra: không tự bịa con số, giới hạn, quyền, chính sách xoá (bỏ giới hạn 3 câu hỏi của lệnh core
+  cho các loại này) và không hỏi người dùng giữa chừng — câu hỏi để cho /speckit-clarify.
+Sửa file này trong tools/speckit-level4/ rồi chạy lại `specify preset add --dev tools/speckit-level4`;
+KHÔNG sửa tay .claude/skills/speckit-specify/SKILL.md (file sinh ra).
+-->
 
 ## User Input
 
@@ -57,183 +73,162 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-The text the user typed after `/speckit-specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
+The text the user typed after `/speckit-specify` in the triggering message **is** the
+feature description. Assume you always have it available in this conversation even if `$ARGUMENTS`
+appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
-Given that feature description, do this:
+Repo này là spec harness level 4 (đọc `.claude/CLAUDE.md`). Spec viết tiếng Việt; ID, tên file,
+tên thư mục, tên branch viết tiếng Anh. Lệnh này tạo **một** change, chỉ ghi vào
+`specs/changes/<change>/` và `.specify/feature.json`. Không sửa `specs/capabilities/`,
+`specs/_system/` hay code.
 
-1. **Generate a concise short name** (2-4 words) for the feature:
-   - Analyze the feature description and extract the most meaningful keywords
-   - Create a 2-4 word short name that captures the essence of the feature
-   - Use action-noun format when possible (e.g., "add-user-auth", "fix-payment-bug")
-   - Preserve technical terms and acronyms (OAuth2, API, JWT, etc.)
-   - Keep it concise but descriptive enough to understand the feature at a glance
-   - Examples:
-     - "I want to add user authentication" → "user-auth"
-     - "Implement OAuth2 integration for the API" → "oauth2-api-integration"
-     - "Create a dashboard for analytics" → "analytics-dashboard"
-     - "Fix payment processing timeout bug" → "fix-payment-timeout"
+### Bước 1 — Đọc kiến thức nền (trước khi viết bất cứ gì)
 
-2. **Branch creation** (optional, via hook):
+1. Đọc `.claude/CLAUDE.md` (luồng, quy ước ID, **bảng mã domain**) và `.specify/memory/constitution.md`.
+2. Đọc mọi file có trong `specs/_system/`: `glossary.md`, `domain-model.md`, `nfr.md`, `roadmap.md`,
+   `traceability.md`, `edge-case-catalog.md`. File nào chưa có thì ghi nhận, không tự tạo.
+3. Xác định domain mà feature đụng tới, dựa vào glossary, domain-model và bảng mã domain:
+   - Mỗi domain phải có trong bảng mã domain của `CLAUDE.md` **và** có thư mục
+     `specs/capabilities/<domain>/`. Thiếu một trong hai → **DỪNG**, báo người dùng rằng domain
+     mới phải được đăng ký trước (qua `/spec-bootstrap` hoặc sửa bảng mã). Không tự đăng ký.
+   - `primary` = domain chứa phần lớn hành vi của change.
+4. Với **mỗi** domain liên quan, đọc `specs/capabilities/<domain>/spec.md`, `states.md`, `rules.md`,
+   `history.md`. Lập bảng các requirement đang có (ID, tên, tóm tắt hành vi) và các ID đã bỏ.
+5. Nếu `roadmap.md` có dòng change khớp với feature: dùng đúng tên ngắn của dòng đó và ghi dòng đó
+   vào frontmatter `source`. Feature không khớp dòng nào → vẫn tạo change, nhưng ghi vào
+   Assumptions: "Change này không có trong roadmap.md".
 
-   If a `before_specify` hook ran successfully in the Pre-Execution Checks above, it will have created/switched to a git branch and output JSON containing `BRANCH_NAME` and `FEATURE_NUM`. Note these values for reference, but the branch name does **not** dictate the spec directory name.
+### Bước 2 — Kiểm tra input
 
-   If the user explicitly provided `GIT_BRANCH_NAME`, pass it through to the hook so the branch script uses the exact value as the branch name (bypassing all prefix/suffix generation).
+Input tốt có đủ 5 ý: **ai** (vai trò), **làm gì**, **vì sao**, **ràng buộc** (giới hạn, quyền, dữ liệu),
+**ngoài phạm vi**. Ý nào thiếu → không đoán; đặt `[NEEDS CLARIFICATION: …]` đúng chỗ trong spec.
 
-3. **Create the spec feature directory**:
+### Bước 3 — Cấp số, tạo branch và thư mục
 
-   Specs live under the default `specs/` directory unless the user explicitly provides `SPECIFY_FEATURE_DIRECTORY`.
+1. Tạo tên ngắn 2–4 từ, kebab-case tiếng Anh, dạng hành động–danh từ (vd `product-bulk-delete`).
+   Có dòng roadmap khớp → dùng tên của dòng đó.
+2. Chạy từ thư mục gốc repo:
 
-   **Resolution order for `SPECIFY_FEATURE_DIRECTORY`**:
-   1. If the user explicitly provided `SPECIFY_FEATURE_DIRECTORY` (e.g., via environment variable, argument, or configuration), use it as-is
-   2. Otherwise, auto-generate it under `specs/`:
-      - Check `.specify/init-options.json` for `feature_numbering` (preferred) or `branch_numbering` (deprecated, migration only — will be removed in a future release)
-      - If `"timestamp"`: prefix is `YYYYMMDD-HHMMSS` (current timestamp)
-      - If `"sequential"` or absent: prefix is `NNN` (next available 3-digit number after scanning existing directories in `specs/`)
-      - Construct the directory name: `<prefix>-<short-name>` (e.g., `003-user-auth` or `20260319-143022-user-auth`)
-      - Set `SPECIFY_FEATURE_DIRECTORY` to `specs/<directory-name>`
-      - If `branch_numbering` was used (and `feature_numbering` was absent), emit a one-line warning: "⚠️ `branch_numbering` in init-options.json is deprecated. Rename to `feature_numbering`."
+   ```bash
+   python3 .specify/scripts/next_change.py --name <short-name> --json
+   ```
 
-   **Create the directory and spec file**:
-   - Run `.specify/scripts/bash/resolve-template.sh spec-template --json` from the repository root and parse `TEMPLATE_CONTENT` as the active `spec-template`. The shared resolver composes project overrides, preset layers, and extension layers over the core template, including `append`, `prepend`, and `wrap` strategies. If it fails, stop and report the resolution error; do not continue with only one contributing template layer.
-   - `mkdir -p SPECIFY_FEATURE_DIRECTORY`
-   - Write `TEMPLATE_CONTENT` to `SPECIFY_FEATURE_DIRECTORY/spec.md` as the starting point. Do not copy a template file from disk instead: when a preset composes `spec-template`, no single file holds the full template.
-   - Set `SPEC_FILE` to `SPECIFY_FEATURE_DIRECTORY/spec.md`
-   - Persist the resolved path to `.specify/feature.json`:
-     ```json
-     {
-       "feature_directory": "<resolved feature dir>"
-     }
-     ```
-     Write the actual resolved directory path value (for example, `specs/003-user-auth`), not the literal string `SPECIFY_FEATURE_DIRECTORY`.
-     This allows downstream commands (`/speckit-plan`, `/speckit-tasks`, etc.) to locate the feature directory without relying on git branch name conventions.
+   (Windows: `python` thay cho `python3`.) Lấy `FEATURE_NUM`, `CHANGE_NAME`, `FEATURE_DIR` từ JSON.
+   Script lỗi → **DỪNG** và báo nguyên văn lỗi. Không tự đếm số bằng tay.
+   Nếu số change khác số của dòng roadmap khớp → báo người dùng, vẫn dùng số của script.
+3. Tạo branch:
+   - `git rev-parse --abbrev-ref HEAD`. Nếu branch hiện tại không phải `new-project` → nói rõ
+     branch hiện tại và **hỏi người dùng** có tạo branch change từ đây không; chưa có xác nhận thì dừng.
+   - Branch `CHANGE_NAME` đã tồn tại (`git rev-parse --verify --quiet <CHANGE_NAME>`) → **DỪNG**, báo người dùng.
+   - `git checkout -b <CHANGE_NAME>`. Thay đổi chưa commit đi theo sang branch mới; nêu chúng trong báo cáo.
+4. Lấy template: chạy `.specify/scripts/bash/resolve-template.sh spec-template --json` từ thư mục gốc repo, đọc `TEMPLATE_CONTENT` (bản override delta trong
+   `.specify/templates/overrides/spec-template.md`). Script lỗi → **DỪNG** và báo lỗi. Không copy file
+   template từ đĩa thay cho script.
+5. `mkdir -p <FEATURE_DIR>`, ghi `TEMPLATE_CONTENT` vào `<FEATURE_DIR>/spec.md` làm điểm xuất phát.
+6. Ghi `.specify/feature.json` với giá trị thật:
 
-   **IMPORTANT**:
-   - You must only create one feature per `/speckit-specify` invocation
-   - The spec directory name and the git branch name are independent — they may be the same but that is the user's choice
-   - The spec directory and file are always created by this command, never by the hook
+   ```json
+   { "feature_directory": "specs/changes/<CHANGE_NAME>" }
+   ```
 
-4. Use `TEMPLATE_CONTENT` to understand required sections.
+   Các lệnh sau (`/speckit-clarify`, `/speckit-plan`, …) tìm change qua file này.
 
-5. **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints.
+### Bước 4 — Viết spec delta
 
-6. Follow this execution flow:
-    1. Parse user description from arguments
-       If empty: ERROR "No feature description provided"
-    2. Extract key concepts from description
-       Identify: actors, actions, data, constraints
-    3. For unclear aspects:
-       - Make informed guesses based on context and industry standards
-       - Only mark with [NEEDS CLARIFICATION: specific question] if:
-         - The choice significantly impacts feature scope or user experience
-         - Multiple reasonable interpretations exist with different implications
-         - No reasonable default exists
-       - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
-       - Prioritize clarifications by impact: scope > security/privacy > user experience > technical details
-    4. Fill User Scenarios & Testing section
-       If no clear user flow: ERROR "Cannot determine user scenarios"
-    5. Generate Functional Requirements
-       Each requirement must be testable
-       Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
-    6. Define Success Criteria
-       Create measurable, technology-agnostic outcomes
-       Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
-       Each criterion must be verifiable without implementation details
-    7. Identify Key Entities (if data involved)
-    8. Return: SUCCESS (spec ready for planning)
+Viết vào `<FEATURE_DIR>/spec.md` theo đúng khuôn template; giữ nguyên các heading tiếng Anh
+(`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`) vì các lệnh core tìm theo tên.
+Xoá khối HTML hướng dẫn của template sau khi điền.
 
-7. Write the specification to SPEC_FILE using the template structure, replacing placeholders with concrete details derived from the feature description (arguments) while preserving section order and headings.
+**Frontmatter** (bắt buộc đủ):
 
-8. **Specification Quality Validation**: After writing the initial spec, validate it against quality criteria:
+```yaml
+---
+kind: delta
+change: "<CHANGE_NAME>"
+capabilities: ["<domain>", ...]   # mọi domain có mục trong Requirements
+primary: "<domain>"
+status: draft
+source: ["docs/requirements/<file>#<mục>", "roadmap <NNN>"]   # nguồn có thật; không có thì bỏ phần tử đó
+---
+```
 
-   a. **Create Spec Quality Checklist**: Generate a checklist file at `SPECIFY_FEATURE_DIRECTORY/checklists/requirements.md` using the checklist template structure with these validation items:
+**Requirements** — một mục `### <domain>` cho mỗi domain trong `capabilities`, theo thứ tự `primary` trước:
 
-      ```markdown
-      # Specification Quality Checklist: [FEATURE NAME]
+- Hành vi feature **đã có** requirement trong capability (cùng hành vi, dù tên khác) →
+  `#### MODIFIED <ID cũ>: <tên>`: viết lại **toàn bộ** requirement và **tất cả** scenario như sau khi sửa
+  (spec-archive thay nguyên khối). Không tạo requirement mới trùng nghĩa.
+- Bỏ một requirement đang có → `#### REMOVED <ID>: <tên>` kèm **Lý do** và **Chuyển đổi**.
+- Chỉ đổi tên → `#### RENAMED <ID>` kèm **Từ** / **Thành**.
+- Hành vi mới → `#### ADDED <MÃ>-<NNN>: <tên>`.
+  - `<MÃ>` lấy từ bảng mã domain. `<NNN>` = số lớn nhất đang dùng của mã đó + 1, xét **cả**:
+    requirement trong `capabilities/<domain>/spec.md`, ID trong bảng "ID đã bỏ" của `history.md`,
+    và ID `ADDED` trong các change khác đang nằm trong `specs/changes/*/spec.md`.
+    ID đã bỏ **không bao giờ** cấp lại. Nhiều requirement mới → số tăng liên tục.
+- Chỉ dùng MODIFIED / REMOVED / RENAMED với ID **đang có thật** trong capability; không có → không bịa ID.
+- Mỗi requirement: một câu "Hệ thống MUST …" về hành vi quan sát được, không nói công nghệ;
+  dòng **Quyền**; ít nhất một scenario `<ID>-S1` (happy) [P1] dạng **Given / When / Then**.
+  Scenario edge case để `/spec-edge-cases` bổ sung; tình huống biên nghĩ ra lúc này ghi tạm vào mục
+  `### Edge Cases (chưa gắn requirement)`.
+- Luật trong `rules.md` và chuyển trạng thái trong `states.md` là chuẩn đối chiếu: requirement không được
+  trái với chúng; trái → ghi `[NEEDS CLARIFICATION]` thay vì tự chọn bên.
 
-      **Purpose**: Validate specification completeness and quality before proceeding to planning
-      **Created**: [DATE]
-      **Feature**: [Link to spec.md]
+**Không tự bịa** (luật cứng của repo, ghi đè hướng dẫn "make informed guesses" của lệnh core):
 
-      ## Content Quality
+- Con số, giới hạn (số lượng tối đa, độ dài, thời gian), quyền (vai trò nào được / bị từ chối) và chính
+  sách xoá dữ liệu **chỉ** lấy từ input, `specs/_system/*` hoặc `capabilities/*`. Không có → đặt
+  `[NEEDS CLARIFICATION: <câu hỏi cụ thể>]` tại đúng dòng đó. **Không giới hạn số lượng** marker loại này.
+- Thao tác xoá: theo bảng "Dữ liệu và chính sách xoá" trong `nfr.md`; ô đó còn `[NEEDS CLARIFICATION]`
+  hoặc thiếu → ghi `[NEEDS CLARIFICATION]` trong spec, không chọn xoá mềm hay xoá cứng.
+- Các chi tiết khác (cách hiển thị, câu chữ thông báo…) được dùng mặc định hợp lý, ghi vào **Assumptions**.
 
-      - [ ] No implementation details (languages, frameworks, APIs)
-      - [ ] Focused on user value and business needs
-      - [ ] Written for non-technical stakeholders
-      - [ ] All mandatory sections completed
+**Success Criteria**: đo được, có con số lấy từ input / `nfr.md`; không có con số → `[NEEDS CLARIFICATION]`.
+**Out of Scope**: từ input; input không nói → ghi một dòng `[NEEDS CLARIFICATION: ngoài phạm vi gồm gì?]`.
 
-      ## Requirement Completeness
+### Bước 5 — Tự kiểm chất lượng
 
-      - [ ] No [NEEDS CLARIFICATION] markers remain
-      - [ ] Requirements are testable and unambiguous
-      - [ ] Success criteria are measurable
-      - [ ] Success criteria are technology-agnostic (no implementation details)
-      - [ ] All acceptance scenarios are defined
-      - [ ] Edge cases are identified
-      - [ ] Scope is clearly bounded
-      - [ ] Dependencies and assumptions identified
+Tạo `<FEATURE_DIR>/checklists/requirements.md`:
 
-      ## Feature Readiness
+```markdown
+# Specification Quality Checklist: <CHANGE_NAME>
 
-      - [ ] All functional requirements have clear acceptance criteria
-      - [ ] User scenarios cover primary flows
-      - [ ] Feature meets measurable outcomes defined in Success Criteria
-      - [ ] No implementation details leak into specification
+**Purpose**: Validate the delta spec before clarify / plan
+**Created**: <YYYY-MM-DD>
+**Feature**: [spec.md](../spec.md)
 
-      ## Notes
+## Content Quality
 
-      - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-      ```
+- [ ] No implementation details (languages, frameworks, APIs)
+- [ ] Focused on user value and business needs
+- [ ] All mandatory sections completed; template guide block removed
 
-   b. **Run Validation Check**: Review the spec against each checklist item:
-      - For each item, determine if it passes or fails
-      - Document specific issues found (quote relevant spec sections)
+## Delta Format
 
-   c. **Handle Validation Results**:
+- [ ] Frontmatter has kind: delta, change, capabilities, primary, status, source
+- [ ] Every domain in `capabilities` has a `### <domain>` section, and vice versa
+- [ ] Every MODIFIED / REMOVED / RENAMED ID exists in the capability spec
+- [ ] No ADDED requirement duplicates an existing requirement
+- [ ] ADDED IDs are the next free numbers of the domain (incl. history.md and other open changes)
+- [ ] Every requirement has a Quyền line and at least one Given/When/Then scenario with an ID
 
-      - **If all items pass**: Mark checklist complete and proceed to the Mandatory Post-Execution Hooks section
+## Requirement Completeness
 
-      - **If items fail (excluding [NEEDS CLARIFICATION])**:
-        1. List the failing items and specific issues
-        2. Update the spec to address each issue
-        3. Re-run validation until all items pass (max 3 iterations)
-        4. If still failing after 3 iterations, document remaining issues in checklist notes and warn user
+- [ ] No invented numbers, limits, permissions or deletion policy (each is sourced or [NEEDS CLARIFICATION])
+- [ ] Requirements are testable and unambiguous
+- [ ] Success criteria are measurable and technology-agnostic
+- [ ] Scope is clearly bounded (Out of Scope filled or marked)
+- [ ] Assumptions listed
 
-      - **If [NEEDS CLARIFICATION] markers remain**:
-        1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
-        2. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most critical (by scope/security/UX impact) and make informed guesses for the rest
-        3. For each clarification needed (max 3), present options to user in this format:
+## Notes
 
-           ```markdown
-           ## Question [N]: [Topic]
+- Edge-case scenarios are added later by /spec-edge-cases (not checked here).
+- [NEEDS CLARIFICATION] markers are expected at this stage; /speckit-clarify resolves them.
+```
 
-           **Context**: [Quote relevant spec section]
+Rà spec theo từng mục. Mục trượt (không tính `[NEEDS CLARIFICATION]`) → sửa spec, rà lại (tối đa 3 vòng);
+còn trượt thì ghi vào Notes và báo người dùng. Tick mục đạt.
 
-           **What we need to know**: [Specific question from NEEDS CLARIFICATION marker]
-
-           **Suggested Answers**:
-
-           | Option | Answer | Implications |
-           |--------|--------|--------------|
-           | A      | [First suggested answer] | [What this means for the feature] |
-           | B      | [Second suggested answer] | [What this means for the feature] |
-           | C      | [Third suggested answer] | [What this means for the feature] |
-           | Custom | Provide your own answer | [Explain how to provide custom input] |
-
-           **Your choice**: _[Wait for user response]_
-           ```
-
-        4. **CRITICAL - Table Formatting**: Ensure markdown tables are properly formatted:
-           - Use consistent spacing with pipes aligned
-           - Each cell should have spaces around content: `| Content |` not `|Content|`
-           - Header separator must have at least 3 dashes: `|--------|`
-           - Test that the table renders correctly in markdown preview
-        5. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
-        6. Present all questions together before waiting for responses
-        7. Wait for user to respond with their choices for all questions (e.g., "Q1: A, Q2: Custom - [details], Q3: B")
-        8. Update the spec by replacing each [NEEDS CLARIFICATION] marker with the user's selected or provided answer
-        9. Re-run validation after all clarifications are resolved
-
-   d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
+**Không hỏi người dùng ở lệnh này** (lệnh có thể chạy trong subagent). Mọi `[NEEDS CLARIFICATION]` để lại
+cho `/speckit-clarify`, chạy ở phiên chính.
 
 ## Mandatory Post-Execution Hooks
 
@@ -272,77 +267,19 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Report completion to the user with:
-- `SPECIFY_FEATURE_DIRECTORY` — the feature directory path
-- `SPEC_FILE` — the spec file path
-- Checklist results summary
-- Readiness for the next phase (`/speckit-clarify` or `/speckit-plan`)
+Báo người dùng:
 
-**NOTE:** Branch creation is handled by the `before_specify` hook (git extension). Spec directory and file creation are always handled by this core command.
-
-## Quick Guidelines
-
-- Focus on **WHAT** users need and **WHY**.
-- Avoid HOW to implement (no tech stack, APIs, code structure).
-- Written for business stakeholders, not developers.
-- DO NOT create any checklists that are embedded in the spec. That will be a separate command.
-
-### Section Requirements
-
-- **Mandatory sections**: Must be completed for every feature
-- **Optional sections**: Include only when relevant to the feature
-- When a section doesn't apply, remove it entirely (don't leave as "N/A")
-
-### For AI Generation
-
-When creating this spec from a user prompt:
-
-1. **Make informed guesses**: Use context, industry standards, and common patterns to fill gaps
-2. **Document assumptions**: Record reasonable defaults in the Assumptions section
-3. **Limit clarifications**: Maximum 3 [NEEDS CLARIFICATION] markers - use only for critical decisions that:
-   - Significantly impact feature scope or user experience
-   - Have multiple reasonable interpretations with different implications
-   - Lack any reasonable default
-4. **Prioritize clarifications**: scope > security/privacy > user experience > technical details
-5. **Think like a tester**: Every vague requirement should fail the "testable and unambiguous" checklist item
-6. **Common areas needing clarification** (only if no reasonable default exists):
-   - Feature scope and boundaries (include/exclude specific use cases)
-   - User types and permissions (if multiple conflicting interpretations possible)
-   - Security/compliance requirements (when legally/financially significant)
-
-**Examples of reasonable defaults** (don't ask about these):
-
-- Data retention: Industry-standard practices for the domain
-- Performance targets: Standard web/mobile app expectations unless specified
-- Error handling: User-friendly messages with appropriate fallbacks
-- Authentication method: Standard session-based or OAuth2 for web apps
-- Integration patterns: Use project-appropriate patterns (REST/GraphQL for web services, function calls for libraries, CLI args for tools, etc.)
-
-### Success Criteria Guidelines
-
-Success criteria must be:
-
-1. **Measurable**: Include specific metrics (time, percentage, count, rate)
-2. **Technology-agnostic**: No mention of frameworks, languages, databases, or tools
-3. **User-focused**: Describe outcomes from user/business perspective, not system internals
-4. **Verifiable**: Can be tested/validated without knowing implementation details
-
-**Good examples**:
-
-- "Users can complete checkout in under 3 minutes"
-- "System supports 10,000 concurrent users"
-- "95% of searches return results in under 1 second"
-- "Task completion rate improves by 40%"
-
-**Bad examples** (implementation-focused):
-
-- "API response time is under 200ms" (too technical, use "Users see results instantly")
-- "Database can handle 1000 TPS" (implementation detail, use user-facing metric)
-- "React components render efficiently" (framework-specific)
-- "Redis cache hit rate above 80%" (technology-specific)
+- Branch đã tạo và thư mục change (`specs/changes/<CHANGE_NAME>/`), file `spec.md`.
+- Domain (`capabilities`, `primary`) và danh sách requirement: ADDED / MODIFIED / REMOVED / RENAMED kèm ID.
+- **Toàn bộ** `[NEEDS CLARIFICATION]`, đánh số, kèm vị trí.
+- Kết quả checklist.
+- Bước tiếp theo theo `CLAUDE.md`: `/speckit-clarify` (phiên chính) → `/spec-edge-cases` →
+  `/speckit-checklist edge cases` → dừng chờ duyệt spec.
 
 ## Done When
 
-- [ ] Specification written to `SPEC_FILE` and validated against quality checklist
+- [ ] Branch `<CHANGE_NAME>` tạo xong; `.specify/feature.json` trỏ `specs/changes/<CHANGE_NAME>`
+- [ ] `spec.md` viết theo khuôn delta, frontmatter đủ, ID đúng quy ước, không có con số / quyền tự bịa
+- [ ] `checklists/requirements.md` đã rà
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with feature directory, spec file path, and checklist results
+- [ ] Đã báo cáo như mục Completion Report
