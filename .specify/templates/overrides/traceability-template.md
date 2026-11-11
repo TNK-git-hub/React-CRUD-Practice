@@ -1,19 +1,19 @@
-# Traceability — [Tên app]
+# Traceability — [App name]
 
 <!--
-Bảo đảm KHÔNG SÓT yêu cầu: mọi mục trong docs/requirements/ phải có change phụ trách.
-- Cột "Requirement ID" để trống lúc bootstrap; điền sau khi change được archive.
-- Mục không xếp được vào change nào → đưa xuống "Chưa xếp được" kèm NEEDS CLARIFICATION.
-- Mục "ngoài phạm vi" trong tài liệu vẫn ghi vào đây với change = "ngoài phạm vi".
+Ensures NOTHING IS MISSED: every item in docs/requirements/ must have an owning change.
+- The "Requirement ID" column stays empty at bootstrap; fill it after the change is archived.
+- Items that fit no change → move to "Unassigned" with NEEDS CLARIFICATION.
+- "Out of scope" items in the documents are still listed here, with change = "out of scope".
 -->
 
-| Mục yêu cầu | Ý chính | Loại | Change phụ trách | Requirement ID |
+| Requirement item | Summary | Type | Owning change | Requirement ID |
 | --- | --- | --- | --- | --- |
-| [REQ-01 / mục 3.1] | [tóm tắt một dòng] | chức năng | 001-[...] | |
-| [BR-01] | [...] | luật nghiệp vụ | 00[N]-[...] | |
-| [mục 5] | [...] | NFR | 001-[...] | |
-| [mục 6] | [...] | ngoài phạm vi | ngoài phạm vi | — |
+| [REQ-01 / section 3.1] | [one-line summary] | functional | 001-[...] | |
+| [BR-01] | [...] | business rule | 00[N]-[...] | |
+| [section 5] | [...] | NFR | 001-[...] | |
+| [section 6] | [...] | out of scope | out of scope | — |
 
-## Chưa xếp được
+## Unassigned
 
-- [mục …] — [NEEDS CLARIFICATION: …]
+- [item …] — [NEEDS CLARIFICATION: …]

@@ -9,7 +9,7 @@ Skill `spec-edge-cases` is derived from `deliver-edge-cases` of **pm-skills**.
 
 ## Changes from upstream (Apache-2.0 §4b)
 
-- `SKILL.md` rewritten for this repo's spec harness (Vietnamese):
+- `SKILL.md` rewritten for this repo's spec harness:
   - input is the current change (`.specify/feature.json`), `specs/_system/edge-case-catalog.md`
     and `states.md` / `rules.md` of the related capabilities, instead of a free-form feature;
   - output is Given/When/Then scenarios with IDs (`<CODE>-<NNN>-S<n>`), P1–P3 and a recovery path,

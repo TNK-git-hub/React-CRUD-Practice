@@ -1,25 +1,25 @@
-# Roadmap change — [Tên app]
+# Change roadmap — [App name]
 
 <!--
-Thứ tự các change để xây app từ tài liệu yêu cầu. Do /spec-bootstrap tạo; người dùng duyệt trước khi bắt đầu.
-Luật chia change:
-- 001 luôn là "walking skeleton": dựng khung app (stack, test, kiểm tra kiểu, CI chạy được)
-  + MỘT luồng nhỏ nhất đi xuyên suốt từ giao diện tới dữ liệu.
-- Mỗi change = một kết quả người dùng nhìn thấy được, đủ nhỏ để làm xong trong 1–3 ngày.
-- Change chỉ phụ thuộc change có số NHỎ hơn.
-- Mọi mục yêu cầu, luật nghiệp vụ và NFR phải được một change nhận (xem traceability.md).
-- Cột "Trạng thái": planned → in-progress → archived (do người / spec-archive cập nhật).
+Order of the changes that build the app from the requirement documents. Created by /spec-bootstrap; the user approves it before work starts.
+Rules for splitting changes:
+- 001 is always the "walking skeleton": app scaffold (stack, tests, type checking, CI running)
+  + ONE smallest end-to-end flow from UI to data.
+- Each change = one outcome the user can see, small enough to finish in 1–3 days.
+- A change depends only on changes with a SMALLER number.
+- Every requirement item, business rule and NFR must be owned by a change (see traceability.md).
+- "Status" column: planned → in-progress → archived (updated by people / spec-archive).
 -->
 
-| Change | Mục tiêu (người dùng thấy gì) | Domain | Nguồn | Phụ thuộc | Trạng thái |
+| Change | Goal (what the user sees) | Domain | Source | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| 001-[walking-skeleton] | [khung app + một luồng nhỏ nhất] | [domain] | [mục yêu cầu] | — | planned |
+| 001-[walking-skeleton] | [app scaffold + one smallest flow] | [domain] | [requirement item] | — | planned |
 | 002-[...] | [...] | [domain] | [...] | 001 | planned |
 
-## Ghi chú thứ tự
+## Ordering notes
 
-- [vì sao change X đứng trước change Y]
+- [why change X comes before change Y]
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

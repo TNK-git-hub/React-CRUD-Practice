@@ -1,32 +1,32 @@
-# Domain model — [Tên app]
+# Domain model — [App name]
 
 <!--
-Các entity, thuộc tính chính và quan hệ, ở mức KHÁI NIỆM (không phải schema DB, không chọn kiểu dữ liệu cụ thể).
-Schema thật do plan.md của từng change quyết định.
-- Mỗi entity thuộc đúng một domain (xem bảng mã domain trong .claude/CLAUDE.md).
-- Entity có vòng đời → trỏ tới capabilities/<domain>/states.md.
-- Chưa rõ → [NEEDS CLARIFICATION].
+Entities, main attributes and relationships at CONCEPT level (not a DB schema, no concrete data types).
+The real schema is decided by each change's plan.md.
+- Each entity belongs to exactly one domain (see the domain code table in .claude/CLAUDE.md).
+- Entity with a lifecycle → point to capabilities/<domain>/states.md.
+- Unclear → [NEEDS CLARIFICATION].
 -->
 
-## Tổng quan
+## Overview
 
 ```mermaid
 erDiagram
-    ENTITY_A ||--o{ ENTITY_B : "[quan hệ]"
+    ENTITY_A ||--o{ ENTITY_B : "[relationship]"
 ```
 
 ## [Entity A] — domain [domain]
 
-[1–2 câu: entity này là gì.]
+[1–2 sentences: what this entity is.]
 
-| Thuộc tính | Ý nghĩa | Bắt buộc | Ràng buộc |
+| Attribute | Meaning | Required | Constraints |
 | --- | --- | --- | --- |
-| [tiêu đề] | [...] | có | [độ dài, duy nhất, khoảng giá trị — lấy từ tài liệu] |
+| [title] | [...] | yes | [length, unique, value range — taken from the documents] |
 
-- **Quan hệ:** [Entity A] có nhiều [Entity B]; [...]
-- **Vòng đời:** xem `capabilities/[domain]/states.md`
-- **Ai sở hữu:** [...]
+- **Relationships:** [Entity A] has many [Entity B]; [...]
+- **Lifecycle:** see `capabilities/[domain]/states.md`
+- **Owned by:** [...]
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

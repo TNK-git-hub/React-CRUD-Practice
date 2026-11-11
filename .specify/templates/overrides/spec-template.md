@@ -1,73 +1,73 @@
 ---
 kind: delta
-change: "[NNN-ten-change]"
+change: "[NNN-change-name]"
 capabilities: ["[domain]"]
 primary: "[domain]"
 status: draft            # draft | approved | implementing | archived
-source: ["[docs/requirements/<file>#<mục>]", "roadmap [NNN]"]
+source: ["[docs/requirements/<file>#<section>]", "roadmap [NNN]"]
 ---
 
 <!--
-HƯỚNG DẪN CHO AGENT (xoá khối này sau khi điền xong)
-- Đây là SPEC DELTA của một change, không phải spec sống. Nó mô tả change này THÊM / SỬA / BỎ gì.
-- Trước khi viết: đọc specs/_system/* và specs/capabilities/<domain>/ của mọi domain liên quan.
-  Requirement đã tồn tại trong capability → dùng MODIFIED <ID cũ>; không tạo requirement trùng.
-- ID requirement mới = số tiếp theo của domain đó (xem capability spec.md và history.md; ID đã bỏ không dùng lại).
-- Mỗi requirement: một câu "Hệ thống MUST …" mô tả hành vi quan sát được, KHÔNG nói công nghệ.
-- Mỗi requirement có ít nhất 1 scenario happy; scenario edge case do /spec-edge-cases bổ sung.
-- Không tự bịa con số, giới hạn, quyền: ghi [NEEDS CLARIFICATION: câu hỏi].
-- Giữ nguyên các heading tiếng Anh (Overview, Requirements, Success Criteria, Assumptions):
-  các lệnh core của Spec Kit (clarify, analyze, checklist, plan) tìm theo tên này.
+INSTRUCTIONS FOR THE AGENT (delete this block once filled in)
+- This is the DELTA SPEC of one change, not a living spec. It describes what this change ADDS / MODIFIES / REMOVES.
+- Before writing: read specs/_system/* and specs/capabilities/<domain>/ of every related domain.
+  Requirement already exists in the capability → use MODIFIED <old ID>; never create a duplicate requirement.
+- New requirement ID = the next number of that domain (see the capability spec.md and history.md; removed IDs are never reused).
+- Each requirement: one sentence "The system MUST …" describing observable behavior, NO technology.
+- Each requirement has at least 1 happy scenario; edge-case scenarios are added by /spec-edge-cases.
+- Never invent numbers, limits or permissions: write [NEEDS CLARIFICATION: question].
+- Keep the section headings (Overview, Requirements, Success Criteria, Assumptions):
+  the Spec Kit core commands (clarify, analyze, checklist, plan) look them up by name.
 -->
 
-# Change [NNN]: [Tên change]
+# Change [NNN]: [Change name]
 
 ## Overview
 
-[2–4 câu: change này giải quyết việc gì, cho ai, vì sao cần. Không nói công nghệ.]
+[2–4 sentences: what problem this change solves, for whom, why it is needed. No technology.]
 
 ## Requirements
 
 ### [domain]
 
-#### ADDED [MÃ]-[NNN]: [Tên requirement]
+#### ADDED [CODE]-[NNN]: [Requirement name]
 
-Hệ thống MUST [hành vi quan sát được].
+The system MUST [observable behavior].
 
-- **Quyền:** [vai trò nào được làm; vai trò nào bị từ chối]
+- **Permissions:** [which roles may do it; which roles are denied]
 - **Scenarios:**
-  - `[MÃ]-[NNN]-S1` (happy) [P1] — **Given** [trạng thái ban đầu] **When** [hành động] **Then** [kết quả quan sát được]
+  - `[CODE]-[NNN]-S1` (happy) [P1] — **Given** [initial state] **When** [action] **Then** [observable result]
 
-#### MODIFIED [MÃ]-[NNN]: [Tên requirement đã có]
+#### MODIFIED [CODE]-[NNN]: [Existing requirement name]
 
-[Viết lại TOÀN BỘ requirement và TẤT CẢ scenario như sau khi sửa — spec-archive sẽ thay nguyên khối.]
+[Rewrite the WHOLE requirement and ALL its scenarios as they are after the change — spec-archive replaces the whole block.]
 
-#### REMOVED [MÃ]-[NNN]: [Tên requirement đã có]
+#### REMOVED [CODE]-[NNN]: [Existing requirement name]
 
-- **Lý do:** [vì sao bỏ]
-- **Chuyển đổi:** [dữ liệu / người dùng hiện tại được xử lý thế nào]
+- **Reason:** [why it is removed]
+- **Migration:** [how existing data / users are handled]
 
-#### RENAMED [MÃ]-[NNN]
+#### RENAMED [CODE]-[NNN]
 
-- **Từ:** [tên cũ]
-- **Thành:** [tên mới]
+- **From:** [old name]
+- **To:** [new name]
 
-### Edge Cases (chưa gắn requirement)
+### Edge Cases (unassigned)
 
-<!-- Chỗ để /speckit-clarify ghi tạm. /spec-edge-cases sẽ chuyển từng dòng thành scenario có ID rồi xoá dòng ở đây. -->
+<!-- Scratch space for /speckit-clarify. /spec-edge-cases turns each line into a scenario with an ID, then deletes the line here. -->
 
-- [mô tả tình huống biên chưa xếp vào requirement nào]
+- [description of an edge case not yet assigned to a requirement]
 
 ## Success Criteria
 
 ### Measurable Outcomes
 
-- **SC-001:** [kết quả đo được, có con số; vd "người dùng tạo xong một mục trong ≤ 3 thao tác"]
+- **SC-001:** [measurable outcome with a number; e.g. "a user creates an item in ≤ 3 steps"]
 
 ## Assumptions
 
-- [giả định đang dùng; mỗi giả định sai sẽ làm spec sai ở đâu]
+- [assumption in use; where the spec goes wrong if it is false]
 
 ## Out of Scope
 
-- [những gì change này cố ý KHÔNG làm]
+- [what this change deliberately does NOT do]

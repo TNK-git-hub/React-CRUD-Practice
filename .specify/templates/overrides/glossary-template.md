@@ -1,22 +1,22 @@
-# Glossary — [Tên app]
+# Glossary — [App name]
 
 <!--
-Thuật ngữ dùng thống nhất trong toàn bộ spec, plan, code và UI.
-- Mỗi thuật ngữ MỘT nghĩa. Từ đồng nghĩa không dùng → ghi ở cột "Không dùng".
-- Định nghĩa lấy từ tài liệu yêu cầu; không tự suy diễn. Chưa rõ → [NEEDS CLARIFICATION].
-- Tên tiếng Anh dùng trong code đặt ở cột "Trong code" để agent đặt tên biến / bảng nhất quán.
+Terms used consistently across every spec, plan, code and UI.
+- Each term has ONE meaning. Synonyms not to use → "Do not use" column.
+- Definitions come from the requirement documents; do not infer. Unclear → [NEEDS CLARIFICATION].
+- The English name used in code goes in the "In code" column so agents name variables / tables consistently.
 -->
 
-| Thuật ngữ | Định nghĩa | Trong code | Không dùng | Nguồn |
+| Term | Definition | In code | Do not use | Source |
 | --- | --- | --- | --- | --- |
-| [Người dùng] | [ai, có gì, làm được gì] | `[user]` | [khách, thành viên] | [docs/requirements/<file>#<mục>] |
+| [User] | [who, what they have, what they can do] | `[user]` | [guest, member] | [docs/requirements/<file>#<section>] |
 
-## Vai trò
+## Roles
 
-| Vai trò | Mô tả | Trong code |
+| Role | Description | In code |
 | --- | --- | --- |
-| [Quản trị] | [...] | `[admin]` |
+| [Administrator] | [...] | `[admin]` |
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

@@ -1,130 +1,131 @@
 ---
 name: spec-bootstrap
-description: Biến tài liệu yêu cầu trong docs/requirements/ thành kiến thức nền (specs/_system/), thư mục capability cho từng domain, bảng mã domain, roadmap change và traceability. Chạy MỘT lần khi bắt đầu một app mới, trước change 001.
-argument-hint: "[thư mục tài liệu yêu cầu, mặc định docs/requirements/]"
+description: Turns the requirement documents in docs/requirements/ into the knowledge base (specs/_system/), one capability folder per domain, the domain code table, the change roadmap and traceability. Run ONCE when starting a new app, before change 001.
+argument-hint: "[requirement documents folder, default docs/requirements/]"
 disable-model-invocation: true
 ---
 
 # spec-bootstrap
 
-Bạn đang khởi tạo kiến thức nền cho một app mới từ tài liệu yêu cầu. Kết quả là đầu vào cho mọi
-change sau này, nên ưu tiên **đúng và đủ** hơn nhanh. Bạn KHÔNG viết code, KHÔNG chọn stack,
-KHÔNG tạo change hay branch.
+You are initialising the knowledge base of a new app from its requirement documents. The result is the
+input of every later change, so favour **correct and complete** over fast. You do NOT write code, do NOT
+choose a stack, do NOT create a change or a branch.
 
-## Đầu vào
+## Input
 
 ```text
 $ARGUMENTS
 ```
 
-Thư mục tài liệu yêu cầu = `$ARGUMENTS` nếu có, ngược lại `docs/requirements/`.
+Requirement documents folder = `$ARGUMENTS` if given, otherwise `docs/requirements/`.
 
-## Bước 0 — Điều kiện trước
+## Step 0 — Preconditions
 
-1. Đọc mọi file `.md` trong thư mục tài liệu yêu cầu. Không có file nào → dừng, báo người dùng.
-2. Nếu `specs/_system/roadmap.md` đã tồn tại → app đã được bootstrap. Dừng và hỏi người dùng:
-   chạy lại sẽ ghi đè kiến thức nền. Không tự ghi đè.
-3. Đọc `.specify/memory/constitution.md`, `.claude/CLAUDE.md`, `specs/_system/edge-case-catalog.md`.
-4. Lấy template bằng script (bản trong `.specify/templates/overrides/` được ưu tiên):
+1. Read every `.md` file in the requirement documents folder. No files → stop and tell the user.
+2. If `specs/_system/roadmap.md` already exists → the app has already been bootstrapped. Stop and ask the user:
+   running again would overwrite the knowledge base. Never overwrite on your own.
+3. Read `.specify/memory/constitution.md`, `.claude/CLAUDE.md`, `specs/_system/edge-case-catalog.md`.
+4. Get templates with the script (versions in `.specify/templates/overrides/` take precedence):
 
    ```bash
-   bash .specify/scripts/bash/resolve-template.sh <tên-template>
+   bash .specify/scripts/bash/resolve-template.sh <template-name>
    ```
 
-   Các template cần: `glossary-template`, `domain-model-template`, `nfr-template`,
+   Templates needed: `glossary-template`, `domain-model-template`, `nfr-template`,
    `roadmap-template`, `traceability-template`, `capability-template`, `states-template`,
    `rules-template`, `history-template`.
 
-## Bước 1 — Phân tích tài liệu (chưa ghi file)
+## Step 1 — Analyse the documents (no files written yet)
 
-Lập danh sách làm việc, mỗi mục ghi rõ nguồn (file + mục):
+Build a working list; each item records its source (file + section):
 
-- **Mục yêu cầu chức năng.** Tài liệu chưa đánh mã → tự đánh `REQ-01`, `REQ-02`… theo thứ tự xuất hiện.
-- **Vai trò người dùng** và quyền của từng vai trò.
-- **Entity** và quan hệ; entity nào có vòng đời (trạng thái).
-- **Luật nghiệp vụ** (giữ mã gốc nếu tài liệu có, vd `BR-01`).
-- **Yêu cầu phi chức năng** (hiệu năng, bảo mật, môi trường…).
-- **Ngoài phạm vi** và **thứ tự ưu tiên** nếu tài liệu có.
-- **Chỗ chưa rõ** → câu hỏi `[NEEDS CLARIFICATION: …]`.
+- **Functional requirement items.** Documents without numbering → number them `REQ-01`, `REQ-02`… in order of appearance.
+- **User roles** and the permissions of each role.
+- **Entities** and relationships; which entities have a lifecycle (states).
+- **Business rules** (keep the original code if the documents have one, e.g. `BR-01`).
+- **Non-functional requirements** (performance, security, environment…).
+- **Out of scope** and **priority order** if the documents give them.
+- **Unclear points** → questions `[NEEDS CLARIFICATION: …]`.
 
-Không suy diễn thêm yêu cầu không có trong tài liệu.
+Do not infer requirements that are not in the documents.
 
-## Bước 2 — Chia domain
+## Step 2 — Split into domains
 
-- Nhóm theo khái niệm **người dùng nhận ra** (vd "Phòng", "Hoá đơn"), KHÔNG chia theo tầng kỹ thuật
+- Group by concepts **the user recognises** (e.g. "Rooms", "Invoices"), NOT by technical layer
   (API, UI, DB).
-- Mỗi entity thuộc đúng một domain.
-- Mỗi domain: tên thư mục `kebab-case` tiếng Anh + mã 3–5 chữ in hoa, duy nhất (vd `rooms` / `ROOM`).
-- Mã không được trùng với từ hay gặp trong code hoặc ghi chú, vì sẽ lẫn khi tìm kiếm:
+- Each entity belongs to exactly one domain.
+- Each domain: an English `kebab-case` folder name + a unique code of 3–5 upper-case letters (e.g. `rooms` / `ROOM`).
+- The code must not collide with words common in code or notes, because searches would mix them up:
   `TODO`, `FIX`, `NOTE`, `TEST`, `TASK`, `BUG`, `HACK`, `XXX`, `NFR`, `REQ`, `BR`, `SC`.
-  Gặp trường hợp này thì chọn mã khác (vd domain `todos` → `TDO` hoặc `ITEM`).
-- Đăng nhập / tài khoản thường là domain riêng (vd `auth` / `AUTH`) nếu tài liệu có.
+  In that case pick another code (e.g. domain `todos` → `TDO` or `ITEM`).
+- Login / accounts is usually its own domain (e.g. `auth` / `AUTH`) if the documents cover it.
 
-## Bước 3 — Ghi kiến thức nền vào `specs/_system/`
+## Step 3 — Write the knowledge base into `specs/_system/`
 
-Điền từ template, giữ mọi heading của template, xoá khối HTML hướng dẫn sau khi điền:
+Fill from the templates, keep every template heading, delete the HTML guide block once filled:
 
-| File | Nội dung |
+| File | Content |
 | --- | --- |
-| `glossary.md` | Thuật ngữ, vai trò, tên dùng trong code |
-| `domain-model.md` | Entity, thuộc tính, quan hệ, sơ đồ mermaid |
-| `nfr.md` | NFR có con số. **Mục "Dữ liệu và chính sách xoá" bắt buộc**: tài liệu không nói → để `[NEEDS CLARIFICATION]` cho từng ô, không tự chọn xoá mềm hay xoá cứng |
-| `roadmap.md` | Danh sách change (Bước 5) |
-| `traceability.md` | Mục yêu cầu → change (Bước 5) |
+| `glossary.md` | Terms, roles, names used in code |
+| `domain-model.md` | Entities, attributes, relationships, mermaid diagram |
+| `nfr.md` | NFRs with numbers. **The "Data and deletion policy" section is mandatory**: documents silent → `[NEEDS CLARIFICATION]` in every cell, never choose soft or hard delete |
+| `roadmap.md` | List of changes (Step 5) |
+| `traceability.md` | Requirement item → change (Step 5) |
 
-Không sửa `edge-case-catalog.md` trừ mục "13. Domain riêng": thêm câu hỏi cho những bẫy nghiệp vụ
-mà tài liệu cho thấy rõ (vd "phòng đã đủ người"), mỗi dòng một câu hỏi.
+Do not edit `edge-case-catalog.md` except section "13. Domain-specific": add questions for business traps
+that the documents clearly show (e.g. "the room is already full"), one question per line, replacing the
+`_(none yet)_` line.
 
-## Bước 4 — Tạo `specs/capabilities/<domain>/` cho từng domain
+## Step 4 — Create `specs/capabilities/<domain>/` for each domain
 
-| File | Nội dung |
+| File | Content |
 | --- | --- |
-| `spec.md` | Từ `capability-template`: chỉ điền Overview; phần Requirements giữ `_(chưa có)_` |
-| `states.md` | Từ `states-template`, cho mỗi entity có vòng đời của domain. Mọi ô phải có giá trị |
-| `rules.md` | Từ `rules-template`: luật nghiệp vụ của domain, mã `BR-<MÃ>-NN`, ghi nguồn |
-| `history.md` | Từ `history-template`, để trống |
+| `spec.md` | From `capability-template`: fill only Overview; Requirements stays `_(none yet)_` |
+| `states.md` | From `states-template`, for each entity of the domain that has a lifecycle. Every cell must have a value |
+| `rules.md` | From `rules-template`: the domain's business rules, code `BR-<CODE>-NN`, with source |
+| `history.md` | From `history-template`, left empty |
 
-**Không viết requirement vào `spec.md`.** Spec sống chỉ có nội dung khi một change được archive.
+**Do not write requirements into `spec.md`.** The living spec only gets content when a change is archived.
 
-## Bước 5 — Roadmap và traceability
+## Step 5 — Roadmap and traceability
 
-Chia change theo luật trong `roadmap-template`:
+Split changes following the rules in `roadmap-template`:
 
-- `001` là walking skeleton: khung app + test + kiểm tra kiểu + CI chạy được + MỘT luồng nhỏ nhất
-  xuyên suốt (thường là đăng nhập hoặc tạo/xem đối tượng chính).
-- Mỗi change một kết quả người dùng thấy được, làm xong trong 1–3 ngày.
-- Change chỉ phụ thuộc change có số nhỏ hơn.
-- Mọi mục REQ, BR, NFR có change phụ trách trong `traceability.md`; mục ngoài phạm vi ghi
-  "ngoài phạm vi"; mục không xếp được → "Chưa xếp được" + `[NEEDS CLARIFICATION]`.
+- `001` is the walking skeleton: app scaffold + tests + type checking + CI running + ONE smallest
+  end-to-end flow (usually login, or create/view the main object).
+- Each change has one user-visible outcome and can be finished in 1–3 days.
+- A change depends only on changes with a smaller number.
+- Every REQ, BR and NFR item has an owning change in `traceability.md`; out-of-scope items are marked
+  "out of scope"; items that fit nowhere → "Unassigned" + `[NEEDS CLARIFICATION]`.
 
-## Bước 6 — Đăng ký mã domain
+## Step 6 — Register domain codes
 
-Trong `.claude/CLAUDE.md`, chỉ sửa **bảng mã domain** (bảng có cột `Mã | Domain` trong mục
-"Quy ước ID"): thay dòng `_(chưa có)_` bằng một dòng cho mỗi domain. Không sửa phần nào khác của file.
+In `.claude/CLAUDE.md`, only edit the **domain code table** (the table with columns `Code | Domain` in the
+"ID conventions" section): replace the `_(none yet)_` row with one row per domain. Do not edit any other part of the file.
 
-Nếu không tìm thấy bảng đó, hoặc bảng đã có mã khác (không phải `_(chưa có)_`): KHÔNG tự sửa dòng nào.
-Ghi danh sách mã vào báo cáo Bước 8 và báo người dùng rằng `CLAUDE.md` không đúng mẫu harness.
+If that table cannot be found, or it already has other codes (not `_(none yet)_`): do NOT edit any row.
+Put the list of codes in the Step 8 report and tell the user that `CLAUDE.md` does not match the harness template.
 
-## Bước 7 — Tự kiểm tra trước khi báo
+## Step 7 — Self-check before reporting
 
-- [ ] Đủ 5 file trong `specs/_system/` (không tính catalog), không còn khối HTML hướng dẫn.
-- [ ] Mỗi domain có đủ 4 file; `spec.md` chưa có requirement nào.
-- [ ] Mọi ô trong mọi bảng `states.md` có giá trị.
-- [ ] Mọi mục REQ / BR / NFR trong tài liệu xuất hiện trong `traceability.md`.
-- [ ] `roadmap.md`: số liên tục, `001` là walking skeleton, không phụ thuộc ngược.
-- [ ] Không con số, giới hạn hay quyền nào bịa ra ngoài tài liệu.
-- [ ] Mã domain trong `CLAUDE.md` khớp tên thư mục trong `specs/capabilities/`.
+- [ ] All 5 files exist in `specs/_system/` (catalog not counted), no HTML guide blocks left.
+- [ ] Each domain has all 4 files; `spec.md` has no requirements.
+- [ ] Every cell of every `states.md` table has a value.
+- [ ] Every REQ / BR / NFR item of the documents appears in `traceability.md`.
+- [ ] `roadmap.md`: consecutive numbers, `001` is the walking skeleton, no backward dependency.
+- [ ] No number, limit or permission invented beyond the documents.
+- [ ] Domain codes in `CLAUDE.md` match the folder names in `specs/capabilities/`.
 
-Mục nào không đạt → sửa rồi kiểm lại.
+Any item failing → fix it and check again.
 
-## Bước 8 — Báo cáo và DỪNG
+## Step 8 — Report and STOP
 
-Báo cho người dùng:
+Tell the user:
 
-1. Danh sách domain (thư mục, mã, entity chính).
-2. Bảng roadmap rút gọn (change, mục tiêu, phụ thuộc).
-3. **Toàn bộ câu hỏi `[NEEDS CLARIFICATION]`**, gom theo file, đánh số để người dùng trả lời.
-4. Các file đã tạo / sửa.
+1. The list of domains (folder, code, main entities).
+2. A short roadmap table (change, goal, dependencies).
+3. **Every `[NEEDS CLARIFICATION]` question**, grouped by file and numbered so the user can answer.
+4. The files created / modified.
 
-Sau đó **dừng lại chờ người dùng duyệt `roadmap.md`** và trả lời các câu hỏi.
-Không tự chạy `/speckit-specify`, không tạo branch, không commit.
+Then **stop and wait for the user to approve `roadmap.md`** and answer the questions.
+Do not run `/speckit-specify` on your own, do not create a branch, do not commit.

@@ -1,176 +1,176 @@
 # Edge Case Catalog
 
-Danh mục **các chiều** cần rà khi viết scenario cho một requirement. Dùng chung cho mọi app.
-Agent chỉ ĐỌC file này; người (bạn/team) bổ sung khi retro phát hiện loại lỗi mới.
+Catalog of the **dimensions** to walk through when writing scenarios for a requirement. Shared by every app.
+Agents only READ this file; people (you/the team) extend it when a retro finds a new kind of bug.
 
-Nguồn tham khảo đã gộp: `edge-case-discovery` (openagentskills, MIT), `edge-case-coverage`
+Merged sources: `edge-case-discovery` (openagentskills, MIT), `edge-case-coverage`
 (skillstack, MIT), `deliver-edge-cases` (pm-skills, Apache-2.0).
 
-## Cách dùng
+## How to use
 
-1. Với **mỗi requirement** trong spec delta, đi qua **từng chiều** dưới đây theo thứ tự.
-2. Mỗi chiều cho ra **một trong hai**:
-   - một hoặc nhiều scenario `<MÃ>-<NNN>-S<n>` (Given / When / Then), kèm loại và mức ưu tiên; hoặc
-   - `N/A — <lý do một dòng>` (vd "requirement không nhận input số").
-3. Chiều nào cũng phải có kết quả. Không bỏ trống, không ghi "N/A" mà thiếu lý do.
-4. Scenario lỗi phải có **thông báo người dùng thấy** và **đường khôi phục** (chiều 12).
-5. Đối chiếu `capabilities/<domain>/states.md` và `rules.md` cho chiều 5 và 13.
-6. Không tự bịa giới hạn hay con số: nếu requirement không nói giới hạn là bao nhiêu,
-   ghi scenario với `[NEEDS CLARIFICATION: giới hạn tối đa?]` thay vì chọn đại một số.
+1. For **each requirement** in the delta spec, go through **each dimension** below, in order.
+2. Each dimension yields **one of two** results:
+   - one or more scenarios `<CODE>-<NNN>-S<n>` (Given / When / Then), with type and priority; or
+   - `N/A — <one-line reason>` (e.g. "requirement takes no numeric input").
+3. Every dimension must have a result. Never leave one empty; never write "N/A" without a reason.
+4. Error scenarios must have a **user-visible message** and a **recovery path** (dimension 12).
+5. Check `capabilities/<domain>/states.md` and `rules.md` for dimensions 5 and 13.
+6. Never invent limits or numbers: if the requirement does not say what the limit is,
+   write the scenario with `[NEEDS CLARIFICATION: maximum limit?]` instead of picking a number.
 
-### Mức ưu tiên
+### Priority
 
-| Mức | Khi nào |
+| Level | When |
 | --- | --- |
-| **P1** | Mất hoặc sai dữ liệu, lộ dữ liệu / vượt quyền, crash, sai tiền |
-| **P2** | Hành vi sai nhưng không mất dữ liệu; trải nghiệm kém rõ rệt |
-| **P3** | Hiếm gặp, ảnh hưởng nhỏ; chỉ cần xử lý "êm" (không crash, có thông báo) |
+| **P1** | Data lost or wrong, data leaked / permission bypassed, crash, wrong money |
+| **P2** | Wrong behavior without data loss; clearly poor experience |
+| **P3** | Rare, small impact; only needs to fail "gracefully" (no crash, a message is shown) |
 
-### Loại scenario (ghi trong ngoặc sau ID)
+### Scenario types (in parentheses after the ID)
 
-`happy` · `input` · `biên` · `thiếu` · `tập hợp` · `trạng thái` · `quyền` · `đồng thời` ·
-`thời gian` · `phụ thuộc` · `tài nguyên` · `dữ liệu` · `domain`
+`happy` · `input` · `boundary` · `missing` · `collection` · `state` · `permission` · `concurrency` ·
+`time` · `dependency` · `resource` · `data` · `domain`
 
-Ví dụ: `ABC-004-S3 (biên) [P1] — Given … When … Then … → Khôi phục: …`
-
----
-
-## 1. Input và định dạng chuỗi
-
-**Áp dụng khi:** requirement nhận chữ do người dùng nhập (tên, mô tả, email, tìm kiếm…).
-
-- Rỗng `""`? Chỉ có khoảng trắng / xuống dòng?
-- Vượt độ dài tối đa? Đúng bằng độ dài tối đa?
-- Tiếng Việt có dấu, emoji, ký tự đặc biệt, chữ viết từ phải sang trái?
-- Sai định dạng (email, số điện thoại, ngày, mã)?
-- Chuỗi trông giống mã độc (`<script>`, `' OR 1=1 --`) — hệ thống có coi đó là chữ thường không?
-- Chuỗi trông giống kiểu khác (`"null"`, `"true"`, `"123"`)?
-- Khoảng trắng đầu/cuối: cắt bỏ hay giữ? Hai giá trị chỉ khác hoa/thường có bị coi là trùng không?
-
-## 2. Số và giá trị biên
-
-**Áp dụng khi:** có số lượng, giá tiền, tuổi, thời lượng, số trang, giới hạn.
-
-- 0? Số âm?
-- min − 1, min, max, max + 1 (phân tích giá trị biên)?
-- Số thập phân khi chỉ chấp nhận số nguyên? Làm tròn tiền thế nào?
-- Số rất lớn (tràn, chậm)? Với số thực: NaN, vô cực?
-
-## 3. Thiếu và rỗng
-
-**Áp dụng khi:** có form, request body, tham số tuỳ chọn.
-
-- Thiếu trường bắt buộc? Trường có mặt nhưng là `null`?
-- Trường tuỳ chọn bị bỏ qua → giá trị mặc định là gì?
-- Có trường thừa không mong đợi → bỏ qua hay báo lỗi?
-- Object chỉ điền một phần?
-
-## 4. Tập hợp, danh sách và phân trang
-
-**Áp dụng khi:** hiển thị danh sách, chọn nhiều, import, tìm kiếm, lọc.
-
-- 0 phần tử (trạng thái rỗng hiển thị gì)? 1 phần tử? Rất nhiều?
-- Đúng bằng ngưỡng một trang; vượt ngưỡng một phần tử?
-- Phần tử trùng lặp?
-- Lọc / tìm không ra kết quả?
-- Sắp xếp khi nhiều phần tử có cùng giá trị — thứ tự có ổn định không?
-- Chọn nhiều mà một phần tử không hợp lệ → làm cả lô hay một phần?
-
-## 5. Tồn tại và trạng thái
-
-**Áp dụng khi:** thao tác trên một đối tượng có vòng đời. Đối chiếu `states.md`.
-
-- Đối tượng không tồn tại (ID sai)?
-- Đối tượng đã bị xoá (theo chính sách xoá trong `nfr.md`)?
-- Thao tác không hợp lệ với trạng thái hiện tại (mọi ô ✗ trong `states.md` cần ít nhất một scenario)?
-- Tạo trùng giá trị phải là duy nhất?
-- Làm lại cùng thao tác lần hai — kết quả có giống lần một không (idempotent)?
-
-## 6. Quyền và danh tính
-
-**Áp dụng khi:** requirement có ràng buộc ai được làm gì (gần như mọi requirement ghi dữ liệu).
-
-- Chưa đăng nhập? Phiên / token hết hạn?
-- Đúng người nhưng sai vai trò?
-- Truy cập tài nguyên của người khác bằng cách đổi ID trong request?
-- Client tự khai vai trò / user ID trong body — backend có bỏ qua không?
-- Quyền bị thu hồi khi đang thao tác dở?
-- Scenario bị từ chối phải được test **gọi thẳng backend** (constitution, nguyên tắc II).
-
-## 7. Đồng thời và thứ tự
-
-**Áp dụng khi:** nhiều người cùng sửa một dữ liệu, có nút gửi, có xử lý nền.
-
-- Hai người sửa cùng lúc — người lưu sau có ghi đè mất dữ liệu của người trước không?
-- Bấm nút gửi hai lần nhanh?
-- Một người xoá trong khi người khác đang sửa?
-- Sự kiện / request đến sai thứ tự?
-- Thử lại sau timeout tạo ra bản ghi trùng?
-
-## 8. Thời gian
-
-**Áp dụng khi:** có ngày giờ, hạn chót, lịch, hết hạn, thống kê theo kỳ.
-
-- Múi giờ: lưu và hiển thị theo giờ nào (Asia/Saigon hay UTC)?
-- Ranh giới ngày / tháng / năm (23:59 → 00:00, cuối tháng, năm nhuận)?
-- Hết hạn đúng thời điểm biên: trước 1 giây, đúng giây, sau 1 giây?
-- Đồng hồ máy người dùng sai?
-
-## 9. Phụ thuộc ngoài và hạ tầng
-
-**Áp dụng khi:** gọi dịch vụ ngoài, gửi email, thanh toán, ghi nhiều bảng.
-
-- Dịch vụ ngoài lỗi / timeout / trả dữ liệu sai dạng?
-- Cơ sở dữ liệu lỗi hoặc vi phạm ràng buộc?
-- Thất bại giữa chừng: một phần đã ghi, một phần chưa → có rollback không?
-- Mạng chập chờn khi đang gửi?
-
-## 10. Giới hạn tài nguyên
-
-**Áp dụng khi:** upload file, payload lớn, thao tác hàng loạt, API công khai.
-
-- File quá lớn? Sai loại? File rỗng?
-- Request quá lớn? Quá nhiều request (rate limit)?
-- Vượt hạn mức (quota) của người dùng?
-
-## 11. Dữ liệu và xoá
-
-**Áp dụng khi:** có thao tác xoá, sửa dữ liệu có liên kết. Đối chiếu chính sách xoá trong `nfr.md`.
-
-- Xoá xong, dữ liệu còn xuất hiện ở đâu (danh sách, tìm kiếm, báo cáo, dữ liệu liên quan)?
-- Khôi phục được không? Ai được khôi phục?
-- Xoá đối tượng cha khi còn đối tượng con tham chiếu?
-- Sửa một giá trị mà dữ liệu khác đang dựa vào (vd đổi giá khi đã có hoá đơn)?
-
-## 12. Thông báo lỗi và đường khôi phục
-
-**Áp dụng cho:** mọi scenario lỗi ở các chiều trên (đây là phần bắt buộc kèm theo, không phải chiều riêng để N/A).
-
-- Người dùng thấy thông báo gì? Có nói rõ phải làm gì tiếp không?
-- Dữ liệu đã nhập có được giữ lại để sửa không?
-- Thử lại được không? Có tạo bản trùng không?
-- Lỗi có được ghi log để điều tra không (không lộ thông tin nhạy cảm trong thông báo)?
-
-## 13. Domain riêng
-
-Bẫy nghiệp vụ của từng app. Để trống ở harness; `/spec-bootstrap` hoặc retro của từng app bổ sung
-vào đây (trên branch của app), mỗi dòng một câu hỏi.
-
-- _(chưa có)_
+Example: `ABC-004-S3 (boundary) [P1] — Given … When … Then … → Recovery: …`
 
 ---
 
-## Mẫu bảng đối chiếu (`checklists/edge-cases.md`)
+## 1. Input and string format
+
+**Applies when:** the requirement takes text typed by the user (name, description, email, search…).
+
+- Empty `""`? Only whitespace / line breaks?
+- Over the maximum length? Exactly the maximum length?
+- Accented characters (e.g. Vietnamese), emoji, special characters, right-to-left scripts?
+- Wrong format (email, phone number, date, code)?
+- Strings that look like attacks (`<script>`, `' OR 1=1 --`) — does the system treat them as plain text?
+- Strings that look like another type (`"null"`, `"true"`, `"123"`)?
+- Leading/trailing whitespace: trimmed or kept? Are two values that differ only in case considered duplicates?
+
+## 2. Numbers and boundary values
+
+**Applies when:** there are quantities, prices, ages, durations, page numbers, limits.
+
+- 0? Negative numbers?
+- min − 1, min, max, max + 1 (boundary value analysis)?
+- Decimals where only integers are accepted? How is money rounded?
+- Very large numbers (overflow, slowness)? For floats: NaN, infinity?
+
+## 3. Missing and empty
+
+**Applies when:** there are forms, request bodies, optional parameters.
+
+- A required field missing? A field present but `null`?
+- An optional field omitted → what is the default?
+- Unexpected extra fields → ignored or rejected?
+- An object only partly filled?
+
+## 4. Collections, lists and pagination
+
+**Applies when:** showing lists, multi-select, import, search, filter.
+
+- 0 items (what does the empty state show)? 1 item? Very many?
+- Exactly one page; one item over a page?
+- Duplicate items?
+- Filter / search with no results?
+- Sorting when many items share the same value — is the order stable?
+- Multi-select where one item is invalid → whole batch or partial?
+
+## 5. Existence and state
+
+**Applies when:** acting on an object with a lifecycle. Check `states.md`.
+
+- Object does not exist (wrong ID)?
+- Object already deleted (per the deletion policy in `nfr.md`)?
+- Action not valid for the current state (every ✗ cell in `states.md` needs at least one scenario)?
+- Creating a duplicate of a value that must be unique?
+- Repeating the same action a second time — is the result the same as the first (idempotent)?
+
+## 6. Permissions and identity
+
+**Applies when:** the requirement constrains who may do what (almost every requirement that writes data).
+
+- Not logged in? Session / token expired?
+- Right person but wrong role?
+- Accessing another user's resource by changing the ID in the request?
+- Client declares its own role / user ID in the body — does the backend ignore it?
+- Permission revoked in the middle of an action?
+- Denied scenarios must be tested by **calling the backend directly** (constitution, Principle II).
+
+## 7. Concurrency and ordering
+
+**Applies when:** several people edit the same data, there is a submit button, background processing.
+
+- Two people edit at the same time — does the later save overwrite the earlier one's data?
+- Submit clicked twice quickly?
+- One person deletes while another is editing?
+- Events / requests arrive out of order?
+- A retry after a timeout creates a duplicate record?
+
+## 8. Time
+
+**Applies when:** there are dates and times, deadlines, schedules, expiry, per-period statistics.
+
+- Time zone: stored and displayed in which zone (local or UTC)?
+- Day / month / year boundaries (23:59 → 00:00, end of month, leap year)?
+- Expiry exactly at the boundary: 1 second before, at the second, 1 second after?
+- User's device clock is wrong?
+
+## 9. External dependencies and infrastructure
+
+**Applies when:** calling external services, sending email, payments, writing to several tables.
+
+- External service fails / times out / returns malformed data?
+- Database error or constraint violation?
+- Failure halfway: part written, part not → is there a rollback?
+- Flaky network while submitting?
+
+## 10. Resource limits
+
+**Applies when:** file uploads, large payloads, bulk operations, public APIs.
+
+- File too large? Wrong type? Empty file?
+- Request too large? Too many requests (rate limit)?
+- User quota exceeded?
+
+## 11. Data and deletion
+
+**Applies when:** deleting, or editing data that other data depends on. Check the deletion policy in `nfr.md`.
+
+- After deletion, where does the data still appear (lists, search, reports, related data)?
+- Can it be restored? Who may restore it?
+- Deleting a parent while children still reference it?
+- Editing a value other data relies on (e.g. changing a price after invoices exist)?
+
+## 12. Error messages and recovery paths
+
+**Applies to:** every error scenario in the dimensions above (this is a mandatory companion, not a separate dimension that can be N/A).
+
+- What message does the user see? Does it say clearly what to do next?
+- Is the data already entered kept so it can be corrected?
+- Can the user retry? Does a retry create a duplicate?
+- Is the error logged for investigation (without leaking sensitive information in the message)?
+
+## 13. Domain-specific
+
+Business traps specific to each app. Empty in the harness; `/spec-bootstrap` or each app's retro adds
+them here (on the app's branch), one question per line.
+
+- _(none yet)_
+
+---
+
+## Coverage table template (`checklists/edge-cases.md`)
 
 ```markdown
 # Edge cases — <change>
 
-| Requirement | Chiều | Kết quả | Ghi chú |
+| Requirement | Dimension | Result | Notes |
 | --- | --- | --- | --- |
 | ABC-004 | 1. Input | S2, S3 | |
-| ABC-004 | 2. Số và biên | N/A | không nhận input số |
-| ABC-004 | 6. Quyền | S4 [P1] | test gọi thẳng backend |
-| ABC-004 | 13. Domain riêng | N/A | chưa có mục nào áp dụng |
+| ABC-004 | 2. Numbers and boundaries | N/A | takes no numeric input |
+| ABC-004 | 6. Permissions | S4 [P1] | test calls the backend directly |
+| ABC-004 | 13. Domain-specific | N/A | no item applies yet |
 ```
 
-Mỗi requirement × mỗi chiều 1–11 và 13 = một dòng. Chiều 12 kiểm tra trong từng scenario lỗi.
+Each requirement × each dimension 1–11 and 13 = one row. Dimension 12 is checked inside each error scenario.

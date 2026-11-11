@@ -1,30 +1,30 @@
-# Luật nghiệp vụ: [domain]
+# Business rules: [domain]
 
 <!--
-Luật nghiệp vụ ĐÃ CHỐT từ tài liệu yêu cầu, dùng làm chuẩn đối chiếu khi viết spec và edge case.
-- Mỗi luật có ID BR-[MÃ]-NN và ghi nguồn (mục nào trong docs/requirements).
-- Luật phụ thuộc nhiều điều kiện → viết thành bảng quyết định: liệt kê ĐỦ mọi tổ hợp,
-  mỗi dòng bảng = một scenario khi viết spec.
-- Không tự thêm luật không có trong tài liệu; chỗ chưa rõ ghi [NEEDS CLARIFICATION].
+AGREED business rules from the requirement documents, used as the reference when writing specs and edge cases.
+- Each rule has an ID BR-[CODE]-NN and a source (which section of docs/requirements).
+- A rule that depends on several conditions → write it as a decision table: list EVERY combination;
+  each table row = one scenario when writing the spec.
+- Do not add rules that are not in the documents; mark unclear points [NEEDS CLARIFICATION].
 -->
 
-## Luật
+## Rules
 
-| ID | Luật | Nguồn |
+| ID | Rule | Source |
 | --- | --- | --- |
-| BR-[MÃ]-01 | [mô tả một câu] | [docs/requirements/<file>#<mục>] |
+| BR-[CODE]-01 | [one-sentence description] | [docs/requirements/<file>#<section>] |
 
-## Bảng quyết định
+## Decision tables
 
-### BR-[MÃ]-[NN]: [tên luật nhiều điều kiện]
+### BR-[CODE]-[NN]: [name of multi-condition rule]
 
-| [Điều kiện 1] | [Điều kiện 2] | Kết quả |
+| [Condition 1] | [Condition 2] | Result |
 | --- | --- | --- |
-| có | có | [...] |
-| có | không | [...] |
-| không | có | [...] |
-| không | không | [...] |
+| yes | yes | [...] |
+| yes | no | [...] |
+| no | yes | [...] |
+| no | no | [...] |
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

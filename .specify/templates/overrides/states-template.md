@@ -1,35 +1,35 @@
-# Trạng thái: [entity] ([domain])
+# States: [entity] ([domain])
 
 <!--
-Vòng đời của một entity. Dùng để tìm edge case: MỌI ô trong bảng phải có giá trị.
-- "→ X": chuyển sang trạng thái X
-- "✗ <lý do>": bị từ chối (cần ít nhất một scenario chiều 5 cho mỗi ô ✗ có thể xảy ra)
-- "= (no-op)": hợp lệ nhưng không đổi gì (idempotent)
-Đây là LUẬT NGHIỆP VỤ ĐÃ CHỐT (từ tài liệu yêu cầu), dùng làm chuẩn đối chiếu.
-Hành vi đã thực sự có trong hệ thống thì xem spec.md.
+Lifecycle of one entity. Used to find edge cases: EVERY cell in the table must have a value.
+- "→ X": moves to state X
+- "✗ <reason>": rejected (each reachable ✗ cell needs at least one dimension-5 scenario)
+- "= (no-op)": valid but changes nothing (idempotent)
+These are AGREED BUSINESS RULES (from the requirement documents), used as the reference.
+For behavior the system actually has, see spec.md.
 -->
 
-## Trạng thái
+## States
 
-| Trạng thái | Ý nghĩa |
+| State | Meaning |
 | --- | --- |
 | [draft] | [...] |
 | [active] | [...] |
 
-## Sự kiện
+## Events
 
-| Sự kiện | Ai gây ra |
+| Event | Triggered by |
 | --- | --- |
 | [create] | [...] |
 | [edit] | [...] |
 
-## Bảng chuyển trạng thái
+## Transition table
 
-| Trạng thái \ Sự kiện | [create] | [edit] | [delete] |
+| State \ Event | [create] | [edit] | [delete] |
 | --- | --- | --- | --- |
-| (chưa tồn tại) | → [draft] | ✗ không tồn tại | ✗ không tồn tại |
-| [draft] | ✗ đã tồn tại | → [draft] | → [deleted] |
+| (does not exist) | → [draft] | ✗ does not exist | ✗ does not exist |
+| [draft] | ✗ already exists | → [draft] | → [deleted] |
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

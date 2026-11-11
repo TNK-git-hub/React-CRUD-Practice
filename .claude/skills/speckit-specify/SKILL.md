@@ -14,17 +14,17 @@ disable-model-invocation: false
 # Speckit Specify Skill
 
 <!--
-Preset speckit-level4 (tools/speckit-level4/), thay lệnh core speckit.specify.
-Khác lệnh core ở 5 chỗ:
-  1. Số change do .specify/scripts/next_change.py cấp; thư mục là specs/changes/NNN-<tên>/.
-  2. Tự tạo branch NNN-<tên> (repo không dùng git extension của Spec Kit).
-  3. Đọc specs/_system/* và specs/capabilities/<domain>/ trước khi viết.
-  4. Requirement đã có → MODIFIED <ID cũ>; requirement mới → ADDED với ID kế tiếp của domain.
-  5. Điền frontmatter kind/change/capabilities/primary/status/source.
-  Ngoài ra: không tự bịa con số, giới hạn, quyền, chính sách xoá (bỏ giới hạn 3 câu hỏi của lệnh core
-  cho các loại này) và không hỏi người dùng giữa chừng — câu hỏi để cho /speckit-clarify.
-Sửa file này trong tools/speckit-level4/ rồi chạy lại `specify preset add --dev tools/speckit-level4`;
-KHÔNG sửa tay .claude/skills/speckit-specify/SKILL.md (file sinh ra).
+Preset speckit-level4 (tools/speckit-level4/), replaces the core speckit.specify command.
+Differs from the core command in 5 places:
+  1. The change number comes from .specify/scripts/next_change.py; the folder is specs/changes/NNN-<name>/.
+  2. Creates branch NNN-<name> itself (this repo does not use the Spec Kit git extension).
+  3. Reads specs/_system/* and specs/capabilities/<domain>/ before writing.
+  4. Existing requirement → MODIFIED <old ID>; new requirement → ADDED with the domain's next ID.
+  5. Fills the frontmatter kind/change/capabilities/primary/status/source.
+  Also: never invents numbers, limits, permissions or deletion policy (drops the core command's
+  3-question limit for these) and never asks the user mid-way — questions are left for /speckit-clarify.
+Edit this file in tools/speckit-level4/ then re-run `specify preset add --dev tools/speckit-level4`;
+do NOT hand-edit .claude/skills/speckit-specify/SKILL.md (generated file).
 -->
 
 ## User Input
@@ -77,116 +77,115 @@ The text the user typed after `/speckit-specify` in the triggering message **is*
 feature description. Assume you always have it available in this conversation even if `$ARGUMENTS`
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
-Repo này là spec harness level 4 (đọc `.claude/CLAUDE.md`). Spec viết tiếng Việt; ID, tên file,
-tên thư mục, tên branch viết tiếng Anh. Lệnh này tạo **một** change, chỉ ghi vào
-`specs/changes/<change>/` và `.specify/feature.json`. Không sửa `specs/capabilities/`,
-`specs/_system/` hay code.
+This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Everything is written in English.
+This command creates **one** change and writes only to `specs/changes/<change>/` and
+`.specify/feature.json`. It does not modify `specs/capabilities/`, `specs/_system/` or code.
 
-### Bước 1 — Đọc kiến thức nền (trước khi viết bất cứ gì)
+### Step 1 — Read the knowledge base (before writing anything)
 
-1. Đọc `.claude/CLAUDE.md` (luồng, quy ước ID, **bảng mã domain**) và `.specify/memory/constitution.md`.
-2. Đọc mọi file có trong `specs/_system/`: `glossary.md`, `domain-model.md`, `nfr.md`, `roadmap.md`,
-   `traceability.md`, `edge-case-catalog.md`. File nào chưa có thì ghi nhận, không tự tạo.
-3. Xác định domain mà feature đụng tới, dựa vào glossary, domain-model và bảng mã domain:
-   - Mỗi domain phải có trong bảng mã domain của `CLAUDE.md` **và** có thư mục
-     `specs/capabilities/<domain>/`. Thiếu một trong hai → **DỪNG**, báo người dùng rằng domain
-     mới phải được đăng ký trước (qua `/spec-bootstrap` hoặc sửa bảng mã). Không tự đăng ký.
-   - `primary` = domain chứa phần lớn hành vi của change.
-4. Với **mỗi** domain liên quan, đọc `specs/capabilities/<domain>/spec.md`, `states.md`, `rules.md`,
-   `history.md`. Lập bảng các requirement đang có (ID, tên, tóm tắt hành vi) và các ID đã bỏ.
-5. Nếu `roadmap.md` có dòng change khớp với feature: dùng đúng tên ngắn của dòng đó và ghi dòng đó
-   vào frontmatter `source`. Feature không khớp dòng nào → vẫn tạo change, nhưng ghi vào
-   Assumptions: "Change này không có trong roadmap.md".
+1. Read `.claude/CLAUDE.md` (flow, ID conventions, **domain code table**) and `.specify/memory/constitution.md`.
+2. Read every file present in `specs/_system/`: `glossary.md`, `domain-model.md`, `nfr.md`, `roadmap.md`,
+   `traceability.md`, `edge-case-catalog.md`. A missing file is noted, never created.
+3. Determine the domains the feature touches, using the glossary, domain model and domain code table:
+   - Each domain must be in the domain code table of `CLAUDE.md` **and** have a folder
+     `specs/capabilities/<domain>/`. Either one missing → **STOP**, tell the user that the new domain must
+     be registered first (via `/spec-bootstrap` or by editing the code table). Never register it yourself.
+   - `primary` = the domain that holds most of the change's behavior.
+4. For **each** related domain, read `specs/capabilities/<domain>/spec.md`, `states.md`, `rules.md`,
+   `history.md`. List the existing requirements (ID, name, behavior summary) and the removed IDs.
+5. If `roadmap.md` has a change row matching the feature: use exactly that row's short name and put the row
+   in frontmatter `source`. No matching row → still create the change, but add to Assumptions:
+   "This change is not in roadmap.md".
 
-### Bước 2 — Kiểm tra input
+### Step 2 — Check the input
 
-Input tốt có đủ 5 ý: **ai** (vai trò), **làm gì**, **vì sao**, **ràng buộc** (giới hạn, quyền, dữ liệu),
-**ngoài phạm vi**. Ý nào thiếu → không đoán; đặt `[NEEDS CLARIFICATION: …]` đúng chỗ trong spec.
+Good input covers 5 points: **who** (role), **what**, **why**, **constraints** (limits, permissions, data),
+**out of scope**. A missing point → do not guess; put `[NEEDS CLARIFICATION: …]` at the right place in the spec.
 
-### Bước 3 — Cấp số, tạo branch và thư mục
+### Step 3 — Number, branch and folder
 
-1. Tạo tên ngắn 2–4 từ, kebab-case tiếng Anh, dạng hành động–danh từ (vd `product-bulk-delete`).
-   Có dòng roadmap khớp → dùng tên của dòng đó.
-2. Chạy từ thư mục gốc repo:
+1. Make a 2–4 word English kebab-case short name, action-noun style (e.g. `product-bulk-delete`).
+   Matching roadmap row → use that row's name.
+2. Run from the repo root:
 
    ```bash
    python3 .specify/scripts/next_change.py --name <short-name> --json
    ```
 
-   (Windows: `python` thay cho `python3`.) Lấy `FEATURE_NUM`, `CHANGE_NAME`, `FEATURE_DIR` từ JSON.
-   Script lỗi → **DỪNG** và báo nguyên văn lỗi. Không tự đếm số bằng tay.
-   Nếu số change khác số của dòng roadmap khớp → báo người dùng, vẫn dùng số của script.
-3. Tạo branch:
-   - `git rev-parse --abbrev-ref HEAD`. Nếu branch hiện tại không phải `new-project` → nói rõ
-     branch hiện tại và **hỏi người dùng** có tạo branch change từ đây không; chưa có xác nhận thì dừng.
-   - Branch `CHANGE_NAME` đã tồn tại (`git rev-parse --verify --quiet <CHANGE_NAME>`) → **DỪNG**, báo người dùng.
-   - `git checkout -b <CHANGE_NAME>`. Thay đổi chưa commit đi theo sang branch mới; nêu chúng trong báo cáo.
-4. Lấy template: chạy `.specify/scripts/bash/resolve-template.sh spec-template --json` từ thư mục gốc repo, đọc `TEMPLATE_CONTENT` (bản override delta trong
-   `.specify/templates/overrides/spec-template.md`). Script lỗi → **DỪNG** và báo lỗi. Không copy file
-   template từ đĩa thay cho script.
-5. `mkdir -p <FEATURE_DIR>`, ghi `TEMPLATE_CONTENT` vào `<FEATURE_DIR>/spec.md` làm điểm xuất phát.
-6. Ghi `.specify/feature.json` với giá trị thật:
+   (Windows: `python` instead of `python3`.) Take `FEATURE_NUM`, `CHANGE_NAME`, `FEATURE_DIR` from the JSON.
+   Script error → **STOP** and report the error verbatim. Never count numbers by hand.
+   If the change number differs from the number of the matching roadmap row → tell the user, still use the script's number.
+3. Create the branch:
+   - `git rev-parse --abbrev-ref HEAD`. If the current branch is not `new-project` → state the current branch
+     and **ask the user** whether to create the change branch from here; stop until confirmed.
+   - Branch `CHANGE_NAME` already exists (`git rev-parse --verify --quiet <CHANGE_NAME>`) → **STOP**, tell the user.
+   - `git checkout -b <CHANGE_NAME>`. Uncommitted changes follow to the new branch; list them in the report.
+4. Get the template: run `.specify/scripts/bash/resolve-template.sh spec-template --json` from the repo root and read `TEMPLATE_CONTENT` (the delta override in
+   `.specify/templates/overrides/spec-template.md`). Script error → **STOP** and report it. Never copy the
+   template file from disk instead of using the script.
+5. `mkdir -p <FEATURE_DIR>`, write `TEMPLATE_CONTENT` to `<FEATURE_DIR>/spec.md` as the starting point.
+6. Write `.specify/feature.json` with the real value:
 
    ```json
    { "feature_directory": "specs/changes/<CHANGE_NAME>" }
    ```
 
-   Các lệnh sau (`/speckit-clarify`, `/speckit-plan`, …) tìm change qua file này.
+   Later commands (`/speckit-clarify`, `/speckit-plan`, …) find the change through this file.
 
-### Bước 4 — Viết spec delta
+### Step 4 — Write the delta spec
 
-Viết vào `<FEATURE_DIR>/spec.md` theo đúng khuôn template; giữ nguyên các heading tiếng Anh
-(`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`) vì các lệnh core tìm theo tên.
-Xoá khối HTML hướng dẫn của template sau khi điền.
+Write into `<FEATURE_DIR>/spec.md` following the template exactly; keep the headings
+(`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`) because the core commands look
+them up by name. Delete the template's HTML guide block once filled.
 
-**Frontmatter** (bắt buộc đủ):
+**Frontmatter** (all keys required):
 
 ```yaml
 ---
 kind: delta
 change: "<CHANGE_NAME>"
-capabilities: ["<domain>", ...]   # mọi domain có mục trong Requirements
+capabilities: ["<domain>", ...]   # every domain that has a section under Requirements
 primary: "<domain>"
 status: draft
-source: ["docs/requirements/<file>#<mục>", "roadmap <NNN>"]   # nguồn có thật; không có thì bỏ phần tử đó
+source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources only; drop an element that does not exist
 ---
 ```
 
-**Requirements** — một mục `### <domain>` cho mỗi domain trong `capabilities`, theo thứ tự `primary` trước:
+**Requirements** — one `### <domain>` section per domain in `capabilities`, `primary` first:
 
-- Hành vi feature **đã có** requirement trong capability (cùng hành vi, dù tên khác) →
-  `#### MODIFIED <ID cũ>: <tên>`: viết lại **toàn bộ** requirement và **tất cả** scenario như sau khi sửa
-  (spec-archive thay nguyên khối). Không tạo requirement mới trùng nghĩa.
-- Bỏ một requirement đang có → `#### REMOVED <ID>: <tên>` kèm **Lý do** và **Chuyển đổi**.
-- Chỉ đổi tên → `#### RENAMED <ID>` kèm **Từ** / **Thành**.
-- Hành vi mới → `#### ADDED <MÃ>-<NNN>: <tên>`.
-  - `<MÃ>` lấy từ bảng mã domain. `<NNN>` = số lớn nhất đang dùng của mã đó + 1, xét **cả**:
-    requirement trong `capabilities/<domain>/spec.md`, ID trong bảng "ID đã bỏ" của `history.md`,
-    và ID `ADDED` trong các change khác đang nằm trong `specs/changes/*/spec.md`.
-    ID đã bỏ **không bao giờ** cấp lại. Nhiều requirement mới → số tăng liên tục.
-- Chỉ dùng MODIFIED / REMOVED / RENAMED với ID **đang có thật** trong capability; không có → không bịa ID.
-- Mỗi requirement: một câu "Hệ thống MUST …" về hành vi quan sát được, không nói công nghệ;
-  dòng **Quyền**; ít nhất một scenario `<ID>-S1` (happy) [P1] dạng **Given / When / Then**.
-  Scenario edge case để `/spec-edge-cases` bổ sung; tình huống biên nghĩ ra lúc này ghi tạm vào mục
-  `### Edge Cases (chưa gắn requirement)`.
-- Luật trong `rules.md` và chuyển trạng thái trong `states.md` là chuẩn đối chiếu: requirement không được
-  trái với chúng; trái → ghi `[NEEDS CLARIFICATION]` thay vì tự chọn bên.
+- Behavior that **already has** a requirement in the capability (same behavior, even under another name) →
+  `#### MODIFIED <old ID>: <name>`: rewrite the **whole** requirement and **all** its scenarios as they are after
+  the change (spec-archive replaces the whole block). Never create a new requirement with the same meaning.
+- Removing an existing requirement → `#### REMOVED <ID>: <name>` with **Reason** and **Migration**.
+- Rename only → `#### RENAMED <ID>` with **From** / **To**.
+- New behavior → `#### ADDED <CODE>-<NNN>: <name>`.
+  - `<CODE>` comes from the domain code table. `<NNN>` = the highest number in use for that code + 1, taking
+    into account **all of**: requirements in `capabilities/<domain>/spec.md`, IDs in the "Removed IDs" table of
+    `history.md`, and `ADDED` IDs in other changes currently in `specs/changes/*/spec.md`.
+    A removed ID is **never** reissued. Several new requirements → consecutive numbers.
+- Only use MODIFIED / REMOVED / RENAMED with an ID that **really exists** in the capability; otherwise never invent an ID.
+- Each requirement: one sentence "The system MUST …" about observable behavior, no technology;
+  a **Permissions** line; at least one scenario `<ID>-S1` (happy) [P1] in **Given / When / Then** form.
+  Edge-case scenarios are added by `/spec-edge-cases`; edge cases you think of now go temporarily into
+  `### Edge Cases (unassigned)`.
+- Rules in `rules.md` and transitions in `states.md` are the reference: a requirement must not contradict them;
+  if it does → write `[NEEDS CLARIFICATION]` instead of picking a side.
 
-**Không tự bịa** (luật cứng của repo, ghi đè hướng dẫn "make informed guesses" của lệnh core):
+**Never invent** (hard rule of this repo, overrides the core command's "make informed guesses" guidance):
 
-- Con số, giới hạn (số lượng tối đa, độ dài, thời gian), quyền (vai trò nào được / bị từ chối) và chính
-  sách xoá dữ liệu **chỉ** lấy từ input, `specs/_system/*` hoặc `capabilities/*`. Không có → đặt
-  `[NEEDS CLARIFICATION: <câu hỏi cụ thể>]` tại đúng dòng đó. **Không giới hạn số lượng** marker loại này.
-- Thao tác xoá: theo bảng "Dữ liệu và chính sách xoá" trong `nfr.md`; ô đó còn `[NEEDS CLARIFICATION]`
-  hoặc thiếu → ghi `[NEEDS CLARIFICATION]` trong spec, không chọn xoá mềm hay xoá cứng.
-- Các chi tiết khác (cách hiển thị, câu chữ thông báo…) được dùng mặc định hợp lý, ghi vào **Assumptions**.
+- Numbers, limits (maximum count, length, duration), permissions (which roles may / are denied) and the data
+  deletion policy come **only** from the input, `specs/_system/*` or `capabilities/*`. Not there → write
+  `[NEEDS CLARIFICATION: <specific question>]` on that very line. **No limit on the number** of such markers.
+- Deletion: follow the "Data and deletion policy" table in `nfr.md`; that cell still `[NEEDS CLARIFICATION]`
+  or missing → write `[NEEDS CLARIFICATION]` in the spec, never choose soft or hard delete.
+- Other details (layout, message wording…) may use reasonable defaults, recorded under **Assumptions**.
 
-**Success Criteria**: đo được, có con số lấy từ input / `nfr.md`; không có con số → `[NEEDS CLARIFICATION]`.
-**Out of Scope**: từ input; input không nói → ghi một dòng `[NEEDS CLARIFICATION: ngoài phạm vi gồm gì?]`.
+**Success Criteria**: measurable, with numbers taken from the input / `nfr.md`; no number → `[NEEDS CLARIFICATION]`.
+**Out of Scope**: from the input; input silent → one line `[NEEDS CLARIFICATION: what is out of scope?]`.
 
-### Bước 5 — Tự kiểm chất lượng
+### Step 5 — Quality self-check
 
-Tạo `<FEATURE_DIR>/checklists/requirements.md`:
+Create `<FEATURE_DIR>/checklists/requirements.md`:
 
 ```markdown
 # Specification Quality Checklist: <CHANGE_NAME>
@@ -208,7 +207,7 @@ Tạo `<FEATURE_DIR>/checklists/requirements.md`:
 - [ ] Every MODIFIED / REMOVED / RENAMED ID exists in the capability spec
 - [ ] No ADDED requirement duplicates an existing requirement
 - [ ] ADDED IDs are the next free numbers of the domain (incl. history.md and other open changes)
-- [ ] Every requirement has a Quyền line and at least one Given/When/Then scenario with an ID
+- [ ] Every requirement has a Permissions line and at least one Given/When/Then scenario with an ID
 
 ## Requirement Completeness
 
@@ -224,11 +223,11 @@ Tạo `<FEATURE_DIR>/checklists/requirements.md`:
 - [NEEDS CLARIFICATION] markers are expected at this stage; /speckit-clarify resolves them.
 ```
 
-Rà spec theo từng mục. Mục trượt (không tính `[NEEDS CLARIFICATION]`) → sửa spec, rà lại (tối đa 3 vòng);
-còn trượt thì ghi vào Notes và báo người dùng. Tick mục đạt.
+Review the spec against each item. A failing item (not counting `[NEEDS CLARIFICATION]`) → fix the spec and
+review again (at most 3 rounds); still failing → record it under Notes and tell the user. Tick passing items.
 
-**Không hỏi người dùng ở lệnh này** (lệnh có thể chạy trong subagent). Mọi `[NEEDS CLARIFICATION]` để lại
-cho `/speckit-clarify`, chạy ở phiên chính.
+**Do not ask the user anything in this command** (it may run in a subagent). Every `[NEEDS CLARIFICATION]` is
+left for `/speckit-clarify`, which runs in the main session.
 
 ## Mandatory Post-Execution Hooks
 
@@ -267,19 +266,19 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Báo người dùng:
+Tell the user:
 
-- Branch đã tạo và thư mục change (`specs/changes/<CHANGE_NAME>/`), file `spec.md`.
-- Domain (`capabilities`, `primary`) và danh sách requirement: ADDED / MODIFIED / REMOVED / RENAMED kèm ID.
-- **Toàn bộ** `[NEEDS CLARIFICATION]`, đánh số, kèm vị trí.
-- Kết quả checklist.
-- Bước tiếp theo theo `CLAUDE.md`: `/speckit-clarify` (phiên chính) → `/spec-edge-cases` →
-  `/speckit-checklist edge cases` → dừng chờ duyệt spec.
+- The branch created and the change folder (`specs/changes/<CHANGE_NAME>/`), file `spec.md`.
+- Domains (`capabilities`, `primary`) and the requirements: ADDED / MODIFIED / REMOVED / RENAMED with IDs.
+- **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
+- The checklist result.
+- Next steps per `CLAUDE.md`: `/speckit-clarify` (main session) → `/spec-edge-cases` →
+  `/speckit-checklist edge cases` → stop and wait for spec approval.
 
 ## Done When
 
-- [ ] Branch `<CHANGE_NAME>` tạo xong; `.specify/feature.json` trỏ `specs/changes/<CHANGE_NAME>`
-- [ ] `spec.md` viết theo khuôn delta, frontmatter đủ, ID đúng quy ước, không có con số / quyền tự bịa
-- [ ] `checklists/requirements.md` đã rà
+- [ ] Branch `<CHANGE_NAME>` created; `.specify/feature.json` points to `specs/changes/<CHANGE_NAME>`
+- [ ] `spec.md` follows the delta template, frontmatter complete, IDs follow the conventions, no invented numbers / permissions
+- [ ] `checklists/requirements.md` reviewed
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Đã báo cáo như mục Completion Report
+- [ ] Reported as described in Completion Report

@@ -1,135 +1,135 @@
 ---
 name: spec-edge-cases
-description: Bổ sung scenario edge case có ID (Given/When/Then, P1–P3, đường khôi phục) cho mọi requirement của change đang làm, bằng cách rà từng chiều trong specs/_system/edge-case-catalog.md đối chiếu states.md và rules.md; ghi vào spec.md của change và bảng đối chiếu checklists/edge-cases.md. Chạy sau /speckit-clarify, trước /speckit-checklist edge cases.
-argument-hint: "[thư mục change, mặc định theo .specify/feature.json]"
+description: Adds edge-case scenarios with IDs (Given/When/Then, P1–P3, recovery path) to every requirement of the current change by walking each dimension of specs/_system/edge-case-catalog.md against states.md and rules.md; writes them into the change's spec.md and the coverage table checklists/edge-cases.md. Run after /speckit-clarify, before /speckit-checklist edge cases.
+argument-hint: "[change folder, default from .specify/feature.json]"
 license: Apache-2.0
 metadata:
-  derived-from: "pm-skills deliver-edge-cases 2.1.1 (Apache-2.0) — xem NOTICE.md"
+  derived-from: "pm-skills deliver-edge-cases 2.1.1 (Apache-2.0) — see NOTICE.md"
 ---
 <!-- Derived from PM-Skills deliver-edge-cases | https://github.com/product-on-purpose/pm-skills | Apache 2.0 | modified, see NOTICE.md -->
 
 # spec-edge-cases
 
-Happy path thường đã được viết rõ; lỗi thật thì hay nằm ở các trường hợp biên. Skill này rà **có hệ thống**
-mọi requirement của change đang làm qua từng chiều của catalog dùng chung, rồi thêm scenario có ID vào
-spec để test sau này mang đúng ID đó. Bạn KHÔNG viết code, KHÔNG sửa `specs/capabilities/` hay
-`specs/_system/`, KHÔNG tạo file nào khác ngoài hai file ở mục Đầu ra.
+The happy path is usually well specified; real bugs tend to live in the edge cases. This skill walks
+**systematically** through every requirement of the current change, dimension by dimension of the shared
+catalog, and adds scenarios with IDs to the spec so later tests carry exactly those IDs. You do NOT write
+code, do NOT edit `specs/capabilities/` or `specs/_system/`, do NOT create any file other than the two in Output.
 
-## Đầu vào
+## Input
 
 ```text
 $ARGUMENTS
 ```
 
-1. Thư mục change = `$ARGUMENTS` nếu có; ngược lại đọc `feature_directory` trong `.specify/feature.json`.
-   Thư mục không nằm trong `specs/changes/`, hoặc không có `spec.md` → **DỪNG**, báo người dùng chạy
-   `/speckit-specify` trước.
-2. `spec.md` của change: frontmatter `kind: delta` (thiếu → DỪNG), `capabilities`, mọi requirement
-   `ADDED` / `MODIFIED` (bỏ qua `REMOVED`, `RENAMED`), mục `### Edge Cases (chưa gắn requirement)`.
-3. `specs/_system/edge-case-catalog.md`: các chiều 1–13, mức ưu tiên, loại scenario, mẫu bảng đối chiếu.
-4. Với mỗi domain trong `capabilities`: `specs/capabilities/<domain>/states.md` và `rules.md`
-   (không có file → ghi nhận, dùng N/A cho chiều cần file đó, kèm lý do "chưa có states.md").
-5. `specs/_system/nfr.md` (ma trận quyền, chính sách xoá) và `glossary.md` nếu có.
+1. Change folder = the argument above if given; otherwise read `feature_directory` in `.specify/feature.json`.
+   Folder not inside `specs/changes/`, or without `spec.md` → **STOP**, tell the user to run
+   `/speckit-specify` first.
+2. The change's `spec.md`: frontmatter `kind: delta` (missing → STOP), `capabilities`, every requirement
+   marked `ADDED` / `MODIFIED` (skip `REMOVED`, `RENAMED`), the section `### Edge Cases (unassigned)`.
+3. `specs/_system/edge-case-catalog.md`: dimensions 1–13, priorities, scenario types, coverage table template.
+4. For each domain in `capabilities`: `specs/capabilities/<domain>/states.md` and `rules.md`
+   (file missing → note it, and use N/A for the dimensions that need it, with the reason "no states.md yet").
+5. `specs/_system/nfr.md` (permission matrix, deletion policy) and `glossary.md` if present.
 
-## Cách làm
+## Method
 
-Làm lần lượt **từng requirement**, trong mỗi requirement đi qua **từng chiều** theo thứ tự catalog.
-Bảy bước phân tích của skill gốc nằm trong các chiều như sau:
+Work **one requirement at a time**; within each requirement go through **each dimension** in catalog order.
+The seven analysis steps of the upstream skill map onto the dimensions like this:
 
-| Bước của skill gốc | Chiều catalog |
+| Upstream step | Catalog dimension |
 | --- | --- |
-| 1. Xác định phạm vi feature | đọc requirement, Quyền, scenario happy |
-| 2. Kiểm tra input | 1. Input, 3. Thiếu và rỗng |
-| 3. Điều kiện biên | 2. Số và biên, 4. Tập hợp, 8. Thời gian, 10. Tài nguyên |
-| 4. Trạng thái lỗi | 5. Trạng thái, 6. Quyền, 9. Phụ thuộc ngoài, 11. Dữ liệu và xoá |
-| 5. Đồng thời | 7. Đồng thời và thứ tự |
-| 6. Đường khôi phục | 12. Thông báo lỗi và đường khôi phục (bắt buộc trong mọi scenario lỗi) |
-| 7. Ưu tiên theo khả năng xảy ra × tác động | P1–P3 theo bảng mức ưu tiên của catalog |
+| 1. Define the feature scope | read the requirement, Permissions, happy scenarios |
+| 2. Walk through input validation | 1. Input, 3. Missing and empty |
+| 3. Explore boundary conditions | 2. Numbers and boundaries, 4. Collections, 8. Time, 10. Resource limits |
+| 4. Map error states | 5. State, 6. Permissions, 9. External dependencies, 11. Data and deletion |
+| 5. Consider concurrency | 7. Concurrency and ordering |
+| 6. Define recovery paths | 12. Error messages and recovery (mandatory in every error scenario) |
+| 7. Prioritise by likelihood × impact | P1–P3 per the catalog's priority table |
 
-### Luật cho từng chiều
+### Rules per dimension
 
-- Mỗi cặp requirement × chiều (1–11 và 13) cho ra **một trong hai**: một hoặc nhiều scenario mới, hoặc
-  `N/A — <lý do một dòng>` gắn với requirement đó. Không bỏ trống; N/A phải có lý do cụ thể.
-- Chiều 5: mỗi ô `✗` trong `states.md` mà requirement có thể chạm tới cần ít nhất một scenario;
-  ô `= (no-op)` cần một scenario idempotent.
-- Chiều 6: scenario bị từ chối ghi rõ "gọi thẳng backend" (constitution, nguyên tắc II); đối chiếu
-  ma trận quyền trong `nfr.md`.
-- Chiều 11: đối chiếu bảng chính sách xoá trong `nfr.md`; ô còn `[NEEDS CLARIFICATION]` → scenario vẫn
-  viết, phần kết quả liên quan ghi `[NEEDS CLARIFICATION: chính sách xoá trong nfr.md]`.
-- Chiều 13: mỗi luật trong `rules.md` mà requirement chạm tới → ít nhất một scenario; bảng quyết định →
-  **mỗi dòng của bảng một scenario**. Cộng thêm các câu hỏi ở mục 13 của catalog.
-- Mọi dòng đang có trong `### Edge Cases (chưa gắn requirement)` phải được chuyển thành scenario của
-  requirement phù hợp (rồi xoá dòng đó), hoặc giữ lại kèm `[NEEDS CLARIFICATION: thuộc requirement nào?]`.
-- Scenario đã có trong spec mà trùng nghĩa với scenario định thêm → không thêm; ghi ID cũ vào bảng đối chiếu.
+- Each requirement × dimension pair (1–11 and 13) yields **one of two**: one or more new scenarios, or
+  `N/A — <one-line reason>` for that requirement. Never empty; every N/A has a concrete reason.
+- Dimension 5: each `✗` cell in `states.md` the requirement can reach needs at least one scenario;
+  each `= (no-op)` cell needs an idempotency scenario.
+- Dimension 6: denied scenarios say explicitly "calls the backend directly" (constitution, Principle II);
+  check against the permission matrix in `nfr.md`.
+- Dimension 11: check the deletion policy table in `nfr.md`; a cell still `[NEEDS CLARIFICATION]` → still write
+  the scenario, with the affected result written as `[NEEDS CLARIFICATION: deletion policy in nfr.md]`.
+- Dimension 13: each rule in `rules.md` that the requirement touches → at least one scenario; decision table →
+  **one scenario per table row**. Plus the questions in section 13 of the catalog.
+- Every line currently in `### Edge Cases (unassigned)` must become a scenario of the right requirement
+  (then delete the line), or stay with `[NEEDS CLARIFICATION: which requirement?]`.
+- An existing scenario with the same meaning as one you would add → do not add it; put the old ID in the coverage table.
 
-### Không tự bịa
+### Never invent
 
-Con số, giới hạn, quyền và chính sách xoá **chỉ** lấy từ spec, `specs/_system/*` hoặc `capabilities/*`.
-Không có → viết scenario với `[NEEDS CLARIFICATION: <câu hỏi>]` tại chỗ cần con số / quyền, không chọn số.
-Câu chữ thông báo lỗi được đề xuất (đặt trong ngoặc kép), vì đó là chi tiết hiển thị, không phải luật.
+Numbers, limits, permissions and the deletion policy come **only** from the spec, `specs/_system/*` or `capabilities/*`.
+Missing → write the scenario with `[NEEDS CLARIFICATION: <question>]` where the number / permission is needed; never pick a number.
+Error message wording may be proposed (in double quotes), since it is a display detail, not a rule.
 
-## Đầu ra
+## Output
 
-### 1. Scenario trong `spec.md` của change
+### 1. Scenarios in the change's `spec.md`
 
-Thêm vào danh sách **Scenarios** của đúng requirement, ngay sau scenario cuối cùng đang có:
+Append to the **Scenarios** list of the right requirement, right after its last existing scenario:
 
 ```markdown
-  - `<MÃ>-<NNN>-S<n>` (<loại>) [P1|P2|P3] — **Given** … **When** … **Then** … → Khôi phục: …
+  - `<CODE>-<NNN>-S<n>` (<type>) [P1|P2|P3] — **Given** … **When** … **Then** … → Recovery: …
 ```
 
-- `<n>` tiếp nối số lớn nhất đang có của requirement đó, **liên tục, không nhảy số, không đánh lại**
-  scenario cũ. Với `MODIFIED`, đánh tiếp sau các scenario đã chép từ capability.
-- `<loại>` lấy từ danh sách "Loại scenario" của catalog; mức ưu tiên theo bảng P1–P3 của catalog.
-- Scenario lỗi **bắt buộc** có thông báo người dùng thấy và `→ Khôi phục:` (chiều 12): làm gì tiếp,
-  dữ liệu đã nhập có được giữ không, thử lại có tạo bản trùng không. Scenario không lỗi thì bỏ `→ Khôi phục`.
-- Không sửa nội dung requirement, Quyền hay scenario đã có. Thấy requirement sai / mâu thuẫn với
-  `rules.md`, `states.md` → không tự sửa; ghi vào báo cáo và vào cột Ghi chú của bảng đối chiếu.
+- `<n>` continues from the requirement's highest existing number, **consecutive, no gaps, never renumber**
+  old scenarios. For `MODIFIED`, continue after the scenarios copied from the capability.
+- `<type>` comes from the catalog's "Scenario types" list; priority per the catalog's P1–P3 table.
+- Error scenarios **must** have a user-visible message and `→ Recovery:` (dimension 12): what to do next,
+  whether entered data is kept, whether a retry creates a duplicate. Non-error scenarios omit `→ Recovery`.
+- Do not change the text of a requirement, its Permissions or existing scenarios. If a requirement looks wrong /
+  contradicts `rules.md` or `states.md` → do not fix it; put it in the report and in the Notes column of the coverage table.
 
-### 2. Bảng đối chiếu `checklists/edge-cases.md`
+### 2. Coverage table `checklists/edge-cases.md`
 
-Ghi đè toàn bộ file (tạo mới nếu chưa có) theo **mẫu bảng đối chiếu** ở cuối catalog:
+Overwrite the whole file (create it if missing), following the **coverage table template** at the end of the catalog:
 
 ```markdown
 # Edge cases — <change>
 
-**Catalog**: specs/_system/edge-case-catalog.md · **Ngày**: <YYYY-MM-DD>
+**Catalog**: specs/_system/edge-case-catalog.md · **Date**: <YYYY-MM-DD>
 
-| Requirement | Chiều | Kết quả | Ghi chú |
+| Requirement | Dimension | Result | Notes |
 | --- | --- | --- | --- |
 | ABC-004 | 1. Input | S2, S3 | |
-| ABC-004 | 2. Số và biên | N/A | không nhận input số |
+| ABC-004 | 2. Numbers and boundaries | N/A | takes no numeric input |
 ...
 
-## Tổng hợp
+## Summary
 
-| Requirement | Scenario mới | P1 | P2 | P3 | N/A |
+| Requirement | New scenarios | P1 | P2 | P3 | N/A |
 | --- | --- | --- | --- | --- | --- |
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …] — `<scenario ID>`
 ```
 
-- Mỗi requirement × mỗi chiều 1–11 và 13 = **đúng một dòng** (12 dòng / requirement). Chiều 12 không có dòng
-  riêng: kiểm tra trong từng scenario lỗi.
-- Cột Kết quả: các scenario ID (dạng ngắn `S4`) kèm mức ưu tiên, hoặc `N/A`.
+- Each requirement × each dimension 1–11 and 13 = **exactly one row** (12 rows per requirement). Dimension 12 has
+  no row of its own: it is checked inside each error scenario.
+- Result column: scenario IDs (short form `S4`) with priority, or `N/A`.
 
-## Tự kiểm tra trước khi báo
+## Self-check before reporting
 
-- [ ] Mỗi requirement ADDED/MODIFIED có đủ 12 dòng trong bảng đối chiếu; không dòng nào trống; mọi N/A có lý do.
-- [ ] Scenario ID liên tục trong từng requirement, không trùng, không đánh lại scenario cũ.
-- [ ] Mọi scenario mới có loại và P1–P3; mọi scenario lỗi có thông báo và `→ Khôi phục`.
-- [ ] Mọi ô ✗ có thể chạm tới trong `states.md` và mọi dòng bảng quyết định trong `rules.md` có scenario.
-- [ ] Mục `### Edge Cases (chưa gắn requirement)` không còn dòng nào chưa xử lý.
-- [ ] Không con số / giới hạn / quyền nào bịa ra; chỗ thiếu là `[NEEDS CLARIFICATION]`.
-- [ ] Chỉ hai file bị sửa: `spec.md` và `checklists/edge-cases.md` của change.
+- [ ] Each ADDED/MODIFIED requirement has all 12 rows in the coverage table; no empty row; every N/A has a reason.
+- [ ] Scenario IDs are consecutive within each requirement, unique, old scenarios not renumbered.
+- [ ] Every new scenario has a type and P1–P3; every error scenario has a message and `→ Recovery`.
+- [ ] Every reachable ✗ cell in `states.md` and every decision-table row in `rules.md` has a scenario.
+- [ ] `### Edge Cases (unassigned)` has no unhandled line left.
+- [ ] No invented number / limit / permission; gaps are `[NEEDS CLARIFICATION]`.
+- [ ] Only two files changed: the change's `spec.md` and `checklists/edge-cases.md`.
 
-Mục nào không đạt → sửa rồi kiểm lại.
+Any item failing → fix it and check again.
 
-## Báo cáo
+## Report
 
-1. Bảng Tổng hợp (scenario mới theo requirement và mức ưu tiên).
-2. Toàn bộ `[NEEDS CLARIFICATION]` mới, đánh số, kèm scenario ID.
-3. Chỗ requirement mâu thuẫn với `rules.md` / `states.md` (nếu có).
-4. Bước tiếp theo: `/speckit-checklist edge cases`, rồi **dừng chờ người dùng duyệt spec**.
+1. The Summary table (new scenarios per requirement and priority).
+2. Every new `[NEEDS CLARIFICATION]`, numbered, with its scenario ID.
+3. Requirements that contradict `rules.md` / `states.md` (if any).
+4. Next step: `/speckit-checklist edge cases`, then **stop and wait for the user to approve the spec**.
