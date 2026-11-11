@@ -25,6 +25,7 @@ When there is an app: put the requirement documents in `docs/requirements/`, run
   presets/                  installed presets (speckit-level4)
   scripts/                  next_change.py, spec_check.py + Spec Kit core scripts
 tools/speckit-level4/       local preset replacing the speckit.specify command
+.github/                    workflows/ci.yml (required checks: test, spec-check), pull_request_template.md
 docs/requirements/          source requirement documents (BA, customer)
 specs/
   _system/                  edge-case-catalog.md (shared); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (created per app by spec-bootstrap)
@@ -62,7 +63,8 @@ Two kinds of `spec.md`, told apart by location:
 7. **STOP — wait for the user to approve plan and tasks.**
 8. `/speckit-implement` → `/speckit-converge` until it reports `Converged`; the stack's test suite must be green.
 9. `/spec-archive <change>` in the main session → merges into `capabilities/`, moves the change to `archive/`.
-10. Two commits (code; spec) → push → PR into `new-project` → CI → review → merge.
+10. Two commits (code; spec) → push → PR into `new-project` → CI (`test` + `spec-check`, required) → review → merge.
+    Run the gate locally first: `python3 .specify/scripts/spec_check.py --change <change>`.
 
 ## Hard rules
 
