@@ -1,7 +1,8 @@
 # CLAUDE.md — AI-native-practice
 
-Repo thử nghiệm spec harness theo Spec-Driven Development (Spec Kit, level 4).
+Spec harness theo Spec-Driven Development (Spec Kit, level 4), chưa gắn với app nào.
 Spec là nguồn sự thật; code và test phải truy ngược về spec qua ID.
+Khi có app: đưa tài liệu yêu cầu vào `docs/requirements/`, chạy `/spec-bootstrap`, rồi làm lần lượt các change trong `specs/_system/roadmap.md`.
 
 ## Branch
 
@@ -14,7 +15,7 @@ Spec là nguồn sự thật; code và test phải truy ngược về spec qua I
 ```
 .claude/
   CLAUDE.md                 file này
-  skills/                   speckit-* (do Spec Kit sinh, KHÔNG sửa tay) + spec-edge-cases, spec-archive (tự viết)
+  skills/                   speckit-* (do Spec Kit sinh, KHÔNG sửa tay) + spec-bootstrap, spec-edge-cases, spec-archive (tự viết)
   agents/                   spec-writer.md, planner.md, implementer.md
   hooks/                    allow_paths.py (chặn ghi sai thư mục)
   settings.json             quyền chung
@@ -25,7 +26,7 @@ Spec là nguồn sự thật; code và test phải truy ngược về spec qua I
 tools/speckit-level4/       preset local thay lệnh speckit.specify
 docs/requirements/          tài liệu yêu cầu gốc (BA, khách)
 specs/
-  _system/                  glossary.md, domain-model.md, nfr.md, edge-case-catalog.md
+  _system/                  edge-case-catalog.md (dùng chung); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (do spec-bootstrap tạo cho từng app)
   capabilities/<domain>/    SPEC SỐNG: spec.md, states.md, rules.md, history.md
   changes/NNN-<tên>/        CHANGE ĐANG LÀM: spec.md (kind: delta), plan.md, research.md, tasks.md, checklists/, contracts/
   archive/NNN-<tên>/        change đã gộp vào capabilities
@@ -38,11 +39,16 @@ Hai loại `spec.md`, phân biệt bằng vị trí:
 
 ## Quy ước ID
 
-- Requirement: `<MÃ>-<NNN>`, vd `PROD-003`.
-- Scenario: `<MÃ>-<NNN>-S<n>`, vd `PROD-003-S2`, dạng Given / When / Then.
-- Mã domain: `AUTH` (auth), `PROD` (products), `USER` (users). Domain mới: thêm vào bảng này trước khi dùng.
+- Requirement: `<MÃ>-<NNN>`, vd `ABC-003`.
+- Scenario: `<MÃ>-<NNN>-S<n>`, vd `ABC-003-S2`, dạng Given / When / Then.
+- Mã domain: chưa có. `/spec-bootstrap` tạo bảng mã ở đây khi có tài liệu yêu cầu; domain mới phải có trong bảng trước khi dùng.
+
+| Mã | Domain |
+| --- | --- |
+| _(chưa có)_ | |
+
 - ID đã bỏ (ghi trong `history.md`) không bao giờ được cấp lại.
-- Tên test bắt đầu bằng scenario ID: `it("PROD-003-S2 ...")`.
+- Tên (hoặc mô tả) của test bắt đầu bằng scenario ID, vd `ABC-003-S2 ...`, bất kể framework test nào.
 
 ## Luồng một change
 
@@ -53,7 +59,7 @@ Hai loại `spec.md`, phân biệt bằng vị trí:
 5. **DỪNG — chờ người dùng duyệt spec.**
 6. `/speckit-plan` → `/speckit-tasks`
 7. **DỪNG — chờ người dùng duyệt plan và tasks.**
-8. `/speckit-implement` → `/speckit-converge` đến khi báo `Converged`; `npm test` phải xanh.
+8. `/speckit-implement` → `/speckit-converge` đến khi báo `Converged`; bộ test của stack phải xanh.
 9. `/spec-archive <change>` ở phiên chính → gộp vào `capabilities/`, chuyển change sang `archive/`.
 10. Hai commit (code; spec) → push → PR vào `new-project` → CI → review → merge.
 
@@ -63,7 +69,8 @@ Hai loại `spec.md`, phân biệt bằng vị trí:
 - Spec sai hoặc thiếu khi đang implement: dừng lại và báo, không tự sửa spec cho khớp code.
 - Test đỏ: sửa code, không sửa test cho xanh.
 - Không tự bịa giới hạn, con số, quyền: chỗ chưa rõ ghi `[NEEDS CLARIFICATION]`.
-- Không xoá cứng dữ liệu; xoá là soft-delete (xem `glossary.md`).
+- Xoá dữ liệu theo đúng chính sách trong `specs/_system/nfr.md`; chưa có chính sách thì ghi `[NEEDS CLARIFICATION]`, không tự chọn.
+- Stack do `plan.md` của change đầu tiên chọn; luôn bật chế độ kiểm tra kiểu chặt nhất của stack đó.
 - Không `git push` thay người dùng; không push thẳng vào `new-project`.
 - Không sửa tay `.claude/skills/speckit-*` hay template core: thay đổi đặt trong `tools/speckit-level4/` hoặc `.specify/templates/overrides/`.
 

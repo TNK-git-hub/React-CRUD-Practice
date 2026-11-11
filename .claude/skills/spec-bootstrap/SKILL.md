@@ -55,6 +55,9 @@ Không suy diễn thêm yêu cầu không có trong tài liệu.
   (API, UI, DB).
 - Mỗi entity thuộc đúng một domain.
 - Mỗi domain: tên thư mục `kebab-case` tiếng Anh + mã 3–5 chữ in hoa, duy nhất (vd `rooms` / `ROOM`).
+- Mã không được trùng với từ hay gặp trong code hoặc ghi chú, vì sẽ lẫn khi tìm kiếm:
+  `TODO`, `FIX`, `NOTE`, `TEST`, `TASK`, `BUG`, `HACK`, `XXX`, `NFR`, `REQ`, `BR`, `SC`.
+  Gặp trường hợp này thì chọn mã khác (vd domain `todos` → `TDO` hoặc `ITEM`).
 - Đăng nhập / tài khoản thường là domain riêng (vd `auth` / `AUTH`) nếu tài liệu có.
 
 ## Bước 3 — Ghi kiến thức nền vào `specs/_system/`
@@ -96,8 +99,11 @@ Chia change theo luật trong `roadmap-template`:
 
 ## Bước 6 — Đăng ký mã domain
 
-Trong `.claude/CLAUDE.md`, chỉ sửa **bảng mã domain** (mục "Quy ước ID"): thay dòng `_(chưa có)_`
-bằng một dòng cho mỗi domain. Không sửa phần nào khác của file.
+Trong `.claude/CLAUDE.md`, chỉ sửa **bảng mã domain** (bảng có cột `Mã | Domain` trong mục
+"Quy ước ID"): thay dòng `_(chưa có)_` bằng một dòng cho mỗi domain. Không sửa phần nào khác của file.
+
+Nếu không tìm thấy bảng đó, hoặc bảng đã có mã khác (không phải `_(chưa có)_`): KHÔNG tự sửa dòng nào.
+Ghi danh sách mã vào báo cáo Bước 8 và báo người dùng rằng `CLAUDE.md` không đúng mẫu harness.
 
 ## Bước 7 — Tự kiểm tra trước khi báo
 
