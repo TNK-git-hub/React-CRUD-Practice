@@ -7,7 +7,7 @@ code: "[MÃ]"
 <!--
 SPEC SỐNG của một domain: mô tả hệ thống ĐANG làm gì.
 - Chỉ /spec-archive được sửa file này (gộp từ spec delta của change đã xong).
-- Không bao giờ chứa chữ ADDED / MODIFIED / REMOVED / RENAMED.
+- Không bao giờ chứa các từ khoá delta (thêm, sửa, bỏ, đổi tên) của spec delta.
 - Requirement xếp theo ID tăng dần; mỗi requirement ghi change đã đặt hoặc sửa nó lần cuối.
 - Mới bootstrap: phần Requirements để "(chưa có)". Chỉ có requirement sau khi change đầu tiên của domain được archive.
 -->
