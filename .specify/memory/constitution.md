@@ -1,136 +1,128 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.0.0 (sửa trước lần merge đầu; chưa từng có hiệu lực nên giữ
-  version và ngày ratified)
-- Modified principles:
-  - III. Chỉ Soft-delete, không xoá cứng → III. Chính sách xoá dữ liệu rõ ràng
-  - IV. TypeScript Strict → IV. Kiểm tra kiểu chặt
-  - I. Ví dụ ID đổi từ `PROD-003` sang `ABC-003` (minh hoạ, không phải mã domain thật);
-    bỏ cú pháp test riêng của JS
-- Added sections: không có
-- Removed sections: không có
-- Other changes:
-  - Ràng buộc kỹ thuật & dữ liệu: bỏ mã domain `AUTH`/`PROD`/`USER`; mã domain do
-    `/spec-bootstrap` đăng ký trong `.claude/CLAUDE.md`
-  - Cổng chất lượng: bỏ kiểm tra "không xoá cứng"; thêm kiểm tra chính sách xoá; kiểm tra
-    kiểu = chế độ strict của stack; bộ test của stack thay cho `npm test`
-- Templates: không sửa (lệnh constitution chỉ ghi file này; template đọc constitution lúc chạy)
-- Follow-up TODOs: không còn (đã bỏ TODO(GLOSSARY_SOFT_DELETE) và TODO(TSCONFIG))
-- Đồng bộ cần làm ngoài file này:
-  - `.claude/CLAUDE.md` vẫn liệt kê `AUTH`/`PROD`/`USER`, luật "xoá là soft-delete" và
-    `npm test` → mâu thuẫn với constitution, cần sửa.
-  - Skill `/spec-bootstrap` chưa tồn tại.
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: none in meaning (whole document translated from Vietnamese to English)
+- Modified constraints:
+  - Language: was "spec, plan, tasks in Vietnamese; IDs, file names, variable names, code and
+    commit messages in English" → now "everything in English" (MINOR: changes an operating rule,
+    no principle removed or redefined)
+- Added sections: none
+- Removed sections: none
+- Templates: `.specify/templates/overrides/*` translated to English in the same change;
+  `.claude/CLAUDE.md` Language section updated to match
+- Follow-up TODOs: none
 -->
 
 # AI-native-practice Constitution
 
 ## Core Principles
 
-### I. Truy vết Requirement → Test qua Scenario ID (NON-NEGOTIABLE)
+### I. Requirement → Test traceability through Scenario IDs (NON-NEGOTIABLE)
 
-- Mọi requirement (`<MÃ>-<NNN>`, vd `ABC-003`) MUST có ít nhất một scenario
-  `<MÃ>-<NNN>-S<n>` dạng Given / When / Then trong spec.
-- Mọi scenario MUST có ít nhất một test tự động có tên bắt đầu bằng đúng scenario ID
-  (vd test tên `ABC-003-S2 ...`), đặt trong `tests/<domain>/`.
-- Requirement hoặc scenario không có test tương ứng thì change MUST NOT được merge.
-- Test đỏ thì sửa code, MUST NOT sửa test cho xanh. Nếu spec sai, dừng lại và sửa spec
-  qua quy trình change, không chỉnh test/spec cho khớp code.
-- ID đã bỏ MUST NOT được cấp lại.
+- Every requirement (`<CODE>-<NNN>`, e.g. `ABC-003`) MUST have at least one scenario
+  `<CODE>-<NNN>-S<n>` in Given / When / Then form in the spec.
+- Every scenario MUST have at least one automated test whose name starts with exactly that
+  scenario ID (e.g. a test named `ABC-003-S2 ...`), placed in `tests/<domain>/`.
+- A change MUST NOT be merged while a requirement or scenario has no matching test.
+- When a test is red, fix the code; MUST NOT edit the test to make it green. If the spec is
+  wrong, stop and fix the spec through the change process; never adjust tests or specs to match code.
+- A removed ID MUST NOT be reissued.
 
-**Lý do**: spec là nguồn sự thật; scenario ID là sợi dây duy nhất nối spec → test → code,
-cho phép kiểm tra máy móc rằng mọi hành vi đã hứa đều được kiểm chứng.
+**Rationale**: the spec is the source of truth; the scenario ID is the single thread linking
+spec → test → code, which lets us check mechanically that every promised behavior is verified.
 
-### II. Phân quyền kiểm tra ở Backend
+### II. Authorization is checked in the backend
 
-- Mọi thao tác đọc/ghi dữ liệu cần quyền MUST được kiểm tra quyền ở backend (server),
-  trước khi truy cập dữ liệu.
-- Kiểm tra ở frontend (ẩn nút, chặn route) chỉ phục vụ trải nghiệm, MUST NOT được coi là
-  cơ chế bảo mật.
-- Backend MUST NOT tin vào danh tính, vai trò hay quyền do client tự khai trong body/query;
-  danh tính lấy từ phiên/token đã xác thực.
-- Mỗi requirement có ràng buộc quyền MUST có ít nhất một scenario cho trường hợp bị từ chối,
-  và test của scenario đó gọi thẳng backend.
-- Quyền chưa được spec nêu rõ MUST được ghi `[NEEDS CLARIFICATION]`, không tự suy đoán.
+- Every read/write of data that requires permission MUST have its permission checked in the
+  backend (server), before the data is accessed.
+- Frontend checks (hiding buttons, blocking routes) only serve user experience and MUST NOT be
+  treated as a security mechanism.
+- The backend MUST NOT trust identity, role or permissions that the client declares in the
+  body/query; identity comes from an authenticated session/token.
+- Every requirement with a permission constraint MUST have at least one scenario for the denied
+  case, and that scenario's test calls the backend directly.
+- A permission the spec does not state explicitly MUST be marked `[NEEDS CLARIFICATION]`,
+  never guessed.
 
-**Lý do**: client có thể bị bỏ qua hoặc giả mạo; chỉ kiểm tra ở backend mới thực sự bảo vệ
-dữ liệu.
+**Rationale**: the client can be bypassed or forged; only backend checks actually protect data.
 
-### III. Chính sách xoá dữ liệu rõ ràng
+### III. Explicit data deletion policy
 
-- Mỗi app MUST ghi chính sách xoá dữ liệu trong `specs/_system/nfr.md` trước change đầu tiên
-  có thao tác xoá dữ liệu. Chính sách MUST nêu ít nhất:
-  - xoá mềm (soft-delete) hay xoá cứng (hard-delete), theo từng loại dữ liệu nếu khác nhau;
-  - thời gian lưu giữ (retention) dữ liệu đã xoá;
-  - ai được khôi phục dữ liệu đã xoá (nếu có khôi phục).
-- Change có thao tác xoá dữ liệu MUST NOT được merge khi chính sách chưa có trong `nfr.md`.
-- Code MUST tuân theo đúng chính sách đã ghi; muốn làm khác thì sửa chính sách trước.
-- Mọi requirement về xoá dữ liệu MUST có scenario thể hiện chính sách (kiểu xoá, khôi phục,
-  quyền khôi phục) và test tương ứng theo Nguyên tắc I.
-- Chỗ chính sách chưa rõ MUST ghi `[NEEDS CLARIFICATION]`, không tự chọn mặc định.
+- Each app MUST record its data deletion policy in `specs/_system/nfr.md` before the first
+  change that deletes data. The policy MUST state at least:
+  - soft-delete or hard-delete, per data type if they differ;
+  - retention period of deleted data;
+  - who may restore deleted data (if restore exists).
+- A change that deletes data MUST NOT be merged while the policy is missing from `nfr.md`.
+- Code MUST follow the recorded policy exactly; to do otherwise, change the policy first.
+- Every requirement about deleting data MUST have scenarios that express the policy (delete
+  type, restore, restore permission) and matching tests per Principle I.
+- Where the policy is unclear, it MUST be marked `[NEEDS CLARIFICATION]`; never pick a default.
 
-**Lý do**: mỗi app có nhu cầu khác nhau (khôi phục, pháp lý, dung lượng); điều cần cố định
-là chính sách được quyết định có chủ đích, ghi thành văn và được kiểm chứng bằng test.
+**Rationale**: every app has different needs (restore, legal, storage); what must be fixed is
+that the policy is decided on purpose, written down and verified by tests.
 
-### IV. Kiểm tra kiểu chặt
+### IV. Strict type checking
 
-- Stack (ngôn ngữ, framework) được chọn cho từng app trong `plan.md` của change đầu tiên.
-- Dù dùng ngôn ngữ nào, chế độ kiểm tra kiểu/kiểm tra tĩnh chặt nhất của ngôn ngữ đó MUST
-  được bật cho cả code ứng dụng và test, và `plan.md` MUST ghi rõ công cụ và cấu hình.
-- MUST NOT tắt kiểm tra đó cho cả một file (vd `// @ts-nocheck`, `# mypy: ignore-errors`).
-- Kiểm tra kiểu MUST chạy trong CI và MUST xanh trước khi merge.
+- The stack (language, framework) is chosen per app in the `plan.md` of the first change.
+- Whatever the language, its strictest type-checking / static-analysis mode MUST be enabled
+  for both application code and tests, and `plan.md` MUST name the tool and configuration.
+- MUST NOT disable that check for a whole file (e.g. `// @ts-nocheck`, `# mypy: ignore-errors`).
+- Type checking MUST run in CI and MUST be green before merge.
 
-**Lý do**: kiểu chặt bắt lỗi null/undefined và sai hợp đồng dữ liệu trước khi chạy, nhất là
-khi phần lớn code do agent sinh.
+**Rationale**: strict types catch null/undefined errors and broken data contracts before
+runtime, especially when most code is generated by agents.
 
-### V. Mọi thay đổi đi qua PR vào `new-project`
+### V. Every change goes through a PR into `new-project`
 
-- Branch chính là `new-project`; `main` không dùng cho phát triển.
-- Mọi thay đổi (code, spec, harness, constitution) MUST đi qua Pull Request vào
-  `new-project`. MUST NOT push thẳng vào `new-project`.
-- Branch đặt tên: `NNN-<tên>` cho change tính năng (do `/speckit-specify` tạo),
-  `harness/<việc>` cho setup harness.
-- PR MUST có CI xanh và được review trước khi merge.
-- Agent MUST NOT tự `git push` thay người dùng.
+- The main branch is `new-project`; `main` is not used for development.
+- Every change (code, spec, harness, constitution) MUST go through a Pull Request into
+  `new-project`. MUST NOT push directly to `new-project`.
+- Branch naming: `NNN-<name>` for feature changes (created by `/speckit-specify`),
+  `harness/<task>` for harness setup.
+- A PR MUST have green CI and be reviewed before merge.
+- The agent MUST NOT `git push` on the user's behalf.
 
-**Lý do**: một cửa vào duy nhất giúp mọi thay đổi được review, chạy CI và truy vết được.
+**Rationale**: a single entry point means every change is reviewed, runs CI and is traceable.
 
-## Ràng buộc kỹ thuật & dữ liệu
+## Technical & data constraints
 
-- Spec là nguồn sự thật. Spec sống nằm ở `specs/capabilities/<domain>/`; change đang làm ở
-  `specs/changes/NNN-<tên>/` (spec delta có `kind: delta`); change đã gộp ở `specs/archive/`.
-- Chỉ bước archive (`spec-archive`) được sửa `specs/capabilities/`.
-- Mã domain do `/spec-bootstrap` đăng ký trong `.claude/CLAUDE.md`. Mã domain MUST được đăng
-  ký ở đó trước khi dùng trong bất kỳ ID nào.
-- Không tự bịa giới hạn, con số hay quyền: chỗ chưa rõ ghi `[NEEDS CLARIFICATION]`.
-- Ngôn ngữ: spec, plan, tasks viết tiếng Việt; ID, tên file, tên biến, code và commit message
-  viết tiếng Anh.
+- The spec is the source of truth. Living specs are in `specs/capabilities/<domain>/`; changes in
+  progress are in `specs/changes/NNN-<name>/` (delta spec with `kind: delta`); merged changes are
+  in `specs/archive/`.
+- Only the archive step (`spec-archive`) may modify `specs/capabilities/`.
+- Domain codes are registered by `/spec-bootstrap` in `.claude/CLAUDE.md`. A domain code MUST be
+  registered there before it is used in any ID.
+- Never invent limits, numbers or permissions: mark unclear points `[NEEDS CLARIFICATION]`.
+- Language: everything is written in English — specs, plans, tasks, IDs, file names, variable
+  names, code and commit messages.
 
-## Quy trình phát triển & cổng chất lượng
+## Development workflow & quality gates
 
-- Luồng một change: specify → clarify → edge cases → checklist → **người dùng duyệt spec** →
-  plan → tasks → **người dùng duyệt plan & tasks** → implement → converge → archive → PR.
-- Cổng trước khi mở PR (tất cả MUST đạt):
-  1. Mọi scenario trong spec delta có test mang đúng scenario ID (Nguyên tắc I).
-  2. Bộ test của stack xanh.
-  3. Kiểm tra kiểu ở chế độ chặt nhất của stack xanh (Nguyên tắc IV).
-  4. Change có thao tác xoá dữ liệu: chính sách xoá đã có trong `specs/_system/nfr.md`, code
-     tuân theo, và mỗi requirement xoá có scenario và test (Nguyên tắc III).
-  5. Mọi endpoint/thao tác mới cần quyền có kiểm tra ở backend và test bị từ chối
-     (Nguyên tắc II).
-- Mỗi change gồm hai commit (code; spec) trước khi push và mở PR vào `new-project`.
+- Flow of one change: specify → clarify → edge cases → checklist → **user approves spec** →
+  plan → tasks → **user approves plan & tasks** → implement → converge → archive → PR.
+- Gates before opening a PR (all MUST pass):
+  1. Every scenario in the delta spec has a test carrying exactly that scenario ID (Principle I).
+  2. The stack's test suite is green.
+  3. Type checking in the stack's strictest mode is green (Principle IV).
+  4. Change that deletes data: the deletion policy exists in `specs/_system/nfr.md`, the code
+     follows it, and every deletion requirement has scenarios and tests (Principle III).
+  5. Every new endpoint/operation that needs permission is checked in the backend and has a
+     denied-case test (Principle II).
+- Each change consists of two commits (code; spec) before pushing and opening a PR into `new-project`.
 
 ## Governance
 
-- Constitution này đứng trên mọi hướng dẫn khác trong repo. Khi `.claude/CLAUDE.md` hay
-  template mâu thuẫn với constitution, constitution thắng và tài liệu kia phải được sửa.
-- Sửa constitution: chạy `/speckit-constitution`, mở PR vào `new-project` nêu rõ thay đổi,
-  lý do và tác động; chỉ có hiệu lực sau khi PR được merge.
-- Phiên bản theo semantic versioning:
-  - MAJOR: bỏ hoặc định nghĩa lại một nguyên tắc theo cách không tương thích.
-  - MINOR: thêm nguyên tắc/mục mới hoặc mở rộng đáng kể hướng dẫn.
-  - PATCH: làm rõ câu chữ, sửa lỗi chính tả, không đổi ý nghĩa.
-- Mọi review PR MUST kiểm tra tuân thủ năm nguyên tắc; vi phạm phải được sửa hoặc ghi lý do
-  và được người review chấp thuận rõ ràng trong PR.
-- Hướng dẫn vận hành hằng ngày cho agent: `.claude/CLAUDE.md`.
+- This constitution overrides every other guideline in the repo. When `.claude/CLAUDE.md` or a
+  template contradicts the constitution, the constitution wins and the other document must be fixed.
+- Amending the constitution: run `/speckit-constitution`, open a PR into `new-project` stating the
+  change, the reason and the impact; it takes effect only after the PR is merged.
+- Versioning follows semantic versioning:
+  - MAJOR: remove or redefine a principle in an incompatible way.
+  - MINOR: add a principle/section or materially expand guidance.
+  - PATCH: clarify wording, fix typos, no change in meaning.
+- Every PR review MUST check compliance with the five principles; violations must be fixed or
+  justified and explicitly accepted by the reviewer in the PR.
+- Day-to-day operating guidance for the agent: `.claude/CLAUDE.md`.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11
+**Version**: 1.1.0 | **Ratified**: 2026-11-11 | **Last Amended**: 2026-11-11

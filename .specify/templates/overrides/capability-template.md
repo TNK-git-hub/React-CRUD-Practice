@@ -1,38 +1,38 @@
 ---
 kind: capability
 domain: "[domain]"
-code: "[MÃ]"
+code: "[CODE]"
 ---
 
 <!--
-SPEC SỐNG của một domain: mô tả hệ thống ĐANG làm gì.
-- Chỉ /spec-archive được sửa file này (gộp từ spec delta của change đã xong).
-- Không bao giờ chứa các từ khoá delta (thêm, sửa, bỏ, đổi tên) của spec delta.
-- Requirement xếp theo ID tăng dần; mỗi requirement ghi change đã đặt hoặc sửa nó lần cuối.
-- Mới bootstrap: phần Requirements để "(chưa có)". Chỉ có requirement sau khi change đầu tiên của domain được archive.
+LIVING SPEC of one domain: describes what the system DOES now.
+- Only /spec-archive may modify this file (merging the delta spec of a finished change).
+- Never contains the delta keywords (add, modify, remove, rename) of a delta spec.
+- Requirements are ordered by ascending ID; each requirement records the change that last set or modified it.
+- Right after bootstrap: Requirements stays "(none yet)". Requirements appear only after the domain's first change is archived.
 -->
 
-# Capability: [domain] ([MÃ])
+# Capability: [domain] ([CODE])
 
 ## Overview
 
-[2–4 câu: domain này quản lý gì, ai dùng.]
+[2–4 sentences: what this domain manages, who uses it.]
 
-Liên quan: [states.md](states.md) · [rules.md](rules.md) · [history.md](history.md)
+Related: [states.md](states.md) · [rules.md](rules.md) · [history.md](history.md)
 
 ## Requirements
 
-_(chưa có)_
+_(none yet)_
 
-<!-- Mẫu một requirement sau khi archive:
+<!-- Shape of one requirement after archive:
 
-### [MÃ]-001: [Tên requirement]
+### [CODE]-001: [Requirement name]
 
-Hệ thống MUST [hành vi].
+The system MUST [behavior].
 
-- **Quyền:** [...]
+- **Permissions:** [...]
 - **Scenarios:**
-  - `[MÃ]-001-S1` (happy) [P1] — **Given** … **When** … **Then** …
-  - `[MÃ]-001-S2` (quyền) [P1] — **Given** … **When** … **Then** … → Khôi phục: …
-- **Nguồn:** change [NNN-ten-change]
+  - `[CODE]-001-S1` (happy) [P1] — **Given** … **When** … **Then** …
+  - `[CODE]-001-S2` (permission) [P1] — **Given** … **When** … **Then** … → Recovery: …
+- **Source:** change [NNN-change-name]
 -->

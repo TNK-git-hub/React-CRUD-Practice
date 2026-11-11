@@ -1,49 +1,49 @@
-# Yêu cầu phi chức năng — [Tên app]
+# Non-functional requirements — [App name]
 
 <!--
-Mỗi mục có ID NFR-NNN và CON SỐ đo được. Tài liệu yêu cầu không nói → [NEEDS CLARIFICATION], không tự chọn.
-Mục "Dữ liệu và chính sách xoá" là BẮT BUỘC theo constitution (nguyên tắc III):
-change nào có thao tác xoá dữ liệu không được merge khi mục này còn NEEDS CLARIFICATION.
-Không chọn stack ở đây; stack do plan.md của change đầu tiên quyết định.
+Each item has an ID NFR-NNN and a MEASURABLE NUMBER. The requirement documents do not say → [NEEDS CLARIFICATION], never pick one.
+The "Data and deletion policy" section is MANDATORY per the constitution (Principle III):
+a change that deletes data cannot be merged while this section still has NEEDS CLARIFICATION.
+Do not choose the stack here; the stack is decided by the plan.md of the first change.
 -->
 
-## Hiệu năng
+## Performance
 
-| ID | Yêu cầu | Con số | Nguồn |
+| ID | Requirement | Number | Source |
 | --- | --- | --- | --- |
-| NFR-001 | [trang danh sách hiển thị trong] | [≤ 1 giây với N bản ghi] | [...] |
+| NFR-001 | [list page renders within] | [≤ 1 second with N records] | [...] |
 
-## Bảo mật và phân quyền
+## Security and permissions
 
-| ID | Yêu cầu | Nguồn |
+| ID | Requirement | Source |
 | --- | --- | --- |
-| NFR-010 | Mọi kiểm tra quyền thực hiện ở backend (constitution, nguyên tắc II) | constitution |
-| NFR-011 | [cách đăng nhập, thời hạn phiên] | [...] |
+| NFR-010 | Every permission check happens in the backend (constitution, Principle II) | constitution |
+| NFR-011 | [login method, session lifetime] | [...] |
 
-### Ma trận quyền
+### Permission matrix
 
-| Thao tác \ Vai trò | [Vai trò 1] | [Vai trò 2] |
+| Action \ Role | [Role 1] | [Role 2] |
 | --- | --- | --- |
-| [tạo X] | ✓ | ✗ |
+| [create X] | ✓ | ✗ |
 
-## Dữ liệu và chính sách xoá (bắt buộc)
+## Data and deletion policy (mandatory)
 
-| Loại dữ liệu | Xoá mềm / xoá cứng | Giữ dữ liệu đã xoá trong | Ai được khôi phục | Nguồn |
+| Data type | Soft / hard delete | Keep deleted data for | Who may restore | Source |
 | --- | --- | --- | --- | --- |
 | [X] | [NEEDS CLARIFICATION] | [NEEDS CLARIFICATION] | [NEEDS CLARIFICATION] | [...] |
 
-## Khả dụng và vận hành
+## Availability and operations
 
-| ID | Yêu cầu | Con số | Nguồn |
+| ID | Requirement | Number | Source |
 | --- | --- | --- | --- |
-| NFR-030 | [thời gian hoạt động, sao lưu] | [...] | [...] |
+| NFR-030 | [uptime, backups] | [...] | [...] |
 
-## Môi trường người dùng
+## User environment
 
-| ID | Yêu cầu | Nguồn |
+| ID | Requirement | Source |
 | --- | --- | --- |
-| NFR-040 | [trình duyệt, thiết bị, ngôn ngữ giao diện, múi giờ] | [...] |
+| NFR-040 | [browsers, devices, UI language, time zone] | [...] |
 
-## Câu hỏi còn mở
+## Open questions
 
 - [NEEDS CLARIFICATION: …]

@@ -1,18 +1,18 @@
-# Lịch sử: [domain] ([MÃ])
+# History: [domain] ([CODE])
 
 <!--
-Do /spec-archive ghi, mỗi lần gộp một change vào domain này. Không sửa tay.
-ID trong bảng "ID đã bỏ" KHÔNG BAO GIỜ được cấp lại.
+Written by /spec-archive, each time a change is merged into this domain. Do not edit by hand.
+IDs in the "Removed IDs" table are NEVER reissued.
 -->
 
-## Change đã gộp
+## Merged changes
 
-| Change | Ngày | Thay đổi trong domain này |
+| Change | Date | Change in this domain |
 | --- | --- | --- |
-| _(chưa có)_ | | |
+| _(none yet)_ | | |
 
-## ID đã bỏ
+## Removed IDs
 
-| ID | Bỏ ở change | Lý do | Thay bằng |
+| ID | Removed in change | Reason | Replaced by |
 | --- | --- | --- | --- |
-| _(chưa có)_ | | | |
+| _(none yet)_ | | | |
