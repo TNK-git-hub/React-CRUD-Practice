@@ -156,7 +156,10 @@ Example: `ABC-004-S3 (boundary) [P1] — Given … When … Then … → Recover
 Business traps specific to each app. Empty in the harness; `/spec-bootstrap` or each app's retro adds
 them here (on the app's branch), one question per line.
 
-- _(none yet)_
+- Does every new list filter take part in the Redis list cache key (`backend/src/products/products.service.ts`) and the TanStack Query key (`frontend/src/api/queryKeys.ts`)? Otherwise a cached result of another filter is returned.
+- When a filter narrows the list, do `total` and the page count follow the filter, and what does a page number beyond the new last page show?
+- Price is `numeric(10,2)` in Postgres but a JS number in the API: can a bound with more than 2 decimals or float rounding include or exclude a product at the boundary wrongly?
+- Prices are in USD (shown as `$`): are the price filter inputs labelled and read in USD, the same as the product card?
 
 ---
 

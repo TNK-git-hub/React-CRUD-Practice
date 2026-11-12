@@ -47,7 +47,7 @@ Two kinds of `spec.md`, told apart by location:
 
 | Code | Domain |
 | --- | --- |
-| _(none yet)_ | |
+| PROD | products |
 
 - An ID that was removed (recorded in `history.md`) is never reissued.
 - The name (or description) of every test starts with its scenario ID, e.g. `ABC-003-S2 ...`, whatever the test framework.
