@@ -16,7 +16,7 @@
 | PROD-001 | 10. Resource limits | N/A | chỉ hai số, không upload hay payload lớn; nfr.md không có giới hạn tần suất; chuỗi rất dài thuộc PROD-003 (S13) |
 | PROD-001 | 11. Data and deletion | S13 [P2] | xoá cứng theo nfr.md → sản phẩm biến mất khỏi kết quả, tổng giảm |
 | PROD-001 | 13. Domain-specific | S7 [P1], S14 [P1], S15 [P3]; S1–S4 (có sẵn) | BR-PROD-01 → S1, S6, S7; bảng BR-PROD-02: yes/yes → S1 (min > max → PROD-003-S2), yes/no → S2, no/yes → S3, no/no → S4; catalog 13: khoá cache → S14, số thập phân → S7, USD → S15, tổng / số trang → PROD-002 |
-| PROD-002 | 1. Input | S6 [P2] | địa chỉ trang có giá sai (sửa tay / link cũ) → bỏ qua, để trống ô |
+| PROD-002 | 1. Input | S6 [P2], S13 [P2] | địa chỉ trang có giá sai (sửa tay / link cũ) → bỏ qua, để trống ô; cặp min > max trên địa chỉ → bỏ qua cả hai (S13, thêm 2026-11-12) |
 | PROD-002 | 2. Numbers and boundaries | S7 [P3]; S2 (có sẵn) | đúng một trang (10) và hơn một trang (15) |
 | PROD-002 | 3. Missing and empty | N/A | tổ hợp bỏ trống đã có ở PROD-001-S2–S4; từ khoá trống là hành vi tìm kiếm đã có (brownfield) |
 | PROD-002 | 4. Collections | S8 [P2], S9 [P2], S10 [P2]; S4, S5 (có sẵn) | trang vượt số trang (trạng thái rỗng như hiện nay, ProductList.tsx:109, :150); sắp xếp ổn định khi trùng giá; đổi bộ lọc về trang 1 |
@@ -46,9 +46,9 @@
 | Requirement | New scenarios | P1 | P2 | P3 | N/A |
 | --- | --- | --- | --- | --- | --- |
 | PROD-001 | 11 (S5–S15) | 2 | 6 | 3 | 3 |
-| PROD-002 | 7 (S6–S12) | 0 | 6 | 1 | 4 |
+| PROD-002 | 8 (S6–S13) | 0 | 7 | 1 | 4 |
 | PROD-003 | 10 (S4–S13) | 1 | 6 | 3 | 7 |
-| **Total** | **28** | **3** | **18** | **7** | **14** |
+| **Total** | **29** | **3** | **19** | **7** | **14** |
 
 ## Open questions
 

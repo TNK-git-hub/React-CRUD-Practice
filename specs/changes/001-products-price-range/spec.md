@@ -29,6 +29,7 @@ và phân trang đang có. App chưa có đăng nhập; lọc giá là thao tác
 - Q: Đã gõ khoảng giá nhưng chưa bấm Search rồi đổi sắp xếp / trang thì sao? (PROD-002-S11) → A: Dùng khoảng giá đang áp dụng; hai ô trở về giá trị đang áp dụng.
 - Q: "1.000" và "1e3" được hiểu thế nào? (PROD-003-S6) → A: Chỉ nhận số thường, dấu chấm là dấu thập phân, tối đa 2 chữ số sau dấu chấm; "1.000" → "Giá chỉ được có tối đa 2 chữ số thập phân", "1e3" → "Giá phải là số".
 - Q: Gọi thẳng máy chủ với tham số giá có mặt nhưng rỗng thì sao? (PROD-003-S11) → A: Coi như không giới hạn phía đó.
+- Q: Địa chỉ trang có cả hai giá hợp lệ nhưng giá tối thiểu lớn hơn giá tối đa thì sao? (PROD-002-S13) → A: Bỏ qua cả hai giá trị, hai ô để trống, danh sách không lọc theo giá. Luật chung: mọi giá trị giá đọc từ địa chỉ trang không hợp lệ đều bị bỏ qua; thông báo "Giá tối thiểu không được lớn hơn giá tối đa" chỉ hiện khi người xem tự gõ rồi bấm Search.
 
 ## Requirements
 
@@ -65,7 +66,8 @@ Search hoặc Enter, cùng lúc với từ khoá.
 Hệ thống PHẢI áp dụng khoảng giá cùng lúc với từ khoá tìm kiếm, thứ tự sắp xếp và phân trang đang có, với tổng
 số sản phẩm và số trang tính trên kết quả đã lọc; khoảng giá được giữ trên địa chỉ trang cùng với từ khoá, sắp xếp
 và số trang. Khi bộ lọc không cho ra sản phẩm nào, hệ thống PHẢI hiện trạng thái rỗng với mô tả chung cho mọi bộ
-lọc, và nút xoá bộ lọc xoá cả từ khoá lẫn khoảng giá, giữ nguyên sắp xếp.
+lọc, và nút xoá bộ lọc xoá cả từ khoá lẫn khoảng giá, giữ nguyên sắp xếp. Giá trị giá đọc từ địa chỉ trang mà không hợp
+lệ (từng ô sai, hoặc giá tối thiểu lớn hơn giá tối đa) bị bỏ qua, không hiện thông báo lỗi.
 
 - **Permissions:** Như PROD-001: mọi người xem, không cần đăng nhập; không vai trò nào bị từ chối (NFR-011).
 - **Scenarios:**
@@ -81,6 +83,7 @@ lọc, và nút xoá bộ lọc xoá cả từ khoá lẫn khoảng giá, giữ 
   - `PROD-002-S10` (collection) [P2] — **Given** người xem đang ở trang 3 của kết quả lọc giá 10–20 **When** người xem đổi sang giá 30–40 rồi bấm Search **Then** danh sách về trang 1 của kết quả 30–40
   - `PROD-002-S11` (concurrency) [P2] — **Given** người xem đang áp dụng giá 10–20 và đã gõ 30–40 vào hai ô nhưng chưa bấm Search **When** người xem đổi sắp xếp hoặc chuyển trang **Then** danh sách vẫn lọc theo khoảng đang áp dụng 10–20, và hai ô giá trở về 10 và 20
   - `PROD-002-S12` (data) [P2] — **Given** người xem đang lọc giá 10–20 ở trang 2, và trang 2 chỉ còn 1 sản phẩm **When** người xem xoá sản phẩm đó **Then** danh sách lùi về trang 1 như hiện nay và vẫn lọc theo 10–20, hai ô giá vẫn hiện 10 và 20
+  - `PROD-002-S13` (input) [P2] — **Given** người xem mở một địa chỉ trang có giá tối thiểu 30 và giá tối đa 10 (mỗi giá trị tự nó hợp lệ) **When** trang danh sách tải **Then** cả hai giá trị bị bỏ qua: hai ô giá để trống, không có thông báo lỗi, danh sách không lọc theo giá
 
 #### ADDED PROD-003: Kiểm tra giá trị khoảng giá
 
