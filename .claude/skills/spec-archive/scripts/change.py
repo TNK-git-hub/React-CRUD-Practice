@@ -456,11 +456,17 @@ def build_sync(root: Path, change: str, today: str) -> Plan:
     return Plan(writes, summary)
 
 
+def write_lf(path: Path, content: str) -> None:
+    """Write UTF-8 with LF line endings (Path.write_text(newline=) needs Python 3.10+)."""
+    with path.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(content)
+
+
 def write_all(writes: dict[Path, str]) -> None:
     tmp = {p: p.with_name(p.name + ".spec-archive.tmp") for p in writes}
     try:
         for p, content in writes.items():
-            tmp[p].write_text(content, encoding="utf-8", newline="\n")
+            write_lf(tmp[p], content)
         for p in writes:
             os.replace(tmp[p], p)
     finally:
@@ -508,7 +514,7 @@ def archive(root: Path, change: str) -> Path:
     spec = src / "spec.md"
     text = read(spec)
     text = re.sub(r"(?m)^(status:\s*)\S+", r"\1archived", text, count=1)
-    spec.write_text(text, encoding="utf-8", newline="\n")
+    write_lf(spec, text)
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(src), str(dst))
     return dst
