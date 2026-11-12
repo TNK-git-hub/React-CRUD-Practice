@@ -1,0 +1,26 @@
+schema_version: "1.0"
+
+preset:
+  id: "speckit-level4"
+  name: "Spec Kit Level 4 (delta specs)"
+  version: "0.1.0"
+  description: "speckit.specify writes delta specs into specs/changes/NNN-<name>/ against living capability specs"
+  author: "AI-native-practice"
+  repository: "https://github.com/TNK-git-hub/React-CRUD-Practice"
+  license: "MIT"
+
+requires:
+  speckit_version: ">=1.3.0"
+
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.specify"
+      file: "commands/speckit.specify.md"
+      description: "Level 4 specify - delta spec in specs/changes/NNN-<name>/ with ADDED/MODIFIED/REMOVED by ID"
+      replaces: "speckit.specify"
+
+tags:
+  - "level4"
+  - "delta-spec"
+  - "capabilities"
