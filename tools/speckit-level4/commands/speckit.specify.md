@@ -24,7 +24,7 @@ Differs from the core command in 5 places:
   5. Fills the frontmatter kind/change/capabilities/primary/status/source.
   Also: never invents numbers, limits, permissions or deletion policy (drops the core command's
   3-question limit for these) and never asks the user mid-way — questions are left for __SPECKIT_COMMAND_CLARIFY__.
-Edit this file in tools/speckit-level4/ then re-run `specify preset add --dev tools/speckit-level4`;
+Edit this file in tools/speckit-level4/ then run `specify preset update speckit-level4 --dev tools/speckit-level4` (`add` refuses an installed preset);
 do NOT hand-edit .claude/skills/speckit-specify/SKILL.md (generated file).
 -->
 
@@ -77,7 +77,7 @@ The text the user typed after `__SPECKIT_COMMAND_SPECIFY__` in the triggering me
 feature description. Assume you always have it available in this conversation even if `{ARGS}`
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
-This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Everything is written in English.
+This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the spec's prose in Vietnamese and keep its structure (headings, labels, keywords, IDs, frontmatter) in English, as the Language section of `.claude/CLAUDE.md` requires.
 This command creates **one** change and writes only to `specs/changes/<change>/` and
 `.specify/feature.json`. It does not modify `specs/capabilities/`, `specs/_system/` or code.
 

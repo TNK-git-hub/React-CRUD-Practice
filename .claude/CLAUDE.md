@@ -81,6 +81,22 @@ Two kinds of `spec.md`, told apart by location:
 
 Being set up following a 7-day roadmap. If a skill or file mentioned above does not exist yet, tell the user; do not create it in its place.
 
+## Machine setup
+
+- Python 3.9+ with PyYAML (`python3 -m pip install --user pyyaml`). Once a preset is installed,
+  Spec Kit's template resolver parses `preset.yml` with Python; without PyYAML every command that
+  resolves a template (`/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, `/speckit-constitution`) fails.
+
 ## Language
 
-Everything in this repo is written in English: harness files (skills, templates, constitution, catalog), specs, plans, tasks, IDs, file names, variable names, code and commit messages.
+- **Harness files** (skills, templates, constitution, catalog, scripts) are written in English.
+- **Content that agents write** for an app or a change is written in **Vietnamese**: the prose of
+  `specs/changes/*` (spec, plan, research, tasks, checklists), `specs/_system/*` and `specs/capabilities/*`.
+  A requirement sentence reads "Hệ thống PHẢI …".
+- **Structure stays in English, exactly as in the templates**, because scripts and core Spec Kit commands
+  parse it: headings (`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`,
+  `Merged changes`, `Removed IDs`, …), labels (`**Permissions:**`, `**Scenarios:**`, `**Reason:**`,
+  `**Migration:**`, `**From:**`, `**To:**`, `**Replaced by:**`, `**Source:**`, `→ Recovery:`),
+  delta keywords (`ADDED`, `MODIFIED`, `REMOVED`, `RENAMED`), `Given` / `When` / `Then`, scenario types,
+  `P1`–`P3`, frontmatter keys and the marker `[NEEDS CLARIFICATION: …]` (the question inside is Vietnamese).
+- IDs, file / folder / branch / change names, variable names, code and commit messages are in English.
