@@ -41,6 +41,7 @@ khi cả hai giá trị hợp lệ.
 | âm | `minPrice=-1` | "Giá không được âm" | PROD-003-S10 |
 | hơn 2 chữ số thập phân | `minPrice=10.123`, `minPrice=1.000` | "Giá chỉ được có tối đa 2 chữ số thập phân" | PROD-003-S10 |
 | không phải số thường | `minPrice=abc`, `1e3`, `10,5`, `+5`, `.5`, `5.` | "Giá phải là số" | PROD-003-S10 |
+| tham số lặp | `minPrice=10&minPrice=20` (Express parse thành mảng) | "Giá phải là số" | PROD-003-S18 |
 | lớn hơn 99999999.99 | `minPrice=100000000` | "Giá không được lớn hơn $99,999,999.99" | PROD-003-S10 |
 
 ## Ví dụ
@@ -52,3 +53,4 @@ khi cả hai giá trị hợp lệ.
 | `GET /products?maxPrice=10` | giá 5, 10 |
 | `GET /products?minPrice=&maxPrice=10` | giá 5, 10 (PROD-003-S11) |
 | `GET /products?minPrice=20&maxPrice=20` | giá 20 |
+| `GET /products?minPrice=010&maxPrice=20.00` | giá 10, 20 — cùng kết quả với `10`–`20` (PROD-003-S17) |

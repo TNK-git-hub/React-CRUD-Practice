@@ -17,7 +17,7 @@
 | `pnpm --filter frontend typecheck` (`next typegen && tsc --noEmit`) | 0 lỗi, `strict: true` |
 | `pnpm typecheck` | gồm hai lệnh trên và tsconfig của `tests/products/backend`, `tests/products/frontend`; 0 lỗi |
 | `pnpm test` | mọi test xanh; test backend tự tạo database `crud_practice_test` và dùng Redis DB 1 |
-| `grep -rho "PROD-00[1-3]-S[0-9]*" tests/products \| sort -u \| wc -l` | 44 (mỗi scenario của spec có ít nhất một test) |
+| `grep -rho "PROD-00[1-3]-S[0-9]*" tests/products \| sort -u \| wc -l` | 48 (mỗi scenario của spec có ít nhất một test) |
 | `python3 .specify/scripts/spec_check.py --change 001-products-price-range` | chỉ còn lỗi "not archived" trước `/spec-archive`; sau archive thì sạch |
 
 ## Kiểm tra tay
@@ -32,4 +32,8 @@
    sắp xếp giữ nguyên.
 6. **SC-001**: trên dữ liệu seed, `curl -s -o /dev/null -w '%{time_total}\n' 'http://localhost:3000/products?minPrice=10&maxPrice=100&limit=10'`
    → dưới 1 giây (đo lần đầu, header `X-Cache: MISS`).
-7. **SC-004**: lặp bước 2–5 trên Chrome, Safari, Firefox bản mới trên máy tính.
+7. **SC-002**: trên dữ liệu seed, với từng khoảng mẫu — chỉ min, chỉ max, cả hai, min = max, 0–0, một khoảng không có
+   sản phẩm, max = 99999999.99 — so danh sách (đủ mọi trang) với kết quả lọc tay, ví dụ
+   `SELECT id FROM products WHERE price BETWEEN <min> AND <max> ORDER BY id` trên DB dev.
+8. **SC-004**: lặp bước 2–5 trên bản ổn định hiện hành của Chrome, Edge, Firefox, Safari trên máy tính; trong bản thử
+   chỉ kiểm trên trình duyệt có sẵn trên máy (spec, Assumptions).

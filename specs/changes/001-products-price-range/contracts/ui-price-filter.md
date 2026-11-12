@@ -41,5 +41,11 @@ vẫn hiện trạng thái lỗi tải danh sách như hiện nay (PROD-001-S12)
 | Nút xoá bộ lọc (ở trạng thái rỗng) | bỏ `q`, `minPrice`, `maxPrice`, `page`; giữ `sortBy`, `order` |
 | Mở URL có `minPrice` / `maxPrice` không hợp lệ | giá trị đó bị bỏ qua: ô để trống, không lọc theo đầu đó, không báo lỗi (PROD-002-S6) |
 | Mở URL có cả hai giá hợp lệ nhưng `minPrice > maxPrice` | bỏ qua cả hai: hai ô để trống, không lọc theo giá, không báo lỗi (PROD-002-S13) |
+| Mở URL có tham số giá lặp (`minPrice=10&minPrice=20`) | bỏ qua đầu đó: ô để trống, không báo lỗi (PROD-002-S14) |
+| Bấm Quay lại của trình duyệt | về địa chỉ trang trước; mọi thay đổi URL ở trên dùng `router.push` như hiện nay (ProductList.tsx:51) nên mỗi thay đổi là một mục lịch sử (PROD-002-S15) |
+
+Chuỗi giá trên URL giữ nguyên như người xem gõ sau khi bỏ khoảng trắng ("010", "20.00"), không chuẩn hoá
+(PROD-003-S17). Bố cục: hai ô giá dùng cùng cách bố trí co giãn của thanh tìm kiếm hiện có; tối ưu màn hình hẹp ngoài
+phạm vi. Trong lúc tải kết quả mới, danh sách cũ vẫn hiện (giữ `keepPreviousData` hiện có).
 
 Hai ô giá luôn hiện khoảng đang áp dụng trên URL; giá trị đã gõ mà chưa bấm Search bị bỏ khi URL đổi (PROD-002-S11).

@@ -27,7 +27,7 @@ TanStack Query 5 + Tailwind 4 (frontend); `redis` client 6 — stack có sẵn (
 `supertest` (backend, Postgres + Redis thật qua docker compose), `jsdom` + `@testing-library/react` +
 `@testing-library/user-event` + `@vitejs/plugin-react` (frontend) — research R1–R3
 
-**Target Platform**: backend Node trong Docker (EC2); frontend trên Chrome, Safari, Firefox bản mới trên máy tính (NFR-042)
+**Target Platform**: backend Node trong Docker (EC2); frontend trên bản ổn định hiện hành của Chrome, Edge, Firefox, Safari trên máy tính (spec SC-004; lệch NFR-042 — xem Decisions)
 
 **Project Type**: web application (pnpm workspace `backend/` + `frontend/`)
 
@@ -37,7 +37,7 @@ TanStack Query 5 + Tailwind 4 (frontend); `redis` client 6 — stack có sẵn (
 `float` (PROD-001-S7); type checking `strict: true` như hiện có cho code và test (constitution IV, cách diễn giải ở
 Constitution Check); không sửa entity / DTO / component cũ chỉ vì type
 
-**Scale/Scope**: dữ liệu seed dummyjson (vài trăm sản phẩm); 3 requirement, 44 scenario
+**Scale/Scope**: dữ liệu seed dummyjson (vài trăm sản phẩm); 3 requirement, 48 scenario
 
 ## Constitution Check
 
@@ -45,7 +45,7 @@ Constitution Check); không sửa entity / DTO / component cũ chỉ vì type
 
 | Nguyên tắc / cổng | Trước Phase 0 | Sau Phase 1 | Ghi chú |
 | --- | --- | --- | --- |
-| I. Mỗi scenario có test mang đúng ID, đặt ở `tests/products/` | PASS (kế hoạch) | PASS | 44/44 scenario có test (bảng Scenario → test bên dưới) |
+| I. Mỗi scenario có test mang đúng ID, đặt ở `tests/products/` | PASS (kế hoạch) | PASS | 48/48 scenario có test (bảng Scenario → test bên dưới) |
 | II. Quyền kiểm ở backend; scenario bị từ chối | PASS — ngoại lệ đã biết | PASS | NFR-011: app không có đăng nhập, lọc giá là đọc công khai; PROD-001-S8 gọi thẳng máy chủ không kèm danh tính |
 | III. Chính sách xoá | N/A | N/A | change không xoá dữ liệu; S13 / S12 chỉ đọc sau khi xoá theo chính sách có sẵn trong nfr.md |
 | IV. Type checking chế độ chặt nhất, cả code lẫn test | PASS — theo diễn giải | PASS — theo diễn giải | người dùng quyết 2026-11-12: "strictest mode" của constitution IV được diễn giải là `strict: true` (đang bật ở backend và frontend, 0 lỗi); test dùng cùng mức. Nâng lên các cờ chặt hơn (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) là một change riêng sau này (research R8) |
@@ -129,8 +129,10 @@ FE = `tests/products/frontend/product-list-price-filter.test.tsx`.
 | PROD-001-S12 | FE | PROD-002-S12 | FE | PROD-003-S12 | FE |
 | PROD-001-S13 | BE | | | PROD-003-S13 | FE-U, FE |
 | PROD-001-S14 | BE, FE | PROD-002-S13 | FE | PROD-003-S14 | FE |
-| PROD-001-S15 | FE | | | PROD-003-S15 | FE-U, FE |
-| | | | | PROD-003-S16 | FE-U, FE |
+| PROD-001-S15 | FE | PROD-002-S14 | FE | PROD-003-S15 | FE-U, FE |
+| | | PROD-002-S15 | FE | PROD-003-S16 | FE-U, FE |
+| | | | | PROD-003-S17 | BE, FE-U, FE |
+| | | | | PROD-003-S18 | BE |
 
 SC-001: test `SC-001 …` trong BE (R9). SC-004: kiểm tay theo quickstart.
 
@@ -147,6 +149,10 @@ SC-001: test `SC-001 …` trong BE (R9). SC-004: kiểm tay theo quickstart.
    dấu chấm và 1–2 chữ số thập phân; lỗi định dạng xét trước min > max; máy chủ từ chối giá trị giao diện đã cho qua →
    thông báo của máy chủ dưới ô giá, danh sách giữ nguyên. Hệ quả cho plan: máy chủ trả đúng câu tiếng Việt của spec
    (research R4, contracts/get-products.md).
+6. **Checklist quality.md** (spec, commit "spec(001): resolve quality checklist"): giữ cách tải hiện có; "010" / "10.50"
+   theo giá trị số, không chuẩn hoá URL; tham số giá lặp → giao diện bỏ qua, máy chủ 400 "Giá phải là số"; SC-002 đo trên
+   tập khoảng mẫu; SC-004 = bản ổn định hiện hành của Chrome, Edge, Firefox, Safari (khác NFR-042 ở `specs/_system/nfr.md`,
+   chỉ nêu Chrome, Safari, Firefox — nfr.md chưa sửa); lịch sử theo `router.push` hiện có; màn hình hẹp ngoài phạm vi.
 
 ## Complexity Tracking
 

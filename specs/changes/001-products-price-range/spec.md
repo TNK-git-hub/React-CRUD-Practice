@@ -34,6 +34,13 @@ và phân trang đang có. App chưa có đăng nhập; lọc giá là thao tác
 - Q: "Số thường" gồm những dạng nào? (PROD-003-S15) → A: Chỉ chữ số, có thể thêm dấu chấm và 1–2 chữ số thập phân; "+5", ".5", "5." đều báo "Giá phải là số".
 - Q: Một ô sai định dạng và cặp giá cũng min > max thì báo gì? (PROD-003-S16) → A: Lỗi định dạng của từng ô được xét trước; lỗi min > max chỉ xét khi cả hai ô hợp lệ.
 - Q: Yêu cầu khả năng tiếp cận cho hai ô giá? → A: Mỗi ô có nhãn; thông báo lỗi gắn với ô qua `aria-describedby`; yêu cầu tiếp cận đầy đủ nằm ngoài phạm vi.
+- Q: Trong lúc tải kết quả mới thì hiện gì? → A: Giữ cách tải hiện có: danh sách cũ vẫn hiện trong lúc tải kết quả mới.
+- Q: "010", "10.5", "10.50" có hợp lệ và có như nhau không? (PROD-003-S17) → A: Đều hợp lệ, hiểu theo giá trị số; cùng giá trị cho cùng kết quả; không chuẩn hoá chuỗi trên địa chỉ trang.
+- Q: Tham số giá lặp trên địa chỉ trang (ví dụ hai giá tối thiểu)? (PROD-002-S14, PROD-003-S18) → A: Không hợp lệ: giao diện bỏ qua, ô để trống; máy chủ trả lỗi "Giá phải là số".
+- Q: SC-002 đo thế nào? → A: Trên tập khoảng mẫu: chỉ min, chỉ max, cả hai, min = max, 0–0, khoảng không có sản phẩm, max = 99999999.99; so với kết quả lọc tay từ dữ liệu seed.
+- Q: "Bản mới" của trình duyệt là gì? → A: Bản ổn định hiện hành của Chrome, Edge, Firefox, Safari trên máy tính; trong bản thử chỉ kiểm tay trên trình duyệt có sẵn.
+- Q: Quay lại sau nhiều lần lọc thì sao? (PROD-002-S15) → A: Theo đúng cách tìm kiếm hiện nay ghi lịch sử: mỗi lần đổi địa chỉ trang trên danh sách (Search, sắp xếp, chuyển trang, xoá bộ lọc) thêm một mục lịch sử — `router.push` trong `updateParams`, frontend/src/views/ProductList.tsx:51; không có chỗ nào dùng `router.replace`.
+- Q: Màn hình hẹp? → A: Tối ưu cho màn hình hẹp nằm ngoài phạm vi; hai ô giá dùng cùng cách bố trí co giãn của thanh tìm kiếm hiện có.
 
 ## Requirements
 
@@ -71,7 +78,8 @@ Hệ thống PHẢI áp dụng khoảng giá cùng lúc với từ khoá tìm ki
 số sản phẩm và số trang tính trên kết quả đã lọc; khoảng giá được giữ trên địa chỉ trang cùng với từ khoá, sắp xếp
 và số trang. Khi bộ lọc không cho ra sản phẩm nào, hệ thống PHẢI hiện trạng thái rỗng với mô tả chung cho mọi bộ
 lọc, và nút xoá bộ lọc xoá cả từ khoá lẫn khoảng giá, giữ nguyên sắp xếp. Giá trị giá đọc từ địa chỉ trang mà không hợp
-lệ (từng ô sai, hoặc giá tối thiểu lớn hơn giá tối đa) bị bỏ qua, không hiện thông báo lỗi.
+lệ (từng ô sai, tham số giá bị lặp, hoặc giá tối thiểu lớn hơn giá tối đa) bị bỏ qua, không hiện thông báo lỗi. Mỗi lần
+khoảng giá, từ khoá, sắp xếp hoặc trang thay đổi là một mục trong lịch sử trình duyệt, như tìm kiếm hiện nay.
 
 - **Permissions:** Như PROD-001: mọi người xem, không cần đăng nhập; không vai trò nào bị từ chối (NFR-011).
 - **Scenarios:**
@@ -88,6 +96,8 @@ lệ (từng ô sai, hoặc giá tối thiểu lớn hơn giá tối đa) bị b
   - `PROD-002-S11` (concurrency) [P2] — **Given** người xem đang áp dụng giá 10–20 và đã gõ 30–40 vào hai ô nhưng chưa bấm Search **When** người xem đổi sắp xếp hoặc chuyển trang **Then** danh sách vẫn lọc theo khoảng đang áp dụng 10–20, và hai ô giá trở về 10 và 20
   - `PROD-002-S12` (data) [P2] — **Given** người xem đang lọc giá 10–20 ở trang 2, và trang 2 chỉ còn 1 sản phẩm **When** người xem xoá sản phẩm đó **Then** danh sách lùi về trang 1 như hiện nay và vẫn lọc theo 10–20, hai ô giá vẫn hiện 10 và 20
   - `PROD-002-S13` (input) [P2] — **Given** người xem mở một địa chỉ trang có giá tối thiểu 30 và giá tối đa 10 (mỗi giá trị tự nó hợp lệ) **When** trang danh sách tải **Then** cả hai giá trị bị bỏ qua: hai ô giá để trống, không có thông báo lỗi, danh sách không lọc theo giá
+  - `PROD-002-S14` (input) [P3] — **Given** người xem mở một địa chỉ trang có giá tối thiểu lặp hai lần (10 và 20) **When** trang danh sách tải **Then** giá tối thiểu bị bỏ qua: ô giá tối thiểu để trống, không có thông báo lỗi, danh sách không lọc theo giá tối thiểu
+  - `PROD-002-S15` (concurrency) [P3] — **Given** người xem đã lọc giá 10–20 rồi lọc tiếp 30–40 **When** người xem bấm Quay lại của trình duyệt **Then** danh sách và hai ô giá trở về khoảng 10–20; bấm Quay lại lần nữa thì trở về trạng thái trước khi lọc
 
 #### ADDED PROD-003: Kiểm tra giá trị khoảng giá
 
@@ -111,7 +121,9 @@ chấm theo sau là 1–2 chữ số thập phân (đếm theo những gì ngư�
 số" và báo "Giá phải là số", ví dụ "10,5", "1,000", "1e3", "+5", ".5", "5.". Lỗi định dạng của từng ô được xét trước;
 lỗi "Giá tối thiểu không được lớn hơn giá tối đa" chỉ xét khi cả hai ô đều hợp lệ. Nếu máy chủ vẫn từ chối một khoảng
 giá giao diện đã cho qua, thông báo của máy chủ hiện ngay dưới ô giá và danh sách giữ nguyên kết quả trước. Gọi thẳng
-máy chủ với tham số giá có mặt nhưng rỗng thì coi như không giới hạn phía đó.
+máy chủ với tham số giá có mặt nhưng rỗng thì coi như không giới hạn phía đó. Giá trị hợp lệ được hiểu theo giá trị số:
+"010", "10.5" và "10.50" đều hợp lệ, cùng giá trị thì cho cùng kết quả, và chuỗi trên địa chỉ trang được giữ nguyên như
+người xem gõ (sau khi bỏ khoảng trắng), không chuẩn hoá. Tham số giá bị lặp khi gọi thẳng máy chủ là "không phải số".
 
 - **Permissions:** Như PROD-001: mọi người xem, không cần đăng nhập; không vai trò nào bị từ chối (NFR-011).
 - **Scenarios:**
@@ -131,6 +143,8 @@ máy chủ với tham số giá có mặt nhưng rỗng thì coi như không gi�
   - `PROD-003-S14` (dependency) [P2] — **Given** người xem đang xem kết quả lọc giá 10–20 **When** người xem nhập một khoảng giá mà giao diện cho qua rồi bấm Search, nhưng máy chủ từ chối yêu cầu như dữ liệu không hợp lệ **Then** thông báo của máy chủ hiện ngay dưới ô giá, không hiện trạng thái lỗi tải danh sách, và danh sách giữ nguyên kết quả lọc 10–20 → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
   - `PROD-003-S15` (input) [P2] — **Given** người xem đang ở danh sách sản phẩm **When** người xem nhập giá tối thiểu "+5", ".5" hoặc "5." rồi bấm Search **Then** giao diện không gửi yêu cầu lọc và hiện "Giá phải là số" ở ô đó → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
   - `PROD-003-S16` (input) [P3] — **Given** người xem đang ở danh sách sản phẩm **When** người xem nhập giá tối thiểu "30,5" và giá tối đa "10" rồi bấm Search **Then** giao diện không gửi yêu cầu lọc, chỉ hiện "Giá phải là số" dưới ô giá tối thiểu và không hiện "Giá tối thiểu không được lớn hơn giá tối đa" → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
+  - `PROD-003-S17` (boundary) [P3] — **Given** danh sách có các sản phẩm giá 5, 10, 20 và 30 USD **When** người xem nhập giá tối thiểu "010" và giá tối đa "20.00" rồi bấm Search **Then** khoảng giá được chấp nhận, danh sách hiện sản phẩm giá 10 và 20 USD như khi lọc 10–20, và địa chỉ trang giữ nguyên "010" và "20.00"
+  - `PROD-003-S18` (missing) [P3] — **Given** máy chủ đang chạy **When** một yêu cầu được gửi thẳng tới máy chủ với giá tối thiểu lặp hai lần (10 và 20) **Then** máy chủ từ chối yêu cầu với thông báo "Giá phải là số" và không trả danh sách → Recovery: bên gọi sửa tham số rồi gửi lại; thao tác chỉ đọc nên gửi lại không tạo trùng
 
 ### Edge Cases (unassigned)
 
@@ -141,9 +155,9 @@ máy chủ với tham số giá có mặt nhưng rỗng thì coi như không gi�
 ### Measurable Outcomes
 
 - **SC-001:** Danh sách sản phẩm, kể cả khi có lọc khoảng giá, phản hồi trong < 1 giây với dữ liệu seed hiện có (NFR-004).
-- **SC-002:** Với mọi khoảng giá hợp lệ trên dữ liệu seed, 0 sản phẩm ngoài khoảng xuất hiện và 0 sản phẩm trong khoảng bị thiếu.
+- **SC-002:** Trên dữ liệu seed, với tập khoảng mẫu — chỉ giá tối thiểu, chỉ giá tối đa, cả hai, giá tối thiểu = giá tối đa, 0–0, một khoảng không có sản phẩm nào, giá tối đa = 99999999.99 — 0 sản phẩm ngoài khoảng xuất hiện và 0 sản phẩm trong khoảng bị thiếu, so với kết quả lọc tay từ dữ liệu seed.
 - **SC-003:** 100% khoảng giá không hợp lệ bị chặn trên giao diện trước khi gửi, và 100% yêu cầu không hợp lệ gửi thẳng tới máy chủ bị từ chối.
-- **SC-004:** Ô lọc giá hoạt động như trên ở Chrome, Safari, Firefox bản mới trên máy tính (NFR-042).
+- **SC-004:** Ô lọc giá hoạt động như trên ở bản ổn định hiện hành của Chrome, Edge, Firefox, Safari trên máy tính.
 
 ## Assumptions
 
@@ -153,6 +167,12 @@ máy chủ với tham số giá có mặt nhưng rỗng thì coi như không gi�
 - Ràng buộc kỹ thuật từ tài liệu (`GET /products` nhận thêm `minPrice`, `maxPrice`; cột giá `numeric(10,2)`) được xử lý ở plan và contracts, không nằm trong câu requirement. "Máy chủ từ chối" tương ứng với trả 400 trong `rules.md` (BR-PROD-05, BR-PROD-07).
 - Brownfield: tìm kiếm, sắp xếp, phân trang đã có chưa được spec; change này giả định chúng giữ nguyên hành vi hiện tại.
 - Khả năng tiếp cận: mỗi ô giá có nhãn; thông báo lỗi gắn với ô của nó qua `aria-describedby`.
+- Giữ cách tải hiện có: trong lúc tải kết quả của bộ lọc mới, danh sách cũ vẫn hiện.
+- Lịch sử trình duyệt: mỗi thay đổi địa chỉ trang của danh sách thêm một mục lịch sử (`router.push`,
+  frontend/src/views/ProductList.tsx:51), giống tìm kiếm hiện nay; change này không đổi cách đó.
+- Bố cục: hai ô giá dùng cùng cách bố trí co giãn của thanh tìm kiếm hiện có.
+- Trình duyệt: SC-004 nêu Chrome, Edge, Firefox, Safari bản ổn định hiện hành trên máy tính; trong bản thử chỉ kiểm tay
+  trên trình duyệt có sẵn trên máy.
 - Change này sửa 2 hành vi có sẵn (PROD-002): (1) thông báo khi danh sách rỗng đổi thành mô tả chung cho mọi bộ lọc,
   kể cả khi chỉ tìm theo từ khoá; (2) nút xoá bộ lọc xoá cả khoảng giá, không chỉ từ khoá. Không ghi được `MODIFIED`
   vì hành vi cũ chưa có requirement trong `specs/capabilities/products/spec.md` (brownfield), nên hai thay đổi nằm trong
@@ -166,3 +186,4 @@ máy chủ với tham số giá có mặt nhưng rỗng thì coi như không gi�
 - Mâu thuẫn giá `≥ 0` (máy chủ) / `> 0` (form tạo sản phẩm) — không sửa trong change này (roadmap.md).
 - Thêm đăng nhập hoặc kiểm tra quyền (NFR-011).
 - Yêu cầu khả năng tiếp cận đầy đủ (ngoài nhãn ô và `aria-describedby` ở Assumptions).
+- Tối ưu cho màn hình hẹp.

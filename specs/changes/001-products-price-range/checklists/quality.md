@@ -10,54 +10,54 @@
 
 ## Requirement Completeness
 
-- [ ] CHK001 Spec có quy định người xem thấy gì khi máy chủ từ chối một khoảng giá mà giao diện đã cho qua (quy tắc hai phía lệch nhau) không? [Gap, Exception Flow, Spec §PROD-003]
-- [ ] CHK002 Có requirement cho trạng thái đang tải khi áp dụng khoảng giá mới (giữ danh sách cũ hay hiện khung chờ) không? [Gap, Spec §PROD-001]
-- [ ] CHK003 Spec có nói giá trị hiển thị lại trong ô và trên địa chỉ trang sau khi chuẩn hoá (gõ " 10 " thì hiện "10" hay giữ nguyên) không? [Gap, Spec §PROD-001-S5]
-- [ ] CHK004 Có quy định "010", "10.5" và "10.50" được coi là cùng một giá trị trên địa chỉ trang hay không? [Gap, Clarity, Spec §PROD-002]
-- [ ] CHK005 Vị trí hiện thông báo min > max (dưới ô nào) được nêu trong spec, hay chỉ do contract tự chọn? [Clarity, Spec §PROD-003; contracts/ui-price-filter.md]
-- [ ] CHK006 Spec có quy định khi địa chỉ trang lặp tham số giá (ví dụ hai giá tối thiểu khác nhau) không? [Edge Case, Gap, Spec §PROD-002-S6]
+- [x] CHK001 Spec có quy định người xem thấy gì khi máy chủ từ chối một khoảng giá mà giao diện đã cho qua (quy tắc hai phía lệch nhau) không? [Gap, Exception Flow, Spec §PROD-003] — Bằng chứng: spec.md:122, spec.md:143 (PROD-003-S14); contracts/ui-price-filter.md:30
+- [x] CHK002 Có requirement cho trạng thái đang tải khi áp dụng khoảng giá mới (giữ danh sách cũ hay hiện khung chờ) không? [Gap, Spec §PROD-001] — Bằng chứng: spec.md:170 (Assumption giữ cách tải hiện có)
+- [x] CHK003 Spec có nói giá trị hiển thị lại trong ô và trên địa chỉ trang sau khi chuẩn hoá (gõ " 10 " thì hiện "10" hay giữ nguyên) không? [Gap, Spec §PROD-001-S5] — Bằng chứng: spec.md:63 (PROD-001-S5); contracts/ui-price-filter.md:51
+- [x] CHK004 Có quy định "010", "10.5" và "10.50" được coi là cùng một giá trị trên địa chỉ trang hay không? [Gap, Clarity, Spec §PROD-002] — Bằng chứng: spec.md:125, spec.md:146 (PROD-003-S17)
+- [x] CHK005 Vị trí hiện thông báo min > max (dưới ô nào) được nêu trong spec, hay chỉ do contract tự chọn? [Clarity, Spec §PROD-003; contracts/ui-price-filter.md] — Bằng chứng: contracts/ui-price-filter.md:12
+- [x] CHK006 Spec có quy định khi địa chỉ trang lặp tham số giá (ví dụ hai giá tối thiểu khác nhau) không? [Edge Case, Gap, Spec §PROD-002-S6] — Bằng chứng: spec.md:81, spec.md:99 (PROD-002-S14), spec.md:147 (PROD-003-S18)
 
 ## Requirement Clarity
 
-- [ ] CHK007 "Giá" được lọc (giá bán hiện tại, không phải giá trước giảm) có được nêu trong câu requirement, hay chỉ nằm ở Assumptions? [Clarity, Spec §PROD-001, §Assumptions]
-- [ ] CHK008 "Số thường" có được định nghĩa đủ cho các dạng "+5", ".5", "5." không, hay chỉ suy ra từ ví dụ? [Ambiguity, Spec §PROD-003]
-- [ ] CHK009 "Máy chủ từ chối yêu cầu như dữ liệu không hợp lệ" có đủ cụ thể để kiểm khách quan (mã phản hồi, không trả danh sách) không? [Measurability, Spec §PROD-003-S3, §PROD-003-S10]
-- [ ] CHK010 Khi một ô sai định dạng và cặp giá cũng min > max, spec có nói thông báo nào được hiện / ưu tiên không? [Ambiguity, Spec §PROD-003-S12]
-- [ ] CHK011 PROD-002-S11 nói hai ô giá trở về giá đang áp dụng — spec có nói ô từ khoá đang gõ dở thì giữ hay cũng trở về không? [Ambiguity, Spec §PROD-002-S11]
+- [x] CHK007 "Giá" được lọc (giá bán hiện tại, không phải giá trước giảm) có được nêu trong câu requirement, hay chỉ nằm ở Assumptions? [Clarity, Spec §PROD-001, §Assumptions] — Bằng chứng: spec.md:164; specs/_system/glossary.md:6
+- [x] CHK008 "Số thường" có được định nghĩa đủ cho các dạng "+5", ".5", "5." không, hay chỉ suy ra từ ví dụ? [Ambiguity, Spec §PROD-003] — Bằng chứng: spec.md:118, spec.md:144 (PROD-003-S15)
+- [x] CHK009 "Máy chủ từ chối yêu cầu như dữ liệu không hợp lệ" có đủ cụ thể để kiểm khách quan (mã phản hồi, không trả danh sách) không? [Measurability, Spec §PROD-003-S3, §PROD-003-S10] — Bằng chứng: spec.md:167; contracts/get-products.md:40
+- [x] CHK010 Khi một ô sai định dạng và cặp giá cũng min > max, spec có nói thông báo nào được hiện / ưu tiên không? [Ambiguity, Spec §PROD-003-S12] — Bằng chứng: spec.md:122, spec.md:145 (PROD-003-S16)
+- [x] CHK011 PROD-002-S11 nói hai ô giá trở về giá đang áp dụng — spec có nói ô từ khoá đang gõ dở thì giữ hay cũng trở về không? [Ambiguity, Spec §PROD-002-S11] — Bằng chứng: research.md:84; spec.md:176 (Assumption brownfield)
 
 ## Requirement Consistency
 
-- [ ] CHK012 Bảng thông báo lỗi trong PROD-003 và câu chữ trạng thái rỗng PROD-002-S4 có khớp nguyên văn với contracts/ui-price-filter.md không? [Consistency, Spec §PROD-003, §PROD-002-S4]
-- [ ] CHK013 Cách viết số giới hạn có thống nhất giữa câu requirement ("99999999.99") và thông báo hiển thị ("$99,999,999.99") — đã nói rõ đâu là giá trị, đâu là cách hiển thị? [Consistency, Spec §PROD-003]
-- [ ] CHK014 "Đổi khoảng giá về trang 1" nằm ở Assumptions nhưng có scenario PROD-002-S10 — đã đủ chặt để coi là hành vi bắt buộc chưa? [Consistency, Spec §Assumptions, §PROD-002-S10]
-- [ ] CHK015 Việc cùng một giá trị sai bị *bỏ qua* khi đọc từ địa chỉ trang (PROD-002-S6, S13) nhưng bị *từ chối* khi gọi thẳng máy chủ (PROD-003-S10) có được ghi rõ là chủ ý không? [Consistency, Spec §PROD-002, §PROD-003]
-- [ ] CHK016 Assumption brownfield có liệt kê đủ mọi hành vi cũ bị đổi (mô tả rỗng, nút xoá bộ lọc) và không còn thay đổi nào khác bị bỏ sót? [Consistency, Spec §Assumptions]
-- [ ] CHK017 Plan diễn giải "strictest mode" là `strict: true` — cách diễn giải này có được ghi rõ là quyết định của người dùng và có hướng xử lý về sau? [Consistency, Plan §Constitution Check, research R8]
+- [x] CHK012 Bảng thông báo lỗi trong PROD-003 và câu chữ trạng thái rỗng PROD-002-S4 có khớp nguyên văn với contracts/ui-price-filter.md không? [Consistency, Spec §PROD-003, §PROD-002-S4] — Bằng chứng: spec.md:108 (bảng thông báo) = contracts/ui-price-filter.md (bảng Thông báo), đã so chuỗi
+- [x] CHK013 Cách viết số giới hạn có thống nhất giữa câu requirement ("99999999.99") và thông báo hiển thị ("$99,999,999.99") — đã nói rõ đâu là giá trị, đâu là cách hiển thị? [Consistency, Spec §PROD-003] — Bằng chứng: spec.md:104 (giá trị), spec.md:108 (câu hiển thị)
+- [x] CHK014 "Đổi khoảng giá về trang 1" nằm ở Assumptions nhưng có scenario PROD-002-S10 — đã đủ chặt để coi là hành vi bắt buộc chưa? [Consistency, Spec §Assumptions, §PROD-002-S10] — Bằng chứng: spec.md:166; spec.md:95 (PROD-002-S10)
+- [x] CHK015 Việc cùng một giá trị sai bị *bỏ qua* khi đọc từ địa chỉ trang (PROD-002-S6, S13) nhưng bị *từ chối* khi gọi thẳng máy chủ (PROD-003-S10) có được ghi rõ là chủ ý không? [Consistency, Spec §PROD-002, §PROD-003] — Bằng chứng: spec.md:81; spec.md:27 (Clarifications)
+- [x] CHK016 Assumption brownfield có liệt kê đủ mọi hành vi cũ bị đổi (mô tả rỗng, nút xoá bộ lọc) và không còn thay đổi nào khác bị bỏ sót? [Consistency, Spec §Assumptions] — Bằng chứng: spec.md:176
+- [x] CHK017 Plan diễn giải "strictest mode" là `strict: true` — cách diễn giải này có được ghi rõ là quyết định của người dùng và có hướng xử lý về sau? [Consistency, Plan §Constitution Check, research R8] — Bằng chứng: plan.md:51
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK018 SC-001 "< 1 giây" có nói đo ở đâu (máy chủ hay cả trang) và có hay không có bộ nhớ đệm không? [Measurability, Spec §SC-001]
-- [ ] CHK019 SC-002 "mọi khoảng giá hợp lệ" có kiểm được khách quan, hay cần một tập khoảng mẫu cụ thể? [Measurability, Spec §SC-002]
-- [ ] CHK020 SC-004 "hoạt động như trên" có tiêu chí cụ thể (những bước nào) và "bản mới" có được định nghĩa (phiên bản nào) không? [Measurability, Spec §SC-004; NFR-042]
+- [x] CHK018 SC-001 "< 1 giây" có nói đo ở đâu (máy chủ hay cả trang) và có hay không có bộ nhớ đệm không? [Measurability, Spec §SC-001] — Bằng chứng: quickstart.md:33; research.md:102
+- [x] CHK019 SC-002 "mọi khoảng giá hợp lệ" có kiểm được khách quan, hay cần một tập khoảng mẫu cụ thể? [Measurability, Spec §SC-002] — Bằng chứng: spec.md:158 (SC-002 tập khoảng mẫu)
+- [x] CHK020 SC-004 "hoạt động như trên" có tiêu chí cụ thể (những bước nào) và "bản mới" có được định nghĩa (phiên bản nào) không? [Measurability, Spec §SC-004; NFR-042] — Bằng chứng: spec.md:160 (SC-004), spec.md:174 (Assumption trình duyệt)
 
 ## Scenario Coverage
 
-- [ ] CHK021 Bấm Enter khi con trỏ đang ở một ô giá (không phải ô từ khoá) có được bao phủ bởi requirement "bấm Search hoặc Enter" không? [Coverage, Spec §PROD-001]
-- [ ] CHK022 Hành vi nút Quay lại của trình duyệt sau khi áp dụng nhiều khoảng giá liên tiếp (lịch sử địa chỉ trang) có được định nghĩa không? [Coverage, Spec §PROD-002-S3]
-- [ ] CHK023 Có luồng phục hồi cho người xem khi bộ lọc trên địa chỉ trang bị bỏ qua lặng lẽ (họ có biết vì sao danh sách không lọc không)? [Coverage, Recovery, Spec §PROD-002-S6, §PROD-002-S13]
+- [x] CHK021 Bấm Enter khi con trỏ đang ở một ô giá (không phải ô từ khoá) có được bao phủ bởi requirement "bấm Search hoặc Enter" không? [Coverage, Spec §PROD-001] — Bằng chứng: spec.md:54
+- [x] CHK022 Hành vi nút Quay lại của trình duyệt sau khi áp dụng nhiều khoảng giá liên tiếp (lịch sử địa chỉ trang) có được định nghĩa không? [Coverage, Spec §PROD-002-S3] — Bằng chứng: spec.md:100 (PROD-002-S15), spec.md:171 (router.push, frontend/src/views/ProductList.tsx:51)
+- [x] CHK023 Có luồng phục hồi cho người xem khi bộ lọc trên địa chỉ trang bị bỏ qua lặng lẽ (họ có biết vì sao danh sách không lọc không)? [Coverage, Recovery, Spec §PROD-002-S6, §PROD-002-S13] — Bằng chứng: spec.md:81, spec.md:91 (PROD-002-S6), spec.md:98 (PROD-002-S13)
 
 ## Non-Functional Requirements
 
-- [ ] CHK024 Có yêu cầu khả năng tiếp cận cho hai ô giá (nhãn cho trình đọc màn hình, gắn thông báo lỗi với ô) không? [Gap, Accessibility]
-- [ ] CHK025 Bố cục hai ô giá trên màn hình hẹp có được nêu không, khi app có bố cục `xs` (NFR-040) nhưng NFR-042 chỉ nêu máy tính? [Consistency, Gap, NFR-040, NFR-042]
-- [ ] CHK026 Ngoại lệ Principle II (không kiểm quyền) có được ghi nhất quán ở Permissions của cả ba requirement và trong plan? [Traceability, Spec §Permissions; Plan §Constitution Check]
+- [x] CHK024 Có yêu cầu khả năng tiếp cận cho hai ô giá (nhãn cho trình đọc màn hình, gắn thông báo lỗi với ô) không? [Gap, Accessibility] — Bằng chứng: spec.md:169, spec.md:188
+- [x] CHK025 Bố cục hai ô giá trên màn hình hẹp có được nêu không, khi app có bố cục `xs` (NFR-040) nhưng NFR-042 chỉ nêu máy tính? [Consistency, Gap, NFR-040, NFR-042] — Bằng chứng: spec.md:173, spec.md:189
+- [x] CHK026 Ngoại lệ Principle II (không kiểm quyền) có được ghi nhất quán ở Permissions của cả ba requirement và trong plan? [Traceability, Spec §Permissions; Plan §Constitution Check] — Bằng chứng: spec.md:56, spec.md:84, spec.md:128; plan.md:49
 
 ## Dependencies & Assumptions
 
-- [ ] CHK027 Giả định "lọc chạy phía máy chủ trên toàn bộ dữ liệu" có được phản ánh trong contract `GET /products` (tổng số tính trên kết quả đã lọc)? [Assumption, Spec §Assumptions; contracts/get-products.md]
-- [ ] CHK028 Ngoại lệ CI / PR của bài thử có ghi rõ hệ quả (không có cổng tự động) và các bước thay thế chạy tay? [Assumption, Plan §Constitution Check, quickstart.md]
-- [ ] CHK029 Phụ thuộc Postgres + Redis thật cho test có được ghi là điều kiện tiên quyết (quickstart) chứ không ngầm định? [Dependency, Plan research R3; quickstart.md]
-- [ ] CHK030 Số sản phẩm trong test SC-001 được nói là lấy từ dữ liệu seed (không đoán) — nguồn đếm có được chỉ rõ? [Assumption, Plan research R9]
+- [x] CHK027 Giả định "lọc chạy phía máy chủ trên toàn bộ dữ liệu" có được phản ánh trong contract `GET /products` (tổng số tính trên kết quả đã lọc)? [Assumption, Spec §Assumptions; contracts/get-products.md] — Bằng chứng: contracts/get-products.md:27; spec.md:165
+- [x] CHK028 Ngoại lệ CI / PR của bài thử có ghi rõ hệ quả (không có cổng tự động) và các bước thay thế chạy tay? [Assumption, Plan §Constitution Check, quickstart.md] — Bằng chứng: plan.md:52, plan.md:53; quickstart.md:12
+- [x] CHK029 Phụ thuộc Postgres + Redis thật cho test có được ghi là điều kiện tiên quyết (quickstart) chứ không ngầm định? [Dependency, Plan research R3; quickstart.md] — Bằng chứng: quickstart.md:10; research.md:32
+- [x] CHK030 Số sản phẩm trong test SC-001 được nói là lấy từ dữ liệu seed (không đoán) — nguồn đếm có được chỉ rõ? [Assumption, Plan research R9] — Bằng chứng: research.md:105; tasks.md:131
 
 ## Notes
 

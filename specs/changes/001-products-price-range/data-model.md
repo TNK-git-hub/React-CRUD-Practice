@@ -36,7 +36,7 @@ Thứ tự kiểm tra sau khi bỏ khoảng trắng đầu / cuối (thông báo
 | 3 | không khớp `^\d+(\.\d+)?$` (số thường: chỉ chữ số, có thể thêm dấu chấm và chữ số thập phân) | lỗi "Giá phải là số" (gồm "10,5", "1,000", "1e3", "abc", "+5", ".5", "5.") |
 | 4 | hơn 2 chữ số sau dấu chấm | lỗi "Giá chỉ được có tối đa 2 chữ số thập phân" (gồm "1.000") |
 | 5 | lớn hơn 99999999.99 | lỗi "Giá không được lớn hơn $99,999,999.99" |
-| 6 | còn lại | `value` (chuỗi đã chuẩn hoá) |
+| 6 | còn lại | `value` (chuỗi đã bỏ khoảng trắng, **không** chuẩn hoá thêm: "010", "10.50" giữ nguyên; so sánh theo giá trị số — PROD-003-S17) |
 
 Lỗi định dạng của từng ô được xét trước. Chỉ khi cả hai ô hợp lệ: có cả hai và min > max → lỗi "Giá tối thiểu không
 được lớn hơn giá tối đa" (PROD-003-S16). Máy chủ kiểm theo đúng thứ tự này và trả đúng các câu trên (research R4).
@@ -47,7 +47,7 @@ So sánh ở bước 5 và min > max dùng phép so sánh chuỗi số thập ph
 | Tham số | Ý nghĩa | Ghi chú |
 | --- | --- | --- |
 | `q`, `page`, `sortBy`, `order` | như hiện nay | không đổi |
-| `minPrice`, `maxPrice` | khoảng giá đang áp dụng | thêm mới; giá trị sai bị bỏ qua (PROD-002-S6); cả hai hợp lệ nhưng min > max → bỏ qua cả hai (PROD-002-S13); xoá bộ lọc xoá `q`, `minPrice`, `maxPrice`, `page`, giữ `sortBy`, `order` (PROD-002-S5) |
+| `minPrice`, `maxPrice` | khoảng giá đang áp dụng | thêm mới; giá trị sai bị bỏ qua (PROD-002-S6); cả hai hợp lệ nhưng min > max → bỏ qua cả hai (PROD-002-S13); tham số lặp (`getAll(...).length > 1`) → bỏ qua đầu đó (PROD-002-S14); mỗi thay đổi là một mục lịch sử (`router.push`, PROD-002-S15); xoá bộ lọc xoá `q`, `minPrice`, `maxPrice`, `page`, giữ `sortBy`, `order` (PROD-002-S5) |
 
 ## Khoá cache
 
