@@ -46,7 +46,10 @@ cách dùng stack đó cho change này và cách dựng test / type checking mà
 - **Decision**: thêm `minPrice`, `maxPrice` vào `QueryProductDto`, giữ dạng **chuỗi** từ query string:
   chuỗi rỗng → `undefined` (PROD-003-S11); kiểm tra bằng regex số thường `^\d+(\.\d{1,2})?$` (từ chối âm,
   "1e3", "abc", hơn 2 chữ số thập phân), rồi kiểm tra ≤ `99999999.99` và `minPrice ≤ maxPrice` (validator
-  liên trường). Vi phạm → 400 qua `ValidationPipe` hiện có. Service truyền nguyên chuỗi vào điều kiện TypeORM
+  liên trường). Vi phạm → 400 qua `ValidationPipe` hiện có. Vì thông báo của máy chủ có thể hiện cho người xem
+  (PROD-003-S14), các validator trả **đúng câu tiếng Việt** trong bảng thông báo của spec và kiểm theo cùng thứ tự với
+  giao diện (data-model): âm → không phải số thường → hơn 2 chữ số thập phân → quá giới hạn → min > max (chỉ khi cả hai
+  hợp lệ). Service truyền nguyên chuỗi vào điều kiện TypeORM
   (`Between` / `MoreThanOrEqual` / `LessThanOrEqual`) để Postgres so sánh `numeric` chính xác, không qua `float`.
 - **Rationale**: `IsNumber` sau khi ép kiểu chấp nhận "1e3" và làm tròn kiểu float — trái PROD-003-S6 và
   PROD-001-S7. So sánh bằng chuỗi số với cột `numeric` tránh lệch làm tròn.

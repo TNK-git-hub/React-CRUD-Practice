@@ -53,8 +53,8 @@ viết tiếng Anh, đặt dưới `tests/products/`. Viết test trước, ch�
 - [ ] T009 [P] Tạo `backend/test/global-setup.ts`: đọc `backend/.env`, kết nối database `postgres` bằng `pg`, chạy `CREATE DATABASE crud_practice_test` nếu chưa có; báo lỗi rõ ràng nếu Postgres chưa chạy ("run pnpm db:up")
 - [ ] T010 Tạo `backend/test/support.ts`: `createTestApp({ redisDown?: boolean })` dựng `Test.createTestingModule({ imports: [AppModule] })`, khi `redisDown` thì `overrideProvider(RedisService)` bằng bản giả có `isReady = false` và `client` không kết nối; gắn `new ValidationPipe({ whitelist: true, transform: true })` như `backend/src/main.ts`; `resetDb()` (`TRUNCATE products, product_images, reviews, product_tags, tags RESTART IDENTITY CASCADE`); `flushRedis()` (`FLUSHDB` trên DB 1); `insertProducts(rows: { title: string; price: string; description?: string }[])` qua repository; re-export `request` từ `supertest`
 - [ ] T011 [P] Tạo `frontend/test/setup.ts` (nạp `@testing-library/jest-dom/vitest`) và `frontend/test/support.tsx`: `vi.mock('next/navigation')` với `useRouter().push` là spy cập nhật một `URLSearchParams` dùng chung và `useSearchParams()` trả về nó; `setUrl(query: string)`; `renderProductList()` bọc `QueryClientProvider` (mỗi test một `QueryClient` mới, `retry: false`); `mockFetch(handler)` thay `globalThis.fetch` và ghi lại URL được gọi; re-export `screen`, `within`, `waitFor`, `userEvent`
-- [ ] T012 Trong `backend/src/products/dto/query-product.dto.ts` thêm `minPrice?: string` và `maxPrice?: string` (data-model "Khoảng giá"): chuỗi rỗng → `undefined` bằng `@Transform` ("rỗng / vắng = không giới hạn"); `@Matches(/^\d+(\.\d{1,2})?$/)` ("chuỗi số thường"); ràng buộc "≤ 99999999.99" (tương đương phần nguyên sau khi bỏ số 0 đầu có tối đa 8 chữ số); validator liên trường trên `maxPrice`: "có cả hai thì `minPrice ≤ maxPrice`", so sánh chuỗi thập phân, không dùng `Number`/`parseFloat`; thêm `@ApiPropertyOptional` cho Swagger
-- [ ] T013 Tạo `frontend/src/utils/priceRange.ts`: `parsePriceInput(raw: string)` → `{ kind: 'empty' } | { kind: 'value'; value: string } | { kind: 'error'; message: string }` theo đúng thứ tự bảng "Kết quả kiểm tra một ô giá" trong data-model.md (bỏ khoảng trắng đầu/cuối; `-<số>` → "Giá không được âm"; không khớp `^\d+(\.\d+)?$` → "Giá phải là số"; hơn 2 chữ số sau dấu chấm → "Giá chỉ được có tối đa 2 chữ số thập phân"; lớn hơn 99999999.99 → "Giá không được lớn hơn $99,999,999.99"); `compareDecimal(a, b)` so sánh chuỗi thập phân không qua `float`; `validatePriceRange(minRaw, maxRaw)` trả lỗi theo ô và lỗi "Giá tối thiểu không được lớn hơn giá tối đa" khi cả hai hợp lệ và min > max
+- [ ] T012 Trong `backend/src/products/dto/query-product.dto.ts` thêm `minPrice?: string` và `maxPrice?: string` (data-model "Khoảng giá"): chuỗi rỗng → `undefined` bằng `@Transform` ("rỗng / vắng = không giới hạn"); `@Matches(/^\d+(\.\d{1,2})?$/)` ("chuỗi số thường"); ràng buộc "≤ 99999999.99" (tương đương phần nguyên sau khi bỏ số 0 đầu có tối đa 8 chữ số); validator liên trường trên `maxPrice`: "có cả hai thì `minPrice ≤ maxPrice`", so sánh chuỗi thập phân, không dùng `Number`/`parseFloat`; kiểm theo đúng thứ tự "âm → không phải số thường → hơn 2 chữ số thập phân → quá giới hạn → min > max (chỉ khi cả hai hợp lệ)" và trả đúng các câu tiếng Việt của spec làm `message` ("Giá không được âm", "Giá phải là số", "Giá chỉ được có tối đa 2 chữ số thập phân", "Giá không được lớn hơn $99,999,999.99", "Giá tối thiểu không được lớn hơn giá tối đa") (research R4, contracts/get-products.md); thêm `@ApiPropertyOptional` cho Swagger
+- [ ] T013 Tạo `frontend/src/utils/priceRange.ts`: `parsePriceInput(raw: string)` → `{ kind: 'empty' } | { kind: 'value'; value: string } | { kind: 'error'; message: string }` theo đúng thứ tự bảng "Kết quả kiểm tra một ô giá" trong data-model.md (bỏ khoảng trắng đầu/cuối; `-<số>` → "Giá không được âm"; không khớp `^\d+(\.\d+)?$` → "Giá phải là số"; hơn 2 chữ số sau dấu chấm → "Giá chỉ được có tối đa 2 chữ số thập phân"; lớn hơn 99999999.99 → "Giá không được lớn hơn $99,999,999.99"); `compareDecimal(a, b)` so sánh chuỗi thập phân không qua `float`; `validatePriceRange(minRaw, maxRaw)` trả lỗi theo ô; lỗi định dạng từng ô xét trước, lỗi "Giá tối thiểu không được lớn hơn giá tối đa" chỉ xét khi cả hai ô hợp lệ và min > max
 
 **Checkpoint**: `pnpm test` chạy được (chưa có test), `pnpm typecheck` 0 lỗi
 
@@ -106,20 +106,21 @@ viết tiếng Anh, đặt dưới `tests/products/`. Viết test trước, ch�
 
 ## Phase 5: User Story 3 — Kiểm tra giá trị khoảng giá (PROD-003, P1)
 
-**Goal**: giá trị sai bị chặn trên giao diện với đúng thông báo; máy chủ từ chối khi gọi thẳng.
+**Goal**: giá trị sai bị chặn trên giao diện với đúng thông báo; máy chủ từ chối khi gọi thẳng; máy chủ từ chối giá trị giao diện đã cho qua thì thông báo hiện dưới ô, danh sách giữ nguyên.
 
 **Independent Test**: `pnpm test -t "PROD-003"` xanh; quickstart bước 4.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T026 [P] [US3] Trong `tests/products/backend/products-price-range.e2e.spec.ts`, `describe('PROD-003')`: `PROD-003-S1` (`minPrice=0&maxPrice=99999999.99` → 200), `PROD-003-S3` (`minPrice=30&maxPrice=10` → 400, body không có `products`), `PROD-003-S10` (lần lượt `minPrice=-1`, `10.123`, `abc`, `100000000` → 400), `PROD-003-S11` (giá 5/10/20/30, `minPrice=&maxPrice=10` → 5, 10)
-- [ ] T027 [P] [US3] Trong `tests/products/frontend/price-range.test.ts`: `PROD-003-S1` (`"0"`, `"99999999.99"` hợp lệ), `PROD-003-S2` (`validatePriceRange('30', '10')` → "Giá tối thiểu không được lớn hơn giá tối đa"), `PROD-003-S4` (`"10,5"`, `"1,000"` → "Giá phải là số"), `PROD-003-S5` (`"abc"`, `"<script>"`, `"' OR 1=1 --"` → "Giá phải là số"), `PROD-003-S6` (`"1.000"` → "Giá chỉ được có tối đa 2 chữ số thập phân"; `"1e3"` → "Giá phải là số"), `PROD-003-S7` (`"-0.01"`, `"-1"` → "Giá không được âm"; `"0"` hợp lệ), `PROD-003-S8` (`"10.123"` lỗi, `"10.12"` hợp lệ), `PROD-003-S9` (`"100000000"` → "Giá không được lớn hơn $99,999,999.99"; `"99999999.99"` hợp lệ), `PROD-003-S13` (chuỗi 100 chữ số → "Giá không được lớn hơn $99,999,999.99")
-- [ ] T028 [P] [US3] Trong `tests/products/frontend/product-list-price-filter.test.tsx`: `PROD-003-S1` (0 và 99999999.99 → không thông báo, có fetch), `PROD-003-S2` (30 và 10 → thông báo dưới ô giá tối thiểu, không fetch, không `push`, hai ô giữ 30 và 10), `PROD-003-S4` ("10,5" → "Giá phải là số"), `PROD-003-S5` (`<script>` hiện nguyên văn trong ô, không có thẻ `script` mới trong DOM), `PROD-003-S12` (min "-1", max "abc" → hai thông báo, mỗi cái dưới đúng ô), `PROD-003-S13` (100 chữ số → thông báo, không fetch)
+- [ ] T026 [P] [US3] Trong `tests/products/backend/products-price-range.e2e.spec.ts`, `describe('PROD-003')`: `PROD-003-S1` (`minPrice=0&maxPrice=99999999.99` → 200), `PROD-003-S3` (`minPrice=30&maxPrice=10` → 400, body không có `products`, `message` chứa "Giá tối thiểu không được lớn hơn giá tối đa"), `PROD-003-S10` (lần lượt `minPrice=-1`, `10.123`, `abc`, `100000000` → 400 với đúng câu thông báo tương ứng trong contracts/get-products.md), `PROD-003-S11` (giá 5/10/20/30, `minPrice=&maxPrice=10` → 5, 10)
+- [ ] T027 [P] [US3] Trong `tests/products/frontend/price-range.test.ts`: `PROD-003-S1` (`"0"`, `"99999999.99"` hợp lệ), `PROD-003-S2` (`validatePriceRange('30', '10')` → "Giá tối thiểu không được lớn hơn giá tối đa"), `PROD-003-S4` (`"10,5"`, `"1,000"` → "Giá phải là số"), `PROD-003-S5` (`"abc"`, `"<script>"`, `"' OR 1=1 --"` → "Giá phải là số"), `PROD-003-S6` (`"1.000"` → "Giá chỉ được có tối đa 2 chữ số thập phân"; `"1e3"` → "Giá phải là số"), `PROD-003-S7` (`"-0.01"`, `"-1"` → "Giá không được âm"; `"0"` hợp lệ), `PROD-003-S8` (`"10.123"` lỗi, `"10.12"` hợp lệ), `PROD-003-S9` (`"100000000"` → "Giá không được lớn hơn $99,999,999.99"; `"99999999.99"` hợp lệ), `PROD-003-S13` (chuỗi 100 chữ số → "Giá không được lớn hơn $99,999,999.99"), `PROD-003-S15` (`"+5"`, `".5"`, `"5."` → "Giá phải là số"), `PROD-003-S16` (`validatePriceRange('30,5', '10')` → chỉ lỗi "Giá phải là số" ở ô min, không có lỗi min > max)
+- [ ] T028 [P] [US3] Trong `tests/products/frontend/product-list-price-filter.test.tsx`: `PROD-003-S1` (0 và 99999999.99 → không thông báo, có fetch), `PROD-003-S2` (30 và 10 → thông báo dưới ô giá tối thiểu, không fetch, không `push`, hai ô giữ 30 và 10), `PROD-003-S4` ("10,5" → "Giá phải là số"), `PROD-003-S5` (`<script>` hiện nguyên văn trong ô, không có thẻ `script` mới trong DOM), `PROD-003-S12` (min "-1", max "abc" → hai thông báo, mỗi cái dưới đúng ô), `PROD-003-S13` (100 chữ số → thông báo, không fetch), `PROD-003-S14` (đang lọc 10–20; Search khoảng hợp lệ, fetch trả 400 với `message` ["Giá không được âm"] → thông báo đó hiện dưới ô giá tối thiểu, không có "Không tải dược danh sách sản phẩm", danh sách vẫn là kết quả 10–20), `PROD-003-S15` (gõ "+5" → "Giá phải là số", không fetch), `PROD-003-S16` (min "30,5", max "10" → chỉ "Giá phải là số" dưới ô min)
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Trong `frontend/src/comopnents/ProductListPageCom/SearchForm.tsx`: khi `validatePriceRange` trả lỗi thì không gọi `onSearch`, hiện thông báo dưới đúng ô (lỗi min > max hiện dưới ô giá tối thiểu), gắn thông báo với ô bằng `aria-describedby`, giữ nguyên giá trị đã gõ; thông báo biến mất khi lần submit sau hợp lệ
-- [ ] T030 [US3] Rà `backend/src/products/dto/query-product.dto.ts` (T012) với các trường hợp 400 trong `contracts/get-products.md` ("min > max", "âm", "hơn 2 chữ số thập phân", "không phải số thường", "lớn hơn 99999999.99"); sửa nếu test T026 còn đỏ
+- [ ] T029 [US3] Trong `frontend/src/comopnents/ProductListPageCom/SearchForm.tsx`: khi `validatePriceRange` trả lỗi thì không gọi `onSearch`, hiện thông báo dưới đúng ô (lỗi min > max hiện dưới ô giá tối thiểu), gắn thông báo với ô bằng `aria-describedby`, giữ nguyên giá trị đã gõ; thông báo biến mất khi lần submit sau hợp lệ; nhận thêm prop `serverError?: string` để hiện thông báo của máy chủ dưới ô giá tối thiểu (PROD-003-S14)
+- [ ] T030 [US3] Trong `frontend/src/views/ProductList.tsx`: khi lỗi của `useProducts` là `ApiError` có `status === 400` → không hiện trạng thái lỗi tải danh sách, hiển thị danh sách thành công gần nhất (giữ trong `useRef`), truyền `error.message` xuống `SearchForm` làm `serverError`; lỗi khác giữ hành vi hiện tại (PROD-001-S12)
+- [ ] T031 [US3] Rà `backend/src/products/dto/query-product.dto.ts` (T012) với các trường hợp 400 trong `contracts/get-products.md` ("min > max", "âm", "hơn 2 chữ số thập phân", "không phải số thường", "lớn hơn 99999999.99"); sửa nếu test T026 còn đỏ
 
 **Checkpoint**: cả ba story xanh
 
@@ -127,12 +128,12 @@ viết tiếng Anh, đặt dưới `tests/products/`. Viết test trước, ch�
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T031 Đếm số sản phẩm của dữ liệu seed: chạy `pnpm --filter backend seed` trên DB dev rồi `SELECT count(*) FROM products`; ghi con số và nguồn vào comment của test `SC-001` (research R9 — không đoán)
-- [ ] T032 Trong `tests/products/backend/products-price-range.e2e.spec.ts` thêm test `SC-001 list with price filter responds in under 1 second on seed-sized data`: chèn đúng số sản phẩm ở T031, cache trống, đo `GET /products?minPrice=10&maxPrice=100&limit=10` < 1000 ms
-- [ ] T033 Chạy `pnpm typecheck` → 0 lỗi (backend, frontend, hai tsconfig test)
-- [ ] T034 Chạy `pnpm test` → xanh; `grep -rho "PROD-00[1-3]-S[0-9]*" tests/products | sort -u | wc -l` → 41
-- [ ] T035 Chạy `python3 .specify/scripts/spec_check.py --change 001-products-price-range` → chỉ còn lỗi "not archived"
-- [ ] T036 Kiểm tay theo `specs/changes/001-products-price-range/quickstart.md` (bước 1–7, gồm SC-001 trên dữ liệu seed thật và SC-004 trên Chrome, Safari, Firefox); báo kết quả cho người dùng (thay cho CI — ngoại lệ của bài thử)
+- [ ] T032 Đếm số sản phẩm của dữ liệu seed: chạy `pnpm --filter backend seed` trên DB dev rồi `SELECT count(*) FROM products`; ghi con số và nguồn vào comment của test `SC-001` (research R9 — không đoán)
+- [ ] T033 Trong `tests/products/backend/products-price-range.e2e.spec.ts` thêm test `SC-001 list with price filter responds in under 1 second on seed-sized data`: chèn đúng số sản phẩm ở T032, cache trống, đo `GET /products?minPrice=10&maxPrice=100&limit=10` < 1000 ms
+- [ ] T034 Chạy `pnpm typecheck` → 0 lỗi (backend, frontend, hai tsconfig test)
+- [ ] T035 Chạy `pnpm test` → xanh; `grep -rho "PROD-00[1-3]-S[0-9]*" tests/products | sort -u | wc -l` → 44
+- [ ] T036 Chạy `python3 .specify/scripts/spec_check.py --change 001-products-price-range` → chỉ còn lỗi "not archived"
+- [ ] T037 Kiểm tay theo `specs/changes/001-products-price-range/quickstart.md` (bước 1–7, gồm SC-001 trên dữ liệu seed thật và SC-004 trên Chrome, Safari, Firefox); báo kết quả cho người dùng (thay cho CI — ngoại lệ của bài thử)
 
 ---
 
@@ -195,7 +196,7 @@ Task: "T018 ProductQuery in frontend/src/api/productsQuerParam.ts"
 
 ## Notes
 
-- 41 scenario: PROD-001 (15), PROD-002 (13), PROD-003 (13); bảng Scenario → test trong plan.md.
+- 44 scenario: PROD-001 (15), PROD-002 (13), PROD-003 (16); bảng Scenario → test trong plan.md.
 - Spec sai hoặc thiếu khi implement → dừng và báo, không sửa spec cho khớp code (CLAUDE.md).
 - Test đỏ → sửa code, không sửa test cho xanh.
 - Không commit trong lúc implement nếu người dùng chưa yêu cầu; cuối change là hai commit (code; spec).

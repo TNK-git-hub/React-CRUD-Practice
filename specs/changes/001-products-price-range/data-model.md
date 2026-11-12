@@ -33,12 +33,13 @@ Thứ tự kiểm tra sau khi bỏ khoảng trắng đầu / cuối (thông báo
 | --- | --- | --- |
 | 1 | chuỗi rỗng | `empty` (không giới hạn) |
 | 2 | dạng `-<số thường>` | lỗi "Giá không được âm" |
-| 3 | không khớp `^\d+(\.\d+)?$` | lỗi "Giá phải là số" (gồm "10,5", "1,000", "1e3", "abc") |
+| 3 | không khớp `^\d+(\.\d+)?$` (số thường: chỉ chữ số, có thể thêm dấu chấm và chữ số thập phân) | lỗi "Giá phải là số" (gồm "10,5", "1,000", "1e3", "abc", "+5", ".5", "5.") |
 | 4 | hơn 2 chữ số sau dấu chấm | lỗi "Giá chỉ được có tối đa 2 chữ số thập phân" (gồm "1.000") |
 | 5 | lớn hơn 99999999.99 | lỗi "Giá không được lớn hơn $99,999,999.99" |
 | 6 | còn lại | `value` (chuỗi đã chuẩn hoá) |
 
-Sau khi cả hai ô hợp lệ: có cả hai và min > max → lỗi "Giá tối thiểu không được lớn hơn giá tối đa".
+Lỗi định dạng của từng ô được xét trước. Chỉ khi cả hai ô hợp lệ: có cả hai và min > max → lỗi "Giá tối thiểu không
+được lớn hơn giá tối đa" (PROD-003-S16). Máy chủ kiểm theo đúng thứ tự này và trả đúng các câu trên (research R4).
 So sánh ở bước 5 và min > max dùng phép so sánh chuỗi số thập phân, không qua `float`, để khớp PROD-001-S7.
 
 ## Trạng thái trên URL

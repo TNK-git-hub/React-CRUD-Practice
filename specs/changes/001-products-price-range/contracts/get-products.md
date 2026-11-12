@@ -30,16 +30,18 @@ Hành vi hiện có của các tham số khác giữ nguyên; response **không 
 
 ## Response 400 (mới cho hai tham số giá)
 
-Dạng lỗi mặc định của `ValidationPipe` hiện có: `{ "statusCode": 400, "message": [ ... ], "error": "Bad Request" }`.
-Câu chữ trong `message` là của máy chủ (tiếng Anh), không hiển thị cho người xem — giao diện đã chặn trước.
+Dạng lỗi của `ValidationPipe` hiện có: `{ "statusCode": 400, "message": [ ... ], "error": "Bad Request" }`.
+Mỗi phần tử `message` là **đúng câu tiếng Việt** trong bảng thông báo của spec, vì giao diện hiện thông báo này cho người
+xem khi máy chủ từ chối một giá trị giao diện đã cho qua (PROD-003-S14). Thứ tự kiểm như giao diện; min > max chỉ xét
+khi cả hai giá trị hợp lệ.
 
-| Trường hợp | Ví dụ | Scenario |
-| --- | --- | --- |
-| min > max | `minPrice=30&maxPrice=10` | PROD-003-S3 |
-| âm | `minPrice=-1` | PROD-003-S10 |
-| hơn 2 chữ số thập phân | `minPrice=10.123`, `minPrice=1.000` | PROD-003-S10 |
-| không phải số thường | `minPrice=abc`, `minPrice=1e3`, `minPrice=10,5` | PROD-003-S10 |
-| lớn hơn 99999999.99 | `minPrice=100000000` | PROD-003-S10 |
+| Trường hợp | Ví dụ | `message` | Scenario |
+| --- | --- | --- | --- |
+| min > max | `minPrice=30&maxPrice=10` | "Giá tối thiểu không được lớn hơn giá tối đa" | PROD-003-S3 |
+| âm | `minPrice=-1` | "Giá không được âm" | PROD-003-S10 |
+| hơn 2 chữ số thập phân | `minPrice=10.123`, `minPrice=1.000` | "Giá chỉ được có tối đa 2 chữ số thập phân" | PROD-003-S10 |
+| không phải số thường | `minPrice=abc`, `1e3`, `10,5`, `+5`, `.5`, `5.` | "Giá phải là số" | PROD-003-S10 |
+| lớn hơn 99999999.99 | `minPrice=100000000` | "Giá không được lớn hơn $99,999,999.99" | PROD-003-S10 |
 
 ## Ví dụ
 

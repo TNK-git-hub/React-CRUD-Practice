@@ -28,7 +28,7 @@
 | PROD-002 | 10. Resource limits | N/A | số sản phẩm mỗi trang cố định 10 trên giao diện (glossary); không có upload hay payload lớn |
 | PROD-002 | 11. Data and deletion | S12 [P2] | xoá sản phẩm cuối của trang khi đang lọc: phải giữ khoảng giá. Lưu ý cho plan: `updateParams` trong frontend/src/views/ProductList.tsx chỉ giữ `q`, `page`, `sortBy`, `order` |
 | PROD-002 | 13. Domain-specific | S2, S7 (tổng / số trang theo bộ lọc — catalog 13); S8 | BR-PROD-02 đã phủ ở PROD-001; khoá cache → PROD-001-S14 |
-| PROD-003 | 1. Input | S4 [P2], S5 [P2], S6 [P2] | dấu phẩy; chữ / chuỗi tấn công; "1.000" → lỗi thập phân, "1e3" → không phải số |
+| PROD-003 | 1. Input | S4 [P2], S5 [P2], S6 [P2], S15 [P2], S16 [P3] | dấu phẩy; chữ / chuỗi tấn công; "1.000" → lỗi thập phân, "1e3" → không phải số; "+5", ".5", "5." → không phải số; lỗi định dạng xét trước min > max (S15, S16 thêm 2026-11-12) |
 | PROD-003 | 2. Numbers and boundaries | S7 [P2], S8 [P2], S9 [P2], S10 [P1]; S1 (có sẵn) | âm / 0; 2 vs 3 chữ số thập phân; 99999999.99 vs 100000000; gọi thẳng máy chủ |
 | PROD-003 | 3. Missing and empty | S11 [P3], S12 [P3] | tham số có mặt nhưng rỗng → không giới hạn; hai ô cùng sai |
 | PROD-003 | 4. Collections | N/A | kiểm tra giá trị không tạo hay trả danh sách |
@@ -36,7 +36,7 @@
 | PROD-003 | 6. Permissions | N/A | không có quyền để từ chối (NFR-011); gọi thẳng máy chủ đã ở S3, S10 |
 | PROD-003 | 7. Concurrency and ordering | N/A | giá trị sai không được gửi đi; thao tác chỉ đọc nên không có ghi trùng |
 | PROD-003 | 8. Time | N/A | không có ngày giờ, hạn hay lịch |
-| PROD-003 | 9. External dependencies | N/A | kiểm tra trên giao diện không gọi máy chủ; lỗi máy chủ thuộc PROD-001-S12 |
+| PROD-003 | 9. External dependencies | S14 [P2] | máy chủ từ chối giá trị giao diện đã cho qua → thông báo máy chủ dưới ô, giữ danh sách (thêm 2026-11-12); lỗi máy chủ khác thuộc PROD-001-S12 |
 | PROD-003 | 10. Resource limits | S13 [P3] | chuỗi số rất dài (100 chữ số là dữ liệu ví dụ, không phải giới hạn) |
 | PROD-003 | 11. Data and deletion | N/A | không xoá hay sửa dữ liệu |
 | PROD-003 | 13. Domain-specific | S2, S3 (có sẵn); S7, S8, S9, S10 | BR-PROD-03 → S1, S7; BR-PROD-04 → S8; BR-PROD-05 → S2, S3; BR-PROD-06 → S1, S9; BR-PROD-07 → S4, S5, S10 |
@@ -47,8 +47,8 @@
 | --- | --- | --- | --- | --- | --- |
 | PROD-001 | 11 (S5–S15) | 2 | 6 | 3 | 3 |
 | PROD-002 | 8 (S6–S13) | 0 | 7 | 1 | 4 |
-| PROD-003 | 10 (S4–S13) | 1 | 6 | 3 | 7 |
-| **Total** | **29** | **3** | **19** | **7** | **14** |
+| PROD-003 | 13 (S4–S16) | 1 | 8 | 4 | 6 |
+| **Total** | **32** | **3** | **21** | **8** | **13** |
 
 ## Open questions
 

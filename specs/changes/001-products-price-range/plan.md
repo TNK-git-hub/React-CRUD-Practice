@@ -37,7 +37,7 @@ TanStack Query 5 + Tailwind 4 (frontend); `redis` client 6 — stack có sẵn (
 `float` (PROD-001-S7); type checking `strict: true` như hiện có cho code và test (constitution IV, cách diễn giải ở
 Constitution Check); không sửa entity / DTO / component cũ chỉ vì type
 
-**Scale/Scope**: dữ liệu seed dummyjson (vài trăm sản phẩm); 3 requirement, 41 scenario
+**Scale/Scope**: dữ liệu seed dummyjson (vài trăm sản phẩm); 3 requirement, 44 scenario
 
 ## Constitution Check
 
@@ -45,7 +45,7 @@ Constitution Check); không sửa entity / DTO / component cũ chỉ vì type
 
 | Nguyên tắc / cổng | Trước Phase 0 | Sau Phase 1 | Ghi chú |
 | --- | --- | --- | --- |
-| I. Mỗi scenario có test mang đúng ID, đặt ở `tests/products/` | PASS (kế hoạch) | PASS | 41/41 scenario có test (bảng Scenario → test bên dưới) |
+| I. Mỗi scenario có test mang đúng ID, đặt ở `tests/products/` | PASS (kế hoạch) | PASS | 44/44 scenario có test (bảng Scenario → test bên dưới) |
 | II. Quyền kiểm ở backend; scenario bị từ chối | PASS — ngoại lệ đã biết | PASS | NFR-011: app không có đăng nhập, lọc giá là đọc công khai; PROD-001-S8 gọi thẳng máy chủ không kèm danh tính |
 | III. Chính sách xoá | N/A | N/A | change không xoá dữ liệu; S13 / S12 chỉ đọc sau khi xoá theo chính sách có sẵn trong nfr.md |
 | IV. Type checking chế độ chặt nhất, cả code lẫn test | PASS — theo diễn giải | PASS — theo diễn giải | người dùng quyết 2026-11-12: "strictest mode" của constitution IV được diễn giải là `strict: true` (đang bật ở backend và frontend, 0 lỗi); test dùng cùng mức. Nâng lên các cờ chặt hơn (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, …) là một change riêng sau này (research R8) |
@@ -83,7 +83,7 @@ backend/
 │   ├── support.ts               # mới: re-export thư viện test; createTestApp(); fixtures
 │   └── global-setup.ts          # mới: tạo DB crud_practice_test nếu chưa có
 └── src/
-    ├── products/dto/query-product.dto.ts   # + minPrice, maxPrice, validator liên trường
+    ├── products/dto/query-product.dto.ts   # + minPrice, maxPrice, validator theo thứ tự, thông báo tiếng Việt như spec
     └── products/products.service.ts        # + điều kiện giá; + khoá cache
 frontend/
 ├── package.json                 # + test (typecheck đã có); + devDeps vitest, jsdom, @testing-library/*, @vitejs/plugin-react
@@ -93,7 +93,7 @@ frontend/
     ├── utils/priceRange.ts                  # mới: parsePriceInput, validatePriceRange (R6, data-model)
     ├── api/productsQuerParam.ts             # ProductQuery + minPrice, maxPrice
     ├── hooks/useProducts.ts                 # truyền minPrice, maxPrice
-    ├── views/ProductList.tsx                # đọc / ghi URL, updateParams giữ 2 khoá mới, trạng thái rỗng mới, xoá bộ lọc
+    ├── views/ProductList.tsx                # đọc / ghi URL, updateParams giữ 2 khoá mới, trạng thái rỗng mới, xoá bộ lọc, 400 → thông báo dưới ô
     └── comopnents/ProductListPageCom/SearchForm.tsx   # hai ô giá, kiểm tra khi submit, lỗi theo ô
 tests/products/
 ├── backend/
@@ -128,8 +128,9 @@ FE = `tests/products/frontend/product-list-price-filter.test.tsx`.
 | PROD-001-S11 | BE | PROD-002-S11 | FE | PROD-003-S11 | BE |
 | PROD-001-S12 | FE | PROD-002-S12 | FE | PROD-003-S12 | FE |
 | PROD-001-S13 | BE | | | PROD-003-S13 | FE-U, FE |
-| PROD-001-S14 | BE, FE | PROD-002-S13 | FE | | |
-| PROD-001-S15 | FE | | | | |
+| PROD-001-S14 | BE, FE | PROD-002-S13 | FE | PROD-003-S14 | FE |
+| PROD-001-S15 | FE | | | PROD-003-S15 | FE-U, FE |
+| | | | | PROD-003-S16 | FE-U, FE |
 
 SC-001: test `SC-001 …` trong BE (R9). SC-004: kiểm tay theo quickstart.
 
@@ -142,6 +143,10 @@ SC-001: test `SC-001 …` trong BE (R9). SC-004: kiểm tay theo quickstart.
 3. **Type checking**: giữ `strict: true` hiện có, không bật thêm cờ, không sửa code cũ chỉ vì type; backend có thêm
    script `typecheck` = `tsc --noEmit`.
 4. **PR**: không mở PR, không push.
+5. **Chi tiết kiểm tra giá** (spec, commit "spec(001): clarify validation details"): số thường chỉ gồm chữ số, có thể thêm
+   dấu chấm và 1–2 chữ số thập phân; lỗi định dạng xét trước min > max; máy chủ từ chối giá trị giao diện đã cho qua →
+   thông báo của máy chủ dưới ô giá, danh sách giữ nguyên. Hệ quả cho plan: máy chủ trả đúng câu tiếng Việt của spec
+   (research R4, contracts/get-products.md).
 
 ## Complexity Tracking
 

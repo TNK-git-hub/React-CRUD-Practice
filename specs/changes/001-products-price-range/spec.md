@@ -30,6 +30,10 @@ và phân trang đang có. App chưa có đăng nhập; lọc giá là thao tác
 - Q: "1.000" và "1e3" được hiểu thế nào? (PROD-003-S6) → A: Chỉ nhận số thường, dấu chấm là dấu thập phân, tối đa 2 chữ số sau dấu chấm; "1.000" → "Giá chỉ được có tối đa 2 chữ số thập phân", "1e3" → "Giá phải là số".
 - Q: Gọi thẳng máy chủ với tham số giá có mặt nhưng rỗng thì sao? (PROD-003-S11) → A: Coi như không giới hạn phía đó.
 - Q: Địa chỉ trang có cả hai giá hợp lệ nhưng giá tối thiểu lớn hơn giá tối đa thì sao? (PROD-002-S13) → A: Bỏ qua cả hai giá trị, hai ô để trống, danh sách không lọc theo giá. Luật chung: mọi giá trị giá đọc từ địa chỉ trang không hợp lệ đều bị bỏ qua; thông báo "Giá tối thiểu không được lớn hơn giá tối đa" chỉ hiện khi người xem tự gõ rồi bấm Search.
+- Q: Máy chủ trả lỗi dữ liệu không hợp lệ cho một giá trị giao diện đã cho qua thì sao? (PROD-003-S14) → A: Hiện thông báo của máy chủ ngay dưới ô giá; danh sách giữ nguyên kết quả trước.
+- Q: "Số thường" gồm những dạng nào? (PROD-003-S15) → A: Chỉ chữ số, có thể thêm dấu chấm và 1–2 chữ số thập phân; "+5", ".5", "5." đều báo "Giá phải là số".
+- Q: Một ô sai định dạng và cặp giá cũng min > max thì báo gì? (PROD-003-S16) → A: Lỗi định dạng của từng ô được xét trước; lỗi min > max chỉ xét khi cả hai ô hợp lệ.
+- Q: Yêu cầu khả năng tiếp cận cho hai ô giá? → A: Mỗi ô có nhãn; thông báo lỗi gắn với ô qua `aria-describedby`; yêu cầu tiếp cận đầy đủ nằm ngoài phạm vi.
 
 ## Requirements
 
@@ -101,10 +105,13 @@ Thông báo lỗi trên giao diện, theo từng trường hợp:
 | Không phải số | "Giá phải là số" |
 | Lớn hơn 99999999.99 | "Giá không được lớn hơn $99,999,999.99" |
 
-Ô giá bỏ khoảng trắng đầu, cuối trước khi kiểm tra và chỉ nhận số thường: chữ số, dấu chấm là dấu thập phân, tối đa
-2 chữ số sau dấu chấm (đếm theo những gì người xem gõ). Dạng khác là "không phải số", ví dụ "10,5", "1,000", "1e3";
-"1.000" có 3 chữ số sau dấu chấm nên vi phạm BR-PROD-04. Gọi thẳng máy chủ với tham số giá có mặt nhưng rỗng thì
-coi như không giới hạn phía đó.
+Ô giá bỏ khoảng trắng đầu, cuối trước khi kiểm tra và chỉ nhận **số thường**: chỉ gồm chữ số, có thể thêm một dấu
+chấm theo sau là 1–2 chữ số thập phân (đếm theo những gì người xem gõ). Dạng chữ số + dấu chấm + hơn 2 chữ số (ví dụ
+"1.000", "10.123") vi phạm BR-PROD-04 và báo "Giá chỉ được có tối đa 2 chữ số thập phân"; mọi dạng khác là "không phải
+số" và báo "Giá phải là số", ví dụ "10,5", "1,000", "1e3", "+5", ".5", "5.". Lỗi định dạng của từng ô được xét trước;
+lỗi "Giá tối thiểu không được lớn hơn giá tối đa" chỉ xét khi cả hai ô đều hợp lệ. Nếu máy chủ vẫn từ chối một khoảng
+giá giao diện đã cho qua, thông báo của máy chủ hiện ngay dưới ô giá và danh sách giữ nguyên kết quả trước. Gọi thẳng
+máy chủ với tham số giá có mặt nhưng rỗng thì coi như không giới hạn phía đó.
 
 - **Permissions:** Như PROD-001: mọi người xem, không cần đăng nhập; không vai trò nào bị từ chối (NFR-011).
 - **Scenarios:**
@@ -121,6 +128,9 @@ coi như không giới hạn phía đó.
   - `PROD-003-S11` (missing) [P3] — **Given** có các sản phẩm giá 5, 10, 20 và 30 USD **When** một yêu cầu được gửi thẳng tới máy chủ với tham số giá tối thiểu có mặt nhưng rỗng và giá tối đa 10 **Then** máy chủ coi như không giới hạn phía dưới và trả sản phẩm giá 5 và 10 USD
   - `PROD-003-S12` (missing) [P3] — **Given** người xem đang ở danh sách sản phẩm **When** người xem nhập giá tối thiểu "-1" và giá tối đa "abc" rồi bấm Search **Then** giao diện không gửi yêu cầu lọc và hiện cả hai thông báo, mỗi thông báo ở đúng ô của nó: "Giá không được âm" và "Giá phải là số" → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
   - `PROD-003-S13` (resource) [P3] — **Given** người xem đang ở danh sách sản phẩm **When** người xem dán vào ô giá một chuỗi rất dài toàn chữ số (ví dụ 100 chữ số) rồi bấm Search **Then** trang không bị treo, giao diện không gửi yêu cầu lọc và hiện "Giá không được lớn hơn $99,999,999.99" → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
+  - `PROD-003-S14` (dependency) [P2] — **Given** người xem đang xem kết quả lọc giá 10–20 **When** người xem nhập một khoảng giá mà giao diện cho qua rồi bấm Search, nhưng máy chủ từ chối yêu cầu như dữ liệu không hợp lệ **Then** thông báo của máy chủ hiện ngay dưới ô giá, không hiện trạng thái lỗi tải danh sách, và danh sách giữ nguyên kết quả lọc 10–20 → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
+  - `PROD-003-S15` (input) [P2] — **Given** người xem đang ở danh sách sản phẩm **When** người xem nhập giá tối thiểu "+5", ".5" hoặc "5." rồi bấm Search **Then** giao diện không gửi yêu cầu lọc và hiện "Giá phải là số" ở ô đó → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
+  - `PROD-003-S16` (input) [P3] — **Given** người xem đang ở danh sách sản phẩm **When** người xem nhập giá tối thiểu "30,5" và giá tối đa "10" rồi bấm Search **Then** giao diện không gửi yêu cầu lọc, chỉ hiện "Giá phải là số" dưới ô giá tối thiểu và không hiện "Giá tối thiểu không được lớn hơn giá tối đa" → Recovery: người xem sửa ô bị lỗi; giá trị đã nhập được giữ lại; danh sách giữ nguyên kết quả trước đó
 
 ### Edge Cases (unassigned)
 
@@ -142,6 +152,7 @@ coi như không giới hạn phía đó.
 - Đổi khoảng giá đưa danh sách về trang 1, giống tìm kiếm và sắp xếp hiện nay.
 - Ràng buộc kỹ thuật từ tài liệu (`GET /products` nhận thêm `minPrice`, `maxPrice`; cột giá `numeric(10,2)`) được xử lý ở plan và contracts, không nằm trong câu requirement. "Máy chủ từ chối" tương ứng với trả 400 trong `rules.md` (BR-PROD-05, BR-PROD-07).
 - Brownfield: tìm kiếm, sắp xếp, phân trang đã có chưa được spec; change này giả định chúng giữ nguyên hành vi hiện tại.
+- Khả năng tiếp cận: mỗi ô giá có nhãn; thông báo lỗi gắn với ô của nó qua `aria-describedby`.
 - Change này sửa 2 hành vi có sẵn (PROD-002): (1) thông báo khi danh sách rỗng đổi thành mô tả chung cho mọi bộ lọc,
   kể cả khi chỉ tìm theo từ khoá; (2) nút xoá bộ lọc xoá cả khoảng giá, không chỉ từ khoá. Không ghi được `MODIFIED`
   vì hành vi cũ chưa có requirement trong `specs/capabilities/products/spec.md` (brownfield), nên hai thay đổi nằm trong
@@ -154,3 +165,4 @@ coi như không giới hạn phía đó.
 - Đơn vị tiền khác USD (docs/requirements/price-range.md#Ngoài phạm vi).
 - Mâu thuẫn giá `≥ 0` (máy chủ) / `> 0` (form tạo sản phẩm) — không sửa trong change này (roadmap.md).
 - Thêm đăng nhập hoặc kiểm tra quyền (NFR-011).
+- Yêu cầu khả năng tiếp cận đầy đủ (ngoài nhãn ô và `aria-describedby` ở Assumptions).

@@ -9,7 +9,7 @@
 | Ô "Giá tối thiểu ($)" | ô chữ, bàn phím số thập phân; nằm trong form tìm kiếm hiện có |
 | Ô "Giá tối đa ($)" | như trên |
 | Nút Search / phím Enter | áp dụng cùng lúc từ khoá và khoảng giá; đưa về trang 1 |
-| Thông báo lỗi | hiện dưới đúng ô bị lỗi; min > max hiện ở ô giá tối thiểu |
+| Thông báo lỗi | hiện dưới đúng ô bị lỗi; min > max và thông báo từ máy chủ hiện dưới ô giá tối thiểu; mỗi thông báo gắn với ô qua `aria-describedby` |
 
 ## Thông báo (nguyên văn từ spec)
 
@@ -23,8 +23,13 @@
 | Danh sách rỗng (tiêu đề) | "Không tìm thấy sản phẩm nào" |
 | Danh sách rỗng (mô tả) | "Không có sản phẩm nào khớp bộ lọc hiện tại. Thử nới khoảng giá hoặc xoá bộ lọc." |
 
-Có lỗi → không gửi yêu cầu, không đổi URL, giữ nguyên giá trị đã gõ và danh sách đang hiện. Các thông báo này chỉ hiện
-khi người xem tự gõ rồi bấm Search; giá trị sai đọc từ URL không bao giờ sinh thông báo.
+Có lỗi → không gửi yêu cầu, không đổi URL, giữ nguyên giá trị đã gõ và danh sách đang hiện. Lỗi định dạng của từng ô
+xét trước; min > max chỉ xét khi cả hai ô hợp lệ. Các thông báo này chỉ hiện khi người xem tự gõ rồi bấm Search; giá trị
+sai đọc từ URL không bao giờ sinh thông báo.
+
+Máy chủ trả 400 cho `GET /products` (giao diện đã cho qua) → hiện `message` của máy chủ dưới ô giá tối thiểu, **không**
+hiện trạng thái lỗi tải danh sách, danh sách giữ nguyên kết quả thành công gần nhất (PROD-003-S14). Lỗi khác (5xx, mạng)
+vẫn hiện trạng thái lỗi tải danh sách như hiện nay (PROD-001-S12).
 
 ## Trạng thái trên URL
 
