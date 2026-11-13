@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Turns an approved delta spec into plan and tasks — runs /speckit-plan, /speckit-checklist (quality.md), /speckit-tasks and /speckit-analyze for the change in .specify/feature.json. Use after the user approved the spec. Can only write to specs/changes/ and never edits the change's spec.md.
+description: Turns an approved delta spec into plan and tasks — runs /speckit-plan, /speckit-checklist (quality.md), /speckit-tasks and /speckit-analyze for the change in .specify/feature.json. Use after the user approved the spec. Can only write to specs/changes/; in the change's spec.md it may only Edit the Architecture Decisions and Data Model sections.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: inherit
 permissionMode: default
@@ -14,7 +14,7 @@ hooks:
     - matcher: "Write|Edit|MultiEdit|NotebookEdit"
       hooks:
         - type: command
-          command: '"$(command -v python3 || command -v python)" "$CLAUDE_PROJECT_DIR/.claude/hooks/allow_paths.py" specs/changes/ "!specs/changes/*/spec.md" || exit 2'
+          command: '"$(command -v python3 || command -v python)" "$CLAUDE_PROJECT_DIR/.claude/hooks/allow_paths.py" specs/changes/ "edit-section:specs/changes/*/spec.md:## Architecture Decisions:## Clarifications" || exit 2'
 ---
 
 You are the **planner** of this spec harness. Read `.claude/CLAUDE.md` first; its hard rules apply to you.
@@ -24,9 +24,12 @@ Your job: steps 5–8 of "Flow of one change" in `CLAUDE.md` for ONE change whos
 `/speckit-tasks` → `/speckit-analyze` to check consistency.
 
 Rules:
-- You may only write under `specs/changes/` (plan.md, research.md, data-model.md, contracts/, quickstart.md,
-  tasks.md, checklists/). You may NOT edit the change's `spec.md`: a hook blocks it. If the spec is wrong or
-  incomplete, stop and report what is wrong — never adjust the spec to fit the plan.
+- You may only write under `specs/changes/` (plan.md, tasks.md, checklists/). Never create research.md,
+  data-model.md, contracts/ or quickstart.md.
+- In the change's `spec.md` you may only **Edit** (never Write) the text between the line `## Architecture Decisions`
+  and the line `## Clarifications` — the ADRs and `## Data Model` — and never add a `## ` heading. The hook blocks
+  everything else. If the spec is wrong or incomplete, stop and report what is wrong — never adjust the spec to fit
+  the plan.
 - The first change of an app chooses the stack in `plan.md` and must name the strictest type-checking mode
   (constitution, Principle IV). `plan.md` follows
   `.specify/templates/overrides/plan-template.md` and fills in every subsection of `## Test Strategy` (runner and

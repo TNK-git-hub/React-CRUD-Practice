@@ -164,7 +164,8 @@ source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources
 | `## Requirements` | see below |
 | `## Non-Functional Requirements` | see below |
 | `## Edge Cases & Error Handling` | header row only, plus a row per edge case already decided by the input (Scenario `_(unassigned)_`) |
-| `## Architecture Decisions`, `## Data Model` | leave the line `_(filled by /speckit-plan)_` under each heading, nothing else |
+| `## Architecture Decisions` | only the line `_(Architecture Decisions: filled by /speckit-plan)_` |
+| `## Data Model` | only the line `_(Data Model: filled by /speckit-plan)_` |
 | `## Clarifications` | leave empty (heading only); `__SPECKIT_COMMAND_CLARIFY__` fills it |
 | `## Assumptions` | assumptions in use and where the spec goes wrong if one is false |
 | `## Open Questions` | leave empty (heading only) |

@@ -179,7 +179,8 @@ messages, recovery), with scenario IDs. Otherwise delete this paragraph.]
 
 ## Architecture Decisions
 
-<!-- /speckit-plan. One ADR per decision a reviewer must approve. Leave "_(filled by /speckit-plan)_" until then. -->
+<!-- /speckit-plan. One ADR per decision a reviewer must approve. /speckit-specify leaves only the line
+     "_(Architecture Decisions: filled by /speckit-plan)_" here; the plan replaces that line with the ADRs. -->
 
 ### [NNN]-ADR-1: [Decision title]
 
@@ -202,7 +203,8 @@ messages, recovery), with scenario IDs. Otherwise delete this paragraph.]
 ## Data Model
 
 <!-- /speckit-plan. Only when the change alters stored data: entities, fields (type, required, constraints quoted
-     verbatim), migrations, deletion per specs/_system/nfr.md. Otherwise one line: "No data change: …". -->
+     verbatim), migrations, deletion per specs/_system/nfr.md. Otherwise one line: "No data change: …".
+     /speckit-specify leaves only the line "_(Data Model: filled by /speckit-plan)_" here. -->
 
 [Entity / table changes, or "No data change: [why]".]
 

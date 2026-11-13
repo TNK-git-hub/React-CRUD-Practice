@@ -3,7 +3,7 @@ schema_version: "1.0"
 preset:
   id: "speckit-level4"
   name: "Spec Kit Level 4 (delta specs)"
-  version: "0.2.0"
+  version: "0.3.0"
   description: "speckit.specify writes delta specs into specs/changes/NNN-<name>/ against living capability specs"
   author: "AI-native-practice"
   repository: "https://github.com/TNK-git-hub/React-CRUD-Practice"
@@ -24,6 +24,11 @@ provides:
       file: "commands/speckit.clarify.md"
       description: "Level 4 clarify - answers go into the rich delta spec; edge cases become (unassigned) rows; never touches Architecture Decisions / Data Model"
       replaces: "speckit.clarify"
+    - type: "command"
+      name: "speckit.plan"
+      file: "commands/speckit.plan.md"
+      description: "Level 4 plan - plan.md with Test Strategy and Quickstart; ADRs and Data Model go into spec.md; no research/data-model/contracts/quickstart files"
+      replaces: "speckit.plan"
 
 tags:
   - "level4"
