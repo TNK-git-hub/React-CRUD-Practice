@@ -15,7 +15,8 @@ from pathlib import Path
 
 HOOK = Path(__file__).resolve().parent / "allow_paths.py"
 SPEC_WRITER = ["specs/changes/", ".specify/feature.json"]
-IMPLEMENTER = ["src/", "tests/", "specs/changes/", "*", "!specs/changes/*/spec.md"]
+PLANNER = ["specs/changes/", "!specs/changes/*/spec.md"]
+ROOT_FILES = ["*"]  # generic rule: a pattern without "/" only matches files in the repo root
 
 
 class AllowPathsTest(unittest.TestCase):
@@ -63,10 +64,10 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(["src/"], "src")[0], 2)
 
     def test_root_glob_only_matches_root_files(self) -> None:
-        self.assertEqual(self.write(IMPLEMENTER, "package.json")[0], 0)
-        self.assertEqual(self.write(IMPLEMENTER, ".gitignore")[0], 0)
-        self.assertEqual(self.write(IMPLEMENTER, ".claude/CLAUDE.md")[0], 2)
-        self.assertEqual(self.write(IMPLEMENTER, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "package.json")[0], 0)
+        self.assertEqual(self.write(ROOT_FILES, ".gitignore")[0], 0)
+        self.assertEqual(self.write(ROOT_FILES, ".claude/CLAUDE.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/spec.md")[0], 2)
 
     def test_notebook_path(self) -> None:
         payload = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "src/a.ipynb"}}
@@ -79,14 +80,14 @@ class AllowPathsTest(unittest.TestCase):
     # ---- deny -------------------------------------------------------------------
 
     def test_deny_wins(self) -> None:
-        code, err = self.write(IMPLEMENTER, "specs/changes/001-x/spec.md")
+        code, err = self.write(PLANNER, "specs/changes/001-x/spec.md")
         self.assertEqual(code, 2)
         self.assertIn("deny rule", err)
-        self.assertEqual(self.write(IMPLEMENTER, "specs/changes/001-x/tasks.md")[0], 0)
+        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/tasks.md")[0], 0)
 
     def test_deny_glob_does_not_cross_directories(self) -> None:
         # '*' is one path segment: a nested spec.md deeper down is not the change spec
-        self.assertEqual(self.write(IMPLEMENTER, "specs/changes/001-x/contracts/spec.md")[0], 0)
+        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/contracts/spec.md")[0], 0)
 
     def test_dotdot_cannot_escape(self) -> None:
         code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")

@@ -2,8 +2,6 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(npm test *)",
-      "Bash(npm run lint *)",
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(python3 .specify/scripts/next_change.py *)",

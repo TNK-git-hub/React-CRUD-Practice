@@ -1,6 +1,6 @@
 ---
 name: spec-edge-cases
-description: Adds edge-case scenarios with IDs (Given/When/Then, P1–P3, recovery path) to every requirement of the current change by walking each dimension of specs/_system/edge-case-catalog.md against states.md and rules.md; writes them into the change's spec.md and the coverage table checklists/edge-cases.md. Run after /speckit-clarify, before /speckit-checklist edge cases.
+description: Adds edge-case scenarios with IDs (Given/When/Then, P1–P3, recovery path) to every requirement of the current change by walking each dimension of specs/_system/edge-case-catalog.md against states.md and rules.md; writes them into the change's spec.md and the coverage table checklists/edge-cases.md. Run after /speckit-clarify, before the user approves the spec.
 argument-hint: "[change folder, default from .specify/feature.json]"
 license: Apache-2.0
 metadata:
@@ -132,4 +132,4 @@ Any item failing → fix it and check again.
 1. The Summary table (new scenarios per requirement and priority).
 2. Every new `[NEEDS CLARIFICATION]`, numbered, with its scenario ID.
 3. Requirements that contradict `rules.md` / `states.md` (if any).
-4. Next step: `/speckit-checklist edge cases`, then **stop and wait for the user to approve the spec**.
+4. Next step: **stop and wait for the user to approve the spec** (then `/speckit-plan`).

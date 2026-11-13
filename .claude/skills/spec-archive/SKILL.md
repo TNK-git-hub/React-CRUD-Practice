@@ -1,6 +1,6 @@
 ---
 name: spec-archive
-description: Merges a finished change's delta spec into the living specs (specs/capabilities/<domain>/spec.md + history.md) by requirement ID, then moves the change from specs/changes/ to specs/archive/. Stops without writing anything when an ID does not match. Run in the main session after /speckit-converge reports Converged and the test suite is green.
+description: Merges a finished change's delta spec into the living specs (specs/capabilities/<domain>/spec.md + history.md) by requirement ID, then moves the change from specs/changes/ to specs/archive/. Stops without writing anything when an ID does not match. Run in the main session only after the CODE and TEST harnesses are done and the test suite is green.
 argument-hint: "<change, e.g. 001-product-bulk-delete>"
 disable-model-invocation: true
 license: MIT

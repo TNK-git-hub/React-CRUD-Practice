@@ -272,7 +272,8 @@ Tell the user:
 - **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
 - The checklist result.
 - Next steps per `CLAUDE.md`: `__SPECKIT_COMMAND_CLARIFY__` (main session) → `/spec-edge-cases` →
-  `__SPECKIT_COMMAND_CHECKLIST__ edge cases` → stop and wait for spec approval.
+  stop and wait for spec approval → `__SPECKIT_COMMAND_PLAN__` → `__SPECKIT_COMMAND_CHECKLIST__` (`checklists/quality.md`) →
+  `__SPECKIT_COMMAND_TASKS__` → `__SPECKIT_COMMAND_ANALYZE__` → stop and wait for plan + tasks approval → handoff.
 
 ## Done When
 
