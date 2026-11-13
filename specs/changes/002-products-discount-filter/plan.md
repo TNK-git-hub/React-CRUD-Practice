@@ -47,7 +47,7 @@ alone or combined (SC-002, NFR-004 modified)
 - TypeScript `strict: true` for code and tests, as interpreted for change 001 (user decision, 2026-11-12).
 
 **Scale/Scope**: seed data (dummyjson, a few hundred products); 2 requirements (PROD-002 modified, PROD-004 added),
-35 scenarios (PROD-002: 21, PROD-004: 14)
+38 scenarios (PROD-002: 22, PROD-004: 16)
 
 ## Constitution Check
 
@@ -137,7 +137,8 @@ tests/products/
 - Every test name (or description) starts with exactly one scenario ID from spec.md: `PROD-004-S5 rejects a minDiscount other than 10, 20, 30, 50`.
 - Tests live in `tests/products/`; every scenario of spec.md has at least one test (constitution Principle I).
 - PROD-002's carried-over scenarios (S1, S2, S4–S6, S10, S11, S13–S15) keep their tests from change 001; this change
-  adds tests for PROD-002-S16–S26 and PROD-004-S1–S14.
+  adds tests for PROD-002-S16–S27 and PROD-004-S1–S16, and updates the test of PROD-002-S4 (new empty-state
+  description).
 
 ### Test level per scenario type
 
@@ -147,14 +148,14 @@ automated (manual Quickstart, SC-004).
 
 | Scenario type | Level (unit / integration / e2e) | Why / what is real, what is faked |
 | --- | --- | --- |
-| happy | integration (BE) for API scenarios (PROD-004-S2); integration (FE) for UI scenarios (PROD-004-S1, S3, PROD-002-S16, S17) | BE: real filtering in Postgres; FE: real component, URL and labels, fetch mocked |
-| input | integration (BE) for 400s (PROD-004-S5, S7); unit + integration (FE) for URL values (PROD-002-S18) | 400 body comes from the real `ValidationPipe`; URL parsing is pure |
+| happy | integration (BE) for API scenarios (PROD-004-S2); integration (FE) for UI scenarios (PROD-004-S1, S3, PROD-002-S16, S17, S27) | BE: real filtering in Postgres; FE: real component, URL and labels, fetch mocked |
+| input | integration (BE) for 400s (PROD-004-S5, S7, S15); unit + integration (FE) for URL values (PROD-002-S18) | 400 body comes from the real `ValidationPipe`; URL parsing is pure |
 | boundary | integration (BE) (PROD-004-S8) | `numeric(5,2)` comparison only trustworthy on real Postgres |
 | missing | integration (BE) (PROD-004-S6); unit + integration (FE) (PROD-002-S20) | as input |
 | collection | integration (FE) for empty state / page reset / page beyond the last (PROD-002-S21, S22, S26); integration (BE) + (FE) for total and pages (PROD-002-S19) | `total` from real `findAndCount`; UI shows it |
 | state | integration (BE) (PROD-004-S9) | real edit through `PATCH`, real cache invalidation |
 | permission | integration (BE), request with no identity (PROD-004-S10) | constitution II: call the backend directly |
-| concurrency | integration (FE) (PROD-004-S11, PROD-002-S23, S24) | fetch mock resolves out of order; router mock records history |
+| concurrency | integration (FE) (PROD-004-S11, S16, PROD-002-S23, S24) | fetch mock resolves out of order; router mock records history |
 | time | N/A | no time-dependent scenario in this change |
 | dependency | integration (BE) with fake `RedisService` (PROD-004-S12); integration (FE) with fetch → 500 (PROD-004-S13) | Redis down is simulated; Postgres real |
 | resource | N/A | no resource-limit scenario in this change |

@@ -40,7 +40,8 @@
   `ValidationPipe` appear only in text carried over from PROD-002 / nfr.md.
 - "Requirements are testable and unambiguous": the 4 points first marked [NEEDS CLARIFICATION] were settled by
   /speckit-clarify on 2026-11-13 (plus the 400 message); none is left.
-- MODIFIED PROD-002 repeats every existing scenario unchanged under its ID; new scenarios continue at S16.
+- MODIFIED PROD-002 repeats every existing scenario under its ID; new scenarios continue at S16. Only S4's empty-state
+  description changes (changed behavior, quality review 2026-11-13); the change is stated in PROD-002 §Empty result.
 - /spec-edge-cases turned every `_(unassigned)_` row into a scenario; `spec_check.py --stage spec` passes.
 - "Back to page 1" and "invalid `minDiscount` in the URL is ignored" are written in PROD-002's URL table as following
   PROD-002 (capability products, change 001), not as assumptions.

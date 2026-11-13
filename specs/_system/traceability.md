@@ -1,7 +1,8 @@
 # Traceability — React-CRUD-Practice (product management)
 
-The document has no numbering, so items are numbered `REQ-NN` in order of appearance in
-docs/requirements/price-range.md; business rules take their IDs from `capabilities/products/rules.md`.
+The documents have no numbering, so items are numbered `REQ-NN` in order of appearance: REQ-01–REQ-04 in
+docs/requirements/price-range.md, REQ-05 onward in docs/requirements/discount-filter.md; business rules take their IDs
+from `capabilities/products/rules.md`.
 
 | Requirement item | Summary | Type | Owning change | Requirement ID |
 | --- | --- | --- | --- | --- |
@@ -24,6 +25,14 @@ docs/requirements/price-range.md; business rules take their IDs from `capabiliti
 | price-range.md#Ngoài phạm vi | Saving filters between visits | out of scope | out of scope | — |
 | price-range.md#Ngoài phạm vi | Currencies other than USD | out of scope | out of scope | — |
 | user decision, 2026-11-12 | The price conflict `≥ 0` (backend, create-product.dto.ts) / `> 0` (create form, frontend/src/utils/productForm.ts) | out of scope | out of scope | — |
+| REQ-05 (discount-filter.md#What we want) | A viewer chooses a minimum discount: Any, 10%, 20%, 30% or 50% or more | functional | 002-products-discount-filter | |
+| REQ-06 (discount-filter.md#What we want) | Only products whose discount is at least the chosen value are shown | functional | 002-products-discount-filter | |
+| REQ-07 (discount-filter.md#What we want) | The discount filter works with keyword search, price range, sorting and pagination | functional | 002-products-discount-filter | |
+| REQ-08 (discount-filter.md#What we want) | The chosen discount is kept in the URL, so a link or Back restores it | functional | 002-products-discount-filter | |
+| REQ-09 (discount-filter.md#What we want) | Clearing the filters also clears the discount | functional | 002-products-discount-filter | |
+| discount-filter.md#Notes | Products already have a discount percentage (e.g. 12.96) | NFR | existing (domain-model.md, `discountPercentage`), owned by no change | — |
+| discount-filter.md#Notes | No change to how products are created or edited | out of scope | out of scope | — |
+| discount-filter.md#Notes | Sorting by discount | out of scope | out of scope | — |
 
 ## Unassigned
 
