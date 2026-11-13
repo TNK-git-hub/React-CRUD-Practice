@@ -31,7 +31,15 @@ Merged sources: `edge-case-discovery` (openagentskills, MIT), `edge-case-coverag
 `happy` · `input` · `boundary` · `missing` · `collection` · `state` · `permission` · `concurrency` ·
 `time` · `dependency` · `resource` · `data` · `domain`
 
-Example: `ABC-004-S3 (boundary) [P1] — Given … When … Then … → Recovery: …`
+Example (nested format of the delta spec template):
+
+```markdown
+- `ABC-004-S3` (boundary, P1)
+  - **Given** …
+  - **When** …
+  - **Then** … (exact observable result)
+  - → Recovery: …
+```
 
 ---
 

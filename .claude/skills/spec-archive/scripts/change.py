@@ -13,6 +13,12 @@ Operations are matched by requirement ID (never by heading text) and applied in 
 order RENAMED -> MODIFIED -> REMOVED -> ADDED, one domain at a time, following the
 `capabilities` frontmatter of the delta spec.
 
+`sync` also merges the change's "## Non-Functional Requirements" table into
+specs/_system/nfr.md: rows marked ADDED are appended to the table of the nfr.md section named
+in their Category column (the ID must not exist yet), rows marked MODIFIED replace the row
+with that ID (it must exist, in that section), rows marked Applies are ignored. Architecture
+Decisions and the rest of the change's spec.md stay in the change folder and go to the archive.
+
 `archive` moves specs/changes/<change>/ to specs/archive/<change>/ (same name, no date
 prefix). It never overwrites an existing archive folder and refuses to run while the
 capabilities do not reflect the delta (i.e. before `sync`).
@@ -42,6 +48,10 @@ CAP_HEAD_RE = re.compile(rf"^###\s+({REQ_ID}):\s*(.*?)\s*$")
 FIELD_RE = re.compile(r"^\s*-\s+\*\*(From|To|Reason|Migration|Replaced by|Source):\*\*\s*(.*?)\s*$")
 DELTA_WORD_RE = re.compile(r"\b(ADDED|MODIFIED|REMOVED|RENAMED)\b")
 NONE_YET = "_(none yet)_"
+NFR_ID_RE = re.compile(r"^NFR-\d{3}$")
+NFR_CHANGES = ("Applies", "ADDED", "MODIFIED")
+NFR_KEYS = ("ID", "Change", "Category")  # spec-only columns, never copied into nfr.md
+EMPTY_CELLS = ("", "—", "-")
 OP_ORDER = ("RENAMED", "MODIFIED", "REMOVED", "ADDED")
 # history.md lives in specs/capabilities/ too, so it must not carry the delta keywords either.
 HISTORY_WORD = {"RENAMED": "renamed", "MODIFIED": "updated", "REMOVED": "dropped", "ADDED": "new"}
@@ -126,6 +136,20 @@ def trim_blank(lines: list[str]) -> list[str]:
 
 def id_num(req_id: str) -> int:
     return int(req_id.rsplit("-", 1)[1])
+
+
+def split_row(line: str) -> list[str]:
+    """Cells of a Markdown table row; '\\|' is an escaped pipe inside a cell."""
+    inner = line.strip()
+    if inner.startswith("|"):
+        inner = inner[1:]
+    if inner.endswith("|") and not inner.endswith("\\|"):
+        inner = inner[:-1]
+    return [c.strip() for c in re.split(r"(?<!\\)\|", inner)]
+
+
+def is_separator(line: str) -> bool:
+    return bool(re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?", line.strip()))
 
 
 # --------------------------------------------------------------------------- delta parsing
@@ -339,6 +363,181 @@ def check_scenarios(op: DeltaOp, problems: list[str]) -> None:
             problems.append(f"{op.op} {op.req_id}: scenario of another requirement ({rid}) inside its block")
 
 
+# --------------------------------------------------------------------------- NFR
+
+
+@dataclass
+class NfrRow:
+    cells: dict[str, str]  # column name -> value
+    line: int
+
+    @property
+    def nfr_id(self) -> str:
+        return self.cells.get("ID", "").strip("`")
+
+    @property
+    def change(self) -> str:
+        return self.cells.get("Change", "")
+
+    @property
+    def category(self) -> str:
+        return self.cells.get("Category", "")
+
+
+def parse_delta_nfrs(path: Path) -> list[NfrRow]:
+    """Rows of the first table under '## Non-Functional Requirements' (no section → no rows)."""
+    _, _, body = split_frontmatter(read(path))
+    try:
+        start, end = section_bounds(body, "Non-Functional Requirements")
+    except ChangeError:
+        return []
+    mask = comment_mask(body)
+    rows: list[NfrRow] = []
+    header: list[str] | None = None
+    for i in range(start, end):
+        line = body[i]
+        if mask[i] or not line.lstrip().startswith("|"):
+            if header is not None and rows and not line.strip():
+                break  # end of the first table
+            continue
+        if header is None:
+            header = split_row(line)
+            continue
+        if is_separator(line):
+            continue
+        cells = split_row(line)
+        rows.append(NfrRow(dict(zip(header, cells)), i + 1))
+    if header is not None:
+        for key in ("ID", "Change", "Category", "Requirement"):
+            if key not in header:
+                raise ChangeError(f"{path}: Non-Functional Requirements table has no '{key}' column")
+    return rows
+
+
+@dataclass
+class NfrTable:
+    section: str
+    header: list[str]
+    header_line: int  # index in lines
+    rows: dict[str, int]  # NFR ID -> line index
+    last_line: int  # index of the last table line
+
+
+def parse_nfr_doc(text: str) -> tuple[list[str], dict[str, NfrTable], dict[str, str]]:
+    """(lines, section name -> its first table with an 'ID' column, NFR ID -> section)."""
+    lines = text.split("\n")
+    mask = comment_mask(lines)
+    tables: dict[str, NfrTable] = {}
+    where: dict[str, str] = {}
+    section: str | None = None
+    current: NfrTable | None = None
+    for i, line in enumerate(lines):
+        if mask[i]:
+            continue
+        if line.startswith("## "):
+            section, current = line[3:].strip(), None
+            continue
+        if line.startswith("#"):
+            current = None
+            continue
+        if not line.lstrip().startswith("|"):
+            if line.strip():
+                current = None
+            continue
+        if section is None:
+            continue
+        if current is None:
+            header = split_row(line)
+            if header and header[0] == "ID" and section not in tables:
+                current = NfrTable(section, header, i, {}, i)
+                tables[section] = current
+            continue
+        current.last_line = i
+        if is_separator(line):
+            continue
+        nfr_id = split_row(line)[0].strip("`")
+        if NFR_ID_RE.match(nfr_id):
+            current.rows[nfr_id] = i
+    for name, table in tables.items():
+        for nfr_id in table.rows:
+            where[nfr_id] = name
+    # IDs in other tables of the same section are still IDs in use
+    for i, line in enumerate(lines):
+        if not mask[i] and line.lstrip().startswith("|"):
+            first = split_row(line)[0].strip("`")
+            if NFR_ID_RE.match(first):
+                where.setdefault(first, "?")
+    return lines, tables, where
+
+
+def nfr_line(table: NfrTable, row: NfrRow, problems: list[str]) -> str:
+    cols = {k.lower(): v for k, v in row.cells.items()}
+    for key, value in row.cells.items():
+        if key in NFR_KEYS or value in EMPTY_CELLS:
+            continue
+        if key.lower() not in {h.lower() for h in table.header}:
+            problems.append(f"{row.change} {row.nfr_id}: nfr.md section '{table.section}' has no column '{key}'")
+    values = [row.nfr_id if h == "ID" else cols.get(h.lower(), "") for h in table.header]
+    return "| " + " | ".join(values) + " |"
+
+
+def build_nfr(root: Path, change: str, rows: list[NfrRow], problems: list[str]) -> tuple[Path, str | None, list[str]]:
+    """Return (nfr.md path, new text or None when nothing to write, summary)."""
+    path = root / "specs" / "_system" / "nfr.md"
+    seen: set[str] = set()
+    todo: list[NfrRow] = []
+    for row in rows:
+        if not NFR_ID_RE.match(row.nfr_id):
+            problems.append(f"Non-Functional Requirements line {row.line}: bad NFR ID '{row.nfr_id}'")
+            continue
+        if row.nfr_id in seen:
+            problems.append(f"{row.nfr_id} appears twice in the Non-Functional Requirements table")
+        seen.add(row.nfr_id)
+        if row.change not in NFR_CHANGES:
+            problems.append(f"{row.nfr_id}: Change must be one of {', '.join(NFR_CHANGES)}, not '{row.change}'")
+        elif row.change != "Applies":
+            todo.append(row)
+    if not todo:
+        return path, None, []
+    if not path.is_file():
+        problems.append(f"{path.relative_to(root)} not found (needed for {', '.join(r.nfr_id for r in todo)})")
+        return path, None, []
+    lines, tables, where = parse_nfr_doc(read(path))
+    inserts: dict[int, list[str]] = {}
+    summary: list[str] = []
+    for row in todo:
+        table = tables.get(row.category)
+        if table is None:
+            problems.append(f"{row.change} {row.nfr_id}: nfr.md has no section '## {row.category}' with an ID table")
+            continue
+        new = nfr_line(table, row, problems)
+        if row.change == "ADDED":
+            if row.nfr_id in where:
+                problems.append(f"ADDED {row.nfr_id}: already exists in nfr.md")
+                continue
+            inserts.setdefault(table.last_line, []).append(new)
+        else:  # MODIFIED
+            if row.nfr_id not in where:
+                problems.append(f"MODIFIED {row.nfr_id}: not found in nfr.md")
+                continue
+            if where[row.nfr_id] != row.category:
+                problems.append(f"MODIFIED {row.nfr_id}: is in nfr.md section '{where[row.nfr_id]}', not '{row.category}'")
+                continue
+            lines[table.rows[row.nfr_id]] = new
+        summary.append(f"{row.change} {row.nfr_id}")
+    out: list[str] = []
+    for i, line in enumerate(lines):
+        if not (NONE_YET in line and line.lstrip().startswith("|") and i in {t.last_line for t in tables.values()}
+                and inserts.get(i)):
+            out.append(line)
+        out += inserts.get(i, [])
+    text = "\n".join(out)
+    leaked = sorted(set(DELTA_WORD_RE.findall(text)))
+    if leaked:
+        problems.append(f"_system/nfr.md would contain delta keywords: {', '.join(leaked)}")
+    return path, text, summary
+
+
 @dataclass
 class Plan:
     writes: dict[Path, str]
@@ -451,6 +650,16 @@ def build_sync(root: Path, change: str, today: str) -> Plan:
         writes[cap.history_path] = history
         summary[domain] = done
 
+    try:
+        nfr_rows = parse_delta_nfrs(spec)
+    except ChangeError as exc:
+        problems.append(str(exc))
+        nfr_rows = []
+    nfr_path, nfr_text, nfr_done = build_nfr(root, change, nfr_rows, problems)
+    if nfr_text is not None:
+        writes[nfr_path] = nfr_text
+        summary["_system/nfr"] = nfr_done
+
     if problems:
         raise ChangeError("; ".join(problems))
     return Plan(writes, summary)
@@ -499,6 +708,18 @@ def verify_synced(root: Path, change: str) -> None:
             if op.op in ("ADDED", "MODIFIED") and present:
                 if f"- **Source:** change {change}" not in cap.blocks[op.req_id][1]:
                     problems.append(f"{op.req_id} in {domain}/spec.md is not from change {change}")
+    rows = [r for r in parse_delta_nfrs(root / "specs" / "changes" / change / "spec.md") if r.change in ("ADDED", "MODIFIED")]
+    if rows:
+        nfr = root / "specs" / "_system" / "nfr.md"
+        lines, tables, where = parse_nfr_doc(read(nfr)) if nfr.is_file() else ([], {}, {})
+        for row in rows:
+            table = tables.get(row.category)
+            if row.nfr_id not in where or table is None or row.nfr_id not in table.rows:
+                problems.append(f"{row.nfr_id} is not in nfr.md section '{row.category}'")
+                continue
+            current = dict(zip(table.header, split_row(lines[table.rows[row.nfr_id]])))
+            if current.get("Requirement", "") != row.cells.get("Requirement", ""):
+                problems.append(f"{row.nfr_id} in nfr.md does not match the change")
     if problems:
         raise ChangeError("capabilities do not reflect the delta yet (run sync first): " + "; ".join(problems))
 

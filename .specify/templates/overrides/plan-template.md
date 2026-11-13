@@ -1,10 +1,14 @@
 <!--
 Override of the core .specify/templates/plan-template.md (resolved first by resolve-template.sh / setup-plan.sh).
-Differs from the core template in 2 places:
+Differs from the core template in 4 places:
   1. Paths point to the change folder specs/changes/NNN-<name>/ (level 4 delta specs).
-  2. Adds the MANDATORY section "## Test Strategy". The TEST harness reads it (with spec.md and
+  2. A change folder holds only spec.md, plan.md, tasks.md and checklists/: no research.md, data-model.md,
+     contracts/ or quickstart.md. Research decisions are ADRs and the data model is "## Data Model", both in spec.md;
+     interfaces are the requirement details in spec.md.
+  3. Adds the MANDATORY section "## Test Strategy". The TEST harness reads it (with spec.md and
      checklists/edge-cases.md) to write the tests; a plan without a complete Test Strategy is not ready for approval.
      Never invent limits, numbers or environments the project does not have: write [NEEDS CLARIFICATION: …].
+  4. Adds "## Quickstart": how to run the change and see it work end to end.
 Everything is written in English; headings, labels and IDs stay as here; user-facing product text is quoted
 verbatim in the product's language (see .claude/CLAUDE.md, Language).
 -->
@@ -19,7 +23,7 @@ verbatim in the product's language (see .claude/CLAUDE.md, Language).
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+[Extract from the spec: primary requirement + technical approach; cite the ADRs in spec.md (e.g. 001-ADR-1)]
 
 ## Technical Context
 
@@ -49,7 +53,7 @@ verbatim in the product's language (see .claude/CLAUDE.md, Language).
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*GATE: Must pass before Phase 0 (ADRs). Re-check after Phase 1 design.*
 
 [Gates determined based on constitution file]
 
@@ -59,12 +63,9 @@ verbatim in the product's language (see .claude/CLAUDE.md, Language).
 
 ```text
 specs/changes/[NNN-change-name]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-├── checklists/          # edge-cases.md (/spec-edge-cases), quality.md (/speckit-checklist)
+├── spec.md              # Delta spec; /speckit-plan fills "## Architecture Decisions" and "## Data Model"
+├── plan.md              # This file (/speckit-plan command output, incl. Test Strategy and Quickstart)
+├── checklists/          # requirements.md (/speckit-specify), edge-cases.md (/spec-edge-cases), quality.md (/speckit-checklist)
 └── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
 ```
 
@@ -173,6 +174,27 @@ directories captured above]
 - Guard: [where and how the run fails fast, before any write, when the configuration points anywhere but the
   test resources — e.g., global setup aborts unless DB name ends with `_test` and host is local].
 - Clean-up between tests: [e.g., truncate tables / flush cache per test file].
+
+## Quickstart
+
+<!--
+  MANDATORY. How a person runs this change locally and sees it work end to end: prerequisites, setup commands,
+  run commands, then a few steps with the expected result of each (cite scenario IDs). Reference the spec's
+  requirement details and Data Model instead of repeating them. No implementation code, no test code.
+-->
+
+**Prerequisites**: [tools and services, e.g. Docker, Node 20; or NEEDS CLARIFICATION]
+
+**Setup**:
+
+```bash
+[commands from the repo root]
+```
+
+**Check it works**:
+
+1. [action] → [expected result] ([CODE]-[NNN]-S[n])
+2. [action] → [expected result] ([CODE]-[NNN]-S[n])
 
 ## Complexity Tracking
 

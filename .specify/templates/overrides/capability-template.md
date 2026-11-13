@@ -30,9 +30,23 @@ _(none yet)_
 
 The system MUST [behavior].
 
-- **Permissions:** [...]
-- **Scenarios:**
-  - `[CODE]-001-S1` (happy) [P1] — **Given** … **When** … **Then** …
-  - `[CODE]-001-S2` (permission) [P1] — **Given** … **When** … **Then** … → Recovery: …
+**[Aspect, e.g. API].** [details copied from the change: tables, JSON, messages verbatim]
+
+**Permissions:** [...]
+
+**Scenarios:**
+
+- `[CODE]-001-S1` (happy, P1)
+  - **Given** …
+  - **When** …
+  - **Then** …
+- `[CODE]-001-S2` (permission, P1)
+  - **Given** …
+  - **When** … (calls the backend directly)
+  - **Then** …
+  - → Recovery: …
+  - Covers: [OTHER]-[NNN]
 - **Source:** change [NNN-change-name]
+
+The change's NFR rows go to specs/_system/nfr.md; its Architecture Decisions stay in specs/archive/<change>/spec.md.
 -->

@@ -23,7 +23,9 @@ verbatim in the product's language (see .claude/CLAUDE.md, Language).
 
 **Input**: Design documents from `specs/changes/[NNN-change-name]/`
 
-**Prerequisites**: plan.md (required), spec.md (required, approved), research.md, data-model.md, contracts/, quickstart.md
+**Prerequisites**: spec.md (required, approved: requirement details, `## Architecture Decisions`, `## Data Model`),
+plan.md (required: Technical Context, Project Structure, Test Strategy, Quickstart). A change has no research.md,
+data-model.md, contracts/ or quickstart.md.
 
 **Tests**: NONE in this file. The TEST harness writes the tests (one test per scenario, named by scenario ID) from
 spec.md, checklists/edge-cases.md and the test strategy in plan.md. Do not add test tasks.
@@ -37,7 +39,8 @@ spec.md, checklists/edge-cases.md and the test strategy in plan.md. Do not add t
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3); none in Setup, Foundational, Polish
 - **Scenarios**: scenario IDs from spec.md this task makes pass (e.g. `[CODE]-[NNN]-S1, [CODE]-[NNN]-S3`);
   `—` only for tasks that implement no scenario
-- Include exact file paths in descriptions; quote constraints from data-model.md / contracts/ verbatim
+- Include exact file paths in descriptions; quote constraints verbatim from spec.md (requirement details, Data Model)
+  and cite the ADR a task follows (e.g. `001-ADR-1`)
 
 ## Path Conventions
 
@@ -52,9 +55,9 @@ spec.md, checklists/edge-cases.md and the test strategy in plan.md. Do not add t
 
   The /speckit-tasks command MUST replace these with actual tasks based on:
   - Requirements and scenarios from spec.md (with their priorities P1, P2, P3)
-  - Technical decisions from plan.md
-  - Entities from data-model.md
-  - Endpoints / UI contracts from contracts/
+  - Technical decisions: the ADRs in spec.md (`## Architecture Decisions`) and plan.md (stack, structure)
+  - Entities: `## Data Model` in spec.md
+  - Endpoints / UI / messages: the requirement details in spec.md
 
   Tasks MUST be organized by user story so each story can be:
   - Implemented independently
@@ -96,7 +99,7 @@ Examples of foundational tasks (adjust based on your project):
 
 **Goal**: [Brief description of what this story delivers]
 
-**Independent Test**: [How the TEST harness verifies this story on its own: scenario IDs [CODE]-[NNN]-S1…Sn, quickstart step]
+**Independent Test**: [How the TEST harness verifies this story on its own: scenario IDs [CODE]-[NNN]-S1…Sn, Quickstart step of plan.md]
 
 ### Implementation for User Story 1
 
@@ -154,7 +157,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/ — Scenarios: —
 - [ ] TXXX Code cleanup and refactoring — Scenarios: —
 - [ ] TXXX Security hardening — Scenarios: —
-- [ ] TXXX Run quickstart.md validation — Scenarios: —
+- [ ] TXXX Run the Quickstart of plan.md — Scenarios: —
 
 ---
 
