@@ -1,6 +1,27 @@
 {
-  "enabledPlugins": {
-    "commit-commands@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(python3 .specify/scripts/next_change.py *)",
+      "Bash(python .specify/scripts/next_change.py *)",
+      "Bash(python3 .specify/scripts/spec_check.py *)",
+      "Bash(python .specify/scripts/spec_check.py *)",
+      "Bash(bash .specify/scripts/bash/check-prerequisites.sh *)",
+      "Bash(bash .specify/scripts/bash/resolve-template.sh *)",
+      "Bash(bash .specify/scripts/bash/setup-plan.sh *)",
+      "Bash(bash .specify/scripts/bash/setup-tasks.sh *)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh *)",
+      "Bash(.specify/scripts/bash/resolve-template.sh *)",
+      "Bash(.specify/scripts/bash/setup-plan.sh *)",
+      "Bash(.specify/scripts/bash/setup-tasks.sh *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(rm -rf *)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
   }
 }

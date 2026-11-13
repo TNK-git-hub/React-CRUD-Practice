@@ -125,9 +125,20 @@ Fixture.
 
 The system MUST let a stock manager delete one product after confirming.
 
-- **Permissions:** stock manager
-- **Scenarios:**
-  - `PROD-003-S1` (happy) [P1] — **Given** new **When** new **Then** new
+**API.** `DELETE /products/:id` answers:
+
+| Status | When |
+| --- | --- |
+| 204 | deleted |
+
+**Permissions:** stock manager
+
+**Scenarios:**
+
+- `PROD-003-S1` (happy, P1)
+  - **Given** new
+  - **When** new
+  - **Then** new
 
 #### REMOVED PROD-002: List products
 
@@ -138,10 +149,24 @@ The system MUST let a stock manager delete one product after confirming.
 
 The system MUST let a stock manager delete up to 50 products at once.
 
-- **Permissions:** stock manager
-- **Scenarios:**
-  - `PROD-004-S1` (happy) [P1] — **Given** … **When** … **Then** …
-  - `PROD-004-S2` (boundary) [P2] — **Given** … **When** … **Then** … → Recovery: …
+```json
+{ "deleted": 50 }
+```
+
+**Permissions:** stock manager
+
+**Scenarios:**
+
+- `PROD-004-S1` (happy, P1)
+  - **Given** …
+  - **When** …
+  - **Then** …
+- `PROD-004-S2` (boundary, P2)
+  - **Given** …
+  - **When** …
+  - **Then** …
+  - → Recovery: …
+  - Covers: PROD-003
 
 ### users
 
@@ -149,17 +174,85 @@ The system MUST let a stock manager delete up to 50 products at once.
 
 The system MUST let an admin create a staff account.
 
-- **Permissions:** admin
-- **Scenarios:**
-  - `USER-001-S1` (happy) [P1] — **Given** … **When** … **Then** …
+**Permissions:** admin
 
-### Edge Cases (unassigned)
+**Scenarios:**
 
-_(none)_
+- `USER-001-S1` (happy, P1)
+  - **Given** …
+  - **When** …
+  - **Then** …
+
+## Non-Functional Requirements
+
+| ID | Change | Category | Requirement | Number | Source | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-001 | MODIFIED | Performance | List and bulk delete respond fast | ≤ 1 second with 500 products | change 099-archive-test | PROD-004-S1 |
+| NFR-002 | Applies | Performance | (text in the change is ignored) | — | — | Review |
+| NFR-041 | ADDED | User environment | The bulk delete dialog has a visible label | — | change 099-archive-test | PROD-004-S2 |
+
+## Edge Cases & Error Handling
+
+| Situation | Decision | Scenario |
+| --- | --- | --- |
+| 50 products at once | Allowed | PROD-004-S2 |
+
+## Architecture Decisions
+
+### 099-ADR-1: Bulk delete in one transaction
+
+**Status:** Accepted.
+
+## Data Model
+
+No data change: fixture.
+
+## Clarifications
+
+## Assumptions
+
+- fixture
+
+## Traceability
+
+| Requirement | Scenarios |
+| --- | --- |
+| PROD-003 | S1; also PROD-004-S2 (Covers) |
+| PROD-004 | S1–S2 |
+| USER-001 | S1 |
 
 ## Success Criteria
 
 - **SC-001:** fixture
+"""
+
+NFR = """\
+# Non-functional requirements — fixture
+
+## Performance
+
+| ID | Requirement | Number | Source | Verification |
+| --- | --- | --- | --- | --- |
+| NFR-001 | List responds fast | ≤ 1 second | fixture | SC-001 |
+| NFR-002 | Cache lives 30 s | 30 s | fixture | Review |
+
+## Security and permissions
+
+| ID | Requirement | Source | Verification |
+| --- | --- | --- | --- |
+| NFR-010 | Permission checks in the backend | constitution | Review |
+
+### Permission matrix
+
+| Action \\ Role | admin |
+| --- | --- |
+| delete | ✓ |
+
+## User environment
+
+| ID | Requirement | Source | Verification |
+| --- | --- | --- | --- |
+| NFR-040 | Vietnamese UI | fixture | Review |
 """
 
 
@@ -183,6 +276,7 @@ class ChangeTest(unittest.TestCase):
         self.write("specs/capabilities/users/history.md", HISTORY.format(
             d="users", merged="| _(none yet)_ | | |", removed="| _(none yet)_ | | | |"))
         self.write(f"specs/changes/{CHANGE}/spec.md", DELTA)
+        self.write("specs/_system/nfr.md", NFR)
         self.write(f"specs/changes/{CHANGE}/tasks.md", "- [x] T001 done\n")
 
     def tearDown(self) -> None:
@@ -250,7 +344,7 @@ class ChangeTest(unittest.TestCase):
     def test_multi_domain(self) -> None:
         code, out, _ = self.sync()
         self.assertEqual(code, 0)
-        self.assertEqual(set(out["applied"]), {"products", "users"})
+        self.assertEqual(set(out["applied"]), {"products", "users", "_system/nfr"})
         users = self.read("specs/capabilities/users/spec.md")
         self.assertIn("### USER-001: Create staff account", users)
         self.assertNotIn("_(none yet)_", users)
@@ -320,7 +414,7 @@ class ChangeTest(unittest.TestCase):
         self.assert_fails_without_writes("section '### users' is not listed")
 
     def test_scenario_required(self) -> None:
-        self.edit_delta("  - `USER-001-S1` (happy) [P1] — **Given** … **When** … **Then** …\n", "")
+        self.edit_delta("- `USER-001-S1` (happy, P1)\n  - **Given** …\n  - **When** …\n  - **Then** …\n", "")
         self.assert_fails_without_writes("ADDED USER-001: no scenario")
 
     def test_renamed_then_modified(self) -> None:
@@ -359,6 +453,83 @@ class ChangeTest(unittest.TestCase):
         code, _, err = run(self.root, "sync", "--change", "../etc")
         self.assertEqual(code, 1)
         self.assertIn("NNN-<kebab-name>", err)
+
+    # ---- rich delta format ----------------------------------------------------
+
+    def test_requirement_details_go_to_capability(self) -> None:
+        self.assertEqual(self.sync()[0], 0)
+        spec = self.read("specs/capabilities/products/spec.md")
+        self.assertIn("| 204 | deleted |", spec)
+        self.assertIn('{ "deleted": 50 }', spec)
+        self.assertIn("  - Covers: PROD-003", spec)
+        self.assertIn("  - → Recovery: …", spec)
+        for word in ("Non-Functional", "Edge Cases", "099-ADR-1", "Traceability"):
+            self.assertNotIn(word, spec)
+
+    def test_nfr_added_and_modified_merged(self) -> None:
+        code, out, err = self.sync()
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out["applied"]["_system/nfr"], ["MODIFIED NFR-001", "ADDED NFR-041"])
+        nfr = self.read("specs/_system/nfr.md")
+        self.assertIn("| NFR-001 | List and bulk delete respond fast | ≤ 1 second with 500 products | "
+                      "change 099-archive-test | PROD-004-S1 |", nfr)
+        self.assertNotIn("| NFR-001 | List responds fast", nfr)
+        self.assertIn("| NFR-002 | Cache lives 30 s | 30 s | fixture | Review |", nfr)  # Applies: untouched
+        # ADDED goes to the end of its section's ID table; Number column does not exist there
+        self.assertIn("| NFR-040 | Vietnamese UI | fixture | Review |\n"
+                      "| NFR-041 | The bulk delete dialog has a visible label | change 099-archive-test | PROD-004-S2 |", nfr)
+        self.assertIsNone(change.DELTA_WORD_RE.search(nfr))
+
+    def test_nfr_added_existing_stops(self) -> None:
+        self.edit_delta("| NFR-041 | ADDED |", "| NFR-040 | ADDED |")
+        self.assert_fails_without_writes("ADDED NFR-040: already exists in nfr.md")
+
+    def test_nfr_modified_missing_stops(self) -> None:
+        self.edit_delta("| NFR-001 | MODIFIED |", "| NFR-009 | MODIFIED |")
+        self.assert_fails_without_writes("MODIFIED NFR-009: not found in nfr.md")
+
+    def test_nfr_modified_wrong_section_stops(self) -> None:
+        self.edit_delta("| NFR-001 | MODIFIED | Performance |", "| NFR-001 | MODIFIED | User environment |")
+        self.assert_fails_without_writes("is in nfr.md section 'Performance', not 'User environment'")
+
+    def test_nfr_unknown_category_stops(self) -> None:
+        self.edit_delta("| NFR-041 | ADDED | User environment |", "| NFR-041 | ADDED | Usability |")
+        self.assert_fails_without_writes("nfr.md has no section '## Usability'")
+
+    def test_nfr_bad_change_value_stops(self) -> None:
+        self.edit_delta("| NFR-041 | ADDED |", "| NFR-041 | NEW |")
+        self.assert_fails_without_writes("NFR-041: Change must be one of Applies, ADDED, MODIFIED")
+
+    def test_nfr_value_without_column_stops(self) -> None:
+        self.edit_delta("has a visible label | — |", "has a visible label | 3 labels |")
+        self.assert_fails_without_writes("section 'User environment' has no column 'Number'")
+
+    def test_nfr_missing_file_stops(self) -> None:
+        (self.root / "specs/_system/nfr.md").unlink()
+        self.assert_fails_without_writes("specs/_system/nfr.md not found")
+
+    def test_no_nfr_rows_needs_no_nfr_file(self) -> None:
+        self.edit_delta("| NFR-001 | MODIFIED |", "| NFR-001 | Applies |")
+        self.edit_delta("| NFR-041 | ADDED |", "| NFR-040 | Applies |")
+        (self.root / "specs/_system/nfr.md").unlink()
+        code, out, err = self.sync()
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("_system/nfr", out["applied"])
+
+    def test_adr_stays_in_change_and_goes_to_archive(self) -> None:
+        self.sync()
+        self.assertEqual(run(self.root, "archive", "--change", CHANGE)[0], 0)
+        self.assertIn("### 099-ADR-1: Bulk delete in one transaction", self.read(f"specs/archive/{CHANGE}/spec.md"))
+        for p in (self.root / "specs").rglob("*.md"):
+            if "archive" not in p.parts:
+                self.assertNotIn("099-ADR-1", p.read_text(encoding="utf-8"), p)
+
+    def test_archive_refuses_when_nfr_not_synced(self) -> None:
+        self.sync()
+        self.write("specs/_system/nfr.md", NFR)
+        code, _, err = run(self.root, "archive", "--change", CHANGE)
+        self.assertEqual(code, 1)
+        self.assertIn("NFR-001 in nfr.md does not match the change", err)
 
     def test_render_is_stable(self) -> None:
         self.sync()

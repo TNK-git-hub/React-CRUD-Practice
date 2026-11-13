@@ -1,30 +1,30 @@
-# Traceability — React-CRUD-Practice (quản lý sản phẩm)
+# Traceability — React-CRUD-Practice (product management)
 
-Tài liệu không đánh số nên các mục được đánh `REQ-NN` theo thứ tự xuất hiện trong
-docs/requirements/price-range.md; quy tắc nghiệp vụ lấy ID từ `capabilities/products/rules.md`.
+The document has no numbering, so items are numbered `REQ-NN` in order of appearance in
+docs/requirements/price-range.md; business rules take their IDs from `capabilities/products/rules.md`.
 
 | Requirement item | Summary | Type | Owning change | Requirement ID |
 | --- | --- | --- | --- | --- |
-| REQ-01 (price-range.md#Yêu cầu, "Làm gì") | Người xem nhập giá tối thiểu và/hoặc giá tối đa; danh sách chỉ hiện sản phẩm có giá trong khoảng | functional | 001-products-price-range | |
-| REQ-02 (price-range.md#Yêu cầu, "Làm gì") | Bỏ trống một ô thì không giới hạn phía đó | functional | 001-products-price-range | |
-| REQ-03 (price-range.md#Yêu cầu, "Làm gì") | Lọc giá dùng kết hợp được với tìm kiếm, sắp xếp, phân trang hiện có | functional | 001-products-price-range | |
-| REQ-04 (price-range.md#Yêu cầu, "Ràng buộc") | `GET /products` nhận thêm `minPrice`, `maxPrice` | functional | 001-products-price-range | |
-| BR-PROD-01 | Khoảng giá tính cả hai đầu | business rule | 001-products-price-range | |
-| BR-PROD-02 | Một đầu bỏ trống thì không giới hạn phía đó | business rule | 001-products-price-range | |
-| BR-PROD-03 | Giá trị lọc giá không âm; giá 0 hợp lệ | business rule | 001-products-price-range | |
-| BR-PROD-04 | Giá trị lọc giá tối đa 2 chữ số thập phân (cột giá `numeric(10,2)`) | business rule | 001-products-price-range | |
-| BR-PROD-05 | Giá tối thiểu > giá tối đa: UI chặn và báo "Giá tối thiểu không được lớn hơn giá tối đa"; backend trả 400 | business rule | 001-products-price-range | |
-| BR-PROD-06 | Giá trị lọc không vượt quá 99999999.99 | business rule | 001-products-price-range | |
-| BR-PROD-07 | Giá trị lọc không hợp lệ: UI chặn trước và báo lỗi cụ thể; backend trả 400 | business rule | 001-products-price-range | |
-| price-range.md#Bối cảnh | Code hiện tại là nguồn sự thật cho hành vi đã có (Next.js + NestJS + Postgres) | NFR | đã có (NFR-033), không thuộc change nào | — |
-| NFR-004 (quyết định người dùng, 2026-11-12) | Danh sách (kể cả khi lọc giá) phản hồi < 1 giây với dữ liệu seed hiện có | NFR | 001-products-price-range | |
-| NFR-011 (quyết định người dùng, 2026-11-12) | Không kiểm tra quyền là chủ ý; lọc giá là thao tác đọc công khai; ngoại lệ đã biết so với constitution Principle II | NFR | đã có, không thuộc change nào; 001 không thêm kiểm tra quyền | — |
-| NFR-042 (quyết định người dùng, 2026-11-12) | Chrome, Safari, Firefox bản mới trên máy tính | NFR | 001-products-price-range (phần UI lọc giá) | |
-| price-range.md#Ngoài phạm vi | Lọc theo mức giảm giá | out of scope | out of scope | — |
-| price-range.md#Ngoài phạm vi | Lưu bộ lọc giữa các lần truy cập | out of scope | out of scope | — |
-| price-range.md#Ngoài phạm vi | Đơn vị tiền khác USD | out of scope | out of scope | — |
-| quyết định người dùng, 2026-11-12 | Mâu thuẫn giá `≥ 0` (backend, create-product.dto.ts) / `> 0` (form tạo sản phẩm, frontend/src/utils/productForm.ts) | out of scope | out of scope | — |
+| REQ-01 (price-range.md#Yêu cầu, "Làm gì") | A viewer enters a minimum and/or maximum price; the list shows only products priced within the range | functional | 001-products-price-range | PROD-001 |
+| REQ-02 (price-range.md#Yêu cầu, "Làm gì") | An empty input means no bound on that side | functional | 001-products-price-range | PROD-001 |
+| REQ-03 (price-range.md#Yêu cầu, "Làm gì") | The price filter combines with the existing search, sort and pagination | functional | 001-products-price-range | PROD-002 |
+| REQ-04 (price-range.md#Yêu cầu, "Ràng buộc") | `GET /products` also takes `minPrice`, `maxPrice` | functional | 001-products-price-range | PROD-001 |
+| BR-PROD-01 | The price range includes both ends | business rule | 001-products-price-range | PROD-001 |
+| BR-PROD-02 | An empty end means no bound on that side | business rule | 001-products-price-range | PROD-001 |
+| BR-PROD-03 | Price filter values are not negative; 0 is valid | business rule | 001-products-price-range | PROD-003 |
+| BR-PROD-04 | Price filter values have at most 2 decimals (price column `numeric(10,2)`) | business rule | 001-products-price-range | PROD-003 |
+| BR-PROD-05 | Minimum price > maximum price: the UI blocks it with "Giá tối thiểu không được lớn hơn giá tối đa"; the backend returns 400 | business rule | 001-products-price-range | PROD-003 |
+| BR-PROD-06 | Price filter values do not exceed 99999999.99 | business rule | 001-products-price-range | PROD-003 |
+| BR-PROD-07 | Invalid price filter values: the UI blocks them first with a specific error; the backend returns 400 | business rule | 001-products-price-range | PROD-003 |
+| price-range.md#Bối cảnh | The current code is the source of truth for existing behavior (Next.js + NestJS + Postgres) | NFR | existing (NFR-033), owned by no change | — |
+| NFR-004 (user decision, 2026-11-12) | The list (also when filtered by price) responds in < 1 second on the current seed data | NFR | 001-products-price-range | NFR-004 |
+| NFR-011 (user decision, 2026-11-12) | No permission check is intended; filtering by price is a public read; known exception to constitution Principle II | NFR | existing, owned by no change; 001 adds no permission check | — |
+| NFR-042 (user decision, 2026-11-12) | Current Chrome, Safari, Firefox on desktop | NFR | 001-products-price-range (the price filter UI) | NFR-042 |
+| price-range.md#Ngoài phạm vi | Filtering by discount | out of scope | out of scope for 001; requested later as 002-products-discount-filter (docs/requirements/discount-filter.md) | — |
+| price-range.md#Ngoài phạm vi | Saving filters between visits | out of scope | out of scope | — |
+| price-range.md#Ngoài phạm vi | Currencies other than USD | out of scope | out of scope | — |
+| user decision, 2026-11-12 | The price conflict `≥ 0` (backend, create-product.dto.ts) / `> 0` (create form, frontend/src/utils/productForm.ts) | out of scope | out of scope | — |
 
 ## Unassigned
 
-- _(không có)_
+- _(none)_

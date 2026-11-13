@@ -21,6 +21,9 @@ Differs from the core command in 5 places:
   3. Reads specs/_system/* and specs/capabilities/<domain>/ before writing.
   4. Existing requirement → MODIFIED <old ID>; new requirement → ADDED with the domain's next ID.
   5. Fills the frontmatter kind/change/capabilities/primary/status/source.
+  6. Writes the rich delta spec of .specify/templates/overrides/spec-template.md (worked example:
+     docs/examples/products-price-range-spec.md): detailed requirements with nested scenarios, NFR table,
+     Edge Cases & Error Handling table, Traceability; Architecture Decisions and Data Model are left to the plan.
   Also: never invents numbers, limits, permissions or deletion policy (drops the core command's
   3-question limit for these) and never asks the user mid-way — questions are left for /speckit-clarify.
 Edit this file in tools/speckit-level4/ then run `specify preset update speckit-level4 --dev tools/speckit-level4` (`add` refuses an installed preset);
@@ -77,7 +80,7 @@ The text the user typed after `/speckit-specify` in the triggering message **is*
 feature description. Assume you always have it available in this conversation even if `$ARGUMENTS`
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
-This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the spec's prose in Vietnamese and keep its structure (headings, labels, keywords, IDs, frontmatter) in English, as the Language section of `.claude/CLAUDE.md` requires.
+This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the whole spec in English (requirement sentences read "The system MUST …") and keep its structure (headings, labels, keywords, IDs, frontmatter) exactly as in the template, as the Language section of `.claude/CLAUDE.md` requires. If the feature description or a requirement source is in another language, translate it to English. Exception: user-facing text of the product (UI labels, messages, emails) is quoted verbatim in the product's language, in double quotes, so tests can match it exactly.
 This command creates **one** change and writes only to `specs/changes/<change>/` and
 `.specify/feature.json`. It does not modify `specs/capabilities/`, `specs/_system/` or code.
 
@@ -134,9 +137,9 @@ Good input covers 5 points: **who** (role), **what**, **why**, **constraints** (
 
 ### Step 4 — Write the delta spec
 
-Write into `<FEATURE_DIR>/spec.md` following the template exactly; keep the headings
-(`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`) because the core commands look
-them up by name. Delete the template's HTML guide block once filled.
+Write into `<FEATURE_DIR>/spec.md` following the template exactly: same headings, in the same order, same labels.
+Read the worked example `docs/examples/products-price-range-spec.md` first: it is the target level of detail.
+Delete the template's HTML guide block and every per-section guide comment once the section is filled.
 
 **Frontmatter** (all keys required):
 
@@ -151,37 +154,82 @@ source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources
 ---
 ```
 
+**Sections this command fills:**
+
+| Section | What goes in |
+| --- | --- |
+| `## Overview` | `### Context` (what exists, the problem, for whom; brownfield: which existing behaviors change) and `### Goals` (user-visible outcomes) |
+| `## Success Criteria` | `- **SC-NNN:**` bullets, each with a number and how it is measured; no sub-heading |
+| `## Scope` | `### In Scope` and `### Out of Scope` (cite the source of each out-of-scope line) |
+| `## Requirements` | see below |
+| `## Non-Functional Requirements` | see below |
+| `## Edge Cases & Error Handling` | header row only, plus a row per edge case already decided by the input (Scenario `_(unassigned)_`) |
+| `## Architecture Decisions`, `## Data Model` | only the placeholder line the template puts under each heading, unchanged; delete the guide comment. Each placeholder must appear exactly once in the spec (the plan replaces it by Edit) — never copy it anywhere else |
+| `## Clarifications` | leave empty (heading only); `/speckit-clarify` fills it |
+| `## Assumptions` | assumptions in use and where the spec goes wrong if one is false |
+| `## Open Questions` | leave empty (heading only) |
+| `## Traceability` | one row per requirement listing all its scenarios; one row per NFR of the NFR table |
+
 **Requirements** — one `### <domain>` section per domain in `capabilities`, `primary` first:
 
 - Behavior that **already has** a requirement in the capability (same behavior, even under another name) →
   `#### MODIFIED <old ID>: <name>`: rewrite the **whole** requirement and **all** its scenarios as they are after
   the change (spec-archive replaces the whole block). Never create a new requirement with the same meaning.
-- Removing an existing requirement → `#### REMOVED <ID>: <name>` with **Reason** and **Migration**.
-- Rename only → `#### RENAMED <ID>` with **From** / **To**.
+- Removing an existing requirement → `#### REMOVED <ID>: <name>` with `- **Reason:**`, `- **Migration:**`,
+  `- **Replaced by:**`.
+- Rename only → `#### RENAMED <ID>` with `- **From:**` / `- **To:**`.
 - New behavior → `#### ADDED <CODE>-<NNN>: <name>`.
   - `<CODE>` comes from the domain code table. `<NNN>` = the highest number in use for that code + 1, taking
     into account **all of**: requirements in `capabilities/<domain>/spec.md`, IDs in the "Removed IDs" table of
     `history.md`, and `ADDED` IDs in other changes currently in `specs/changes/*/spec.md`.
     A removed ID is **never** reissued. Several new requirements → consecutive numbers.
 - Only use MODIFIED / REMOVED / RENAMED with an ID that **really exists** in the capability; otherwise never invent an ID.
-- Each requirement: one sentence "The system MUST …" about observable behavior, no technology;
-  a **Permissions** line; at least one scenario `<ID>-S1` (happy) [P1] in **Given / When / Then** form.
-  Edge-case scenarios are added by `/spec-edge-cases`; edge cases you think of now go temporarily into
-  `### Edge Cases (unassigned)`.
+- Each ADDED / MODIFIED requirement, in this order:
+  1. One sentence "The system MUST …" about observable behavior.
+  2. **Details** the tests need to be exact, as bold-labelled paragraphs (`**API.**`, `**UI.**`, `**Checks.**`,
+     `**URL state.**` …) with tables, JSON bodies, headers, status / error codes and messages quoted verbatim.
+     No `##` / `###` / `####` heading inside a requirement (the archive script would split it).
+  3. `**Permissions:**` — which roles may do it; which are denied and what they get.
+  4. `**Scenarios:**` — at least one happy scenario, P1, in the nested format:
+
+     ```markdown
+     - `<ID>-S1` (happy, P1)
+       - **Given** <initial state>
+       - **When** <UI steps, or the exact request>
+       - **Then** <exact observable result: status, header, body field, verbatim message, counts, URL>
+     ```
+
+     Error scenarios add `  - → Recovery: <what the user does next; is entered data kept; is a retry safe>` —
+     mandatory for every error scenario at P1 or P2. A scenario that also verifies another requirement adds
+     `  - Covers: <other requirement ID>`. Inside a requirement block, never put another requirement's scenario
+     ID in backticks (write it plain: "see PROD-003-S10").
+  Edge-case scenarios are added by `/spec-edge-cases`; edge cases you think of now go into the
+  `## Edge Cases & Error Handling` table with Scenario `_(unassigned)_`.
 - Rules in `rules.md` and transitions in `states.md` are the reference: a requirement must not contradict them;
   if it does → write `[NEEDS CLARIFICATION]` instead of picking a side.
 
+**Non-Functional Requirements** — one row per NFR of `specs/_system/nfr.md` the change relies on or changes:
+
+```markdown
+| ID | Change | Category | Requirement | Number | Source | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-004 | Applies | Performance | <as in nfr.md> | <as in nfr.md> | <as in nfr.md> | SC-001 |
+| NFR-044 | ADDED | User environment | <new requirement> | — | change <CHANGE_NAME> | <scenario IDs / test / review> |
+```
+
+- `Change`: `Applies` (relied on, unchanged), `ADDED` (next free NFR number of that section's range), `MODIFIED`
+  (existing ID; write the full new row). spec-archive copies ADDED / MODIFIED rows into `nfr.md`.
+- `Category` is exactly the `## ` section name in `nfr.md` that holds (or will hold) the row.
+- `Number` is `—` when the requirement has no number; a needed number that is unknown → `[NEEDS CLARIFICATION]`.
+
 **Never invent** (hard rule of this repo, overrides the core command's "make informed guesses" guidance):
 
-- Numbers, limits (maximum count, length, duration), permissions (which roles may / are denied) and the data
-  deletion policy come **only** from the input, `specs/_system/*` or `capabilities/*`. Not there → write
-  `[NEEDS CLARIFICATION: <specific question>]` on that very line. **No limit on the number** of such markers.
+- Numbers, limits (maximum count, length, duration), permissions (which roles may / are denied), messages shown to
+  users and the data deletion policy come **only** from the input, `specs/_system/*` or `capabilities/*`. Not there →
+  write `[NEEDS CLARIFICATION: <specific question>]` on that very line. **No limit on the number** of such markers.
 - Deletion: follow the "Data and deletion policy" table in `nfr.md`; that cell still `[NEEDS CLARIFICATION]`
   or missing → write `[NEEDS CLARIFICATION]` in the spec, never choose soft or hard delete.
-- Other details (layout, message wording…) may use reasonable defaults, recorded under **Assumptions**.
-
-**Success Criteria**: measurable, with numbers taken from the input / `nfr.md`; no number → `[NEEDS CLARIFICATION]`.
-**Out of Scope**: from the input; input silent → one line `[NEEDS CLARIFICATION: what is out of scope?]`.
+- Other details (layout…) may use reasonable defaults, recorded under **Assumptions**.
 
 ### Step 5 — Quality self-check
 
@@ -203,18 +251,22 @@ Create `<FEATURE_DIR>/checklists/requirements.md`:
 ## Delta Format
 
 - [ ] Frontmatter has kind: delta, change, capabilities, primary, status, source
+- [ ] All template headings present, in template order; Architecture Decisions / Data Model left to the plan
 - [ ] Every domain in `capabilities` has a `### <domain>` section, and vice versa
 - [ ] Every MODIFIED / REMOVED / RENAMED ID exists in the capability spec
 - [ ] No ADDED requirement duplicates an existing requirement
 - [ ] ADDED IDs are the next free numbers of the domain (incl. history.md and other open changes)
-- [ ] Every requirement has a Permissions line and at least one Given/When/Then scenario with an ID
+- [ ] Every requirement has details, a Permissions line and at least one nested Given/When/Then scenario `<ID>` (type, Pn)
+- [ ] Every error scenario at P1/P2 has → Recovery
+- [ ] Every NFR row has Change Applies / ADDED / MODIFIED and a Category that is a section of nfr.md
+- [ ] Traceability lists every scenario and every NFR row
 
 ## Requirement Completeness
 
 - [ ] No invented numbers, limits, permissions or deletion policy (each is sourced or [NEEDS CLARIFICATION])
 - [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable and technology-agnostic
-- [ ] Scope is clearly bounded (Out of Scope filled or marked)
+- [ ] Scope is clearly bounded (In Scope and Out of Scope filled or marked)
 - [ ] Assumptions listed
 
 ## Notes
@@ -273,12 +325,13 @@ Tell the user:
 - **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
 - The checklist result.
 - Next steps per `CLAUDE.md`: `/speckit-clarify` (main session) → `/spec-edge-cases` →
-  `/speckit-checklist edge cases` → stop and wait for spec approval.
+  stop and wait for spec approval → `/speckit-plan` → `/speckit-checklist` (`checklists/quality.md`) →
+  `/speckit-tasks` → `/speckit-analyze` → stop and wait for plan + tasks approval → handoff.
 
 ## Done When
 
 - [ ] Branch `<CHANGE_NAME>` created; `.specify/feature.json` points to `specs/changes/<CHANGE_NAME>`
-- [ ] `spec.md` follows the delta template, frontmatter complete, IDs follow the conventions, no invented numbers / permissions
+- [ ] `spec.md` follows the delta template (worked example: `docs/examples/products-price-range-spec.md`), frontmatter complete, IDs follow the conventions, no invented numbers / permissions
 - [ ] `checklists/requirements.md` reviewed
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Reported as described in Completion Report

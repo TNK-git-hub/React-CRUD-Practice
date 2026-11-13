@@ -9,7 +9,7 @@ IDs in the "Removed IDs" table are NEVER reissued.
 
 | Change | Date | Change in this domain |
 | --- | --- | --- |
-| _(none yet)_ | | |
+| 001-products-price-range | 2026-11-13 | new PROD-001; new PROD-002; new PROD-003 |
 
 ## Removed IDs
 

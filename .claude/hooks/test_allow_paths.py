@@ -15,7 +15,9 @@ from pathlib import Path
 
 HOOK = Path(__file__).resolve().parent / "allow_paths.py"
 SPEC_WRITER = ["specs/changes/", ".specify/feature.json"]
-IMPLEMENTER = ["src/", "tests/", "specs/changes/", "*", "!specs/changes/*/spec.md"]
+PLANNER = ["specs/changes/", "!specs/changes/*/spec.md"]
+ROOT_FILES = ["*"]
+PLANNER_SECTION = ["specs/changes/", "edit-section:specs/changes/*/spec.md:## Architecture Decisions:## Clarifications"]  # generic rule: a pattern without "/" only matches files in the repo root
 
 
 class AllowPathsTest(unittest.TestCase):
@@ -63,10 +65,10 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(["src/"], "src")[0], 2)
 
     def test_root_glob_only_matches_root_files(self) -> None:
-        self.assertEqual(self.write(IMPLEMENTER, "package.json")[0], 0)
-        self.assertEqual(self.write(IMPLEMENTER, ".gitignore")[0], 0)
-        self.assertEqual(self.write(IMPLEMENTER, ".claude/CLAUDE.md")[0], 2)
-        self.assertEqual(self.write(IMPLEMENTER, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "package.json")[0], 0)
+        self.assertEqual(self.write(ROOT_FILES, ".gitignore")[0], 0)
+        self.assertEqual(self.write(ROOT_FILES, ".claude/CLAUDE.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/spec.md")[0], 2)
 
     def test_notebook_path(self) -> None:
         payload = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "src/a.ipynb"}}
@@ -79,14 +81,14 @@ class AllowPathsTest(unittest.TestCase):
     # ---- deny -------------------------------------------------------------------
 
     def test_deny_wins(self) -> None:
-        code, err = self.write(IMPLEMENTER, "specs/changes/001-x/spec.md")
+        code, err = self.write(PLANNER, "specs/changes/001-x/spec.md")
         self.assertEqual(code, 2)
         self.assertIn("deny rule", err)
-        self.assertEqual(self.write(IMPLEMENTER, "specs/changes/001-x/tasks.md")[0], 0)
+        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/tasks.md")[0], 0)
 
     def test_deny_glob_does_not_cross_directories(self) -> None:
         # '*' is one path segment: a nested spec.md deeper down is not the change spec
-        self.assertEqual(self.write(IMPLEMENTER, "specs/changes/001-x/contracts/spec.md")[0], 0)
+        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/checklists/spec.md")[0], 0)
 
     def test_dotdot_cannot_escape(self) -> None:
         code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")
@@ -105,6 +107,58 @@ class AllowPathsTest(unittest.TestCase):
         except (OSError, NotImplementedError):
             self.skipTest("symlinks not available")
         self.assertEqual(self.write(SPEC_WRITER, "specs/changes/link/products/spec.md")[0], 2)
+
+    # ---- edit-section (planner: spec.md only between two headings) ----------------
+
+    SPEC = (
+        "---\nkind: delta\n---\n\n# Change 001\n\n## Requirements\n\nThe system MUST filter.\n\n"
+        "## Architecture Decisions\n\n_(Architecture Decisions: filled by /speckit-plan)_\n\n"
+        "## Data Model\n\n_(Data Model: filled by /speckit-plan)_\n\n"
+        "## Clarifications\n\n- Q: x → A: y\n"
+    )
+
+    def edit(self, rules: list[str], old: str, new: str, tool: str = "Edit") -> tuple[int, str]:
+        spec = self.root / "specs/changes/001-x/spec.md"
+        spec.write_text(self.SPEC, encoding="utf-8")
+        tool_input = {"file_path": str(spec)}
+        if tool == "MultiEdit":
+            tool_input["edits"] = [{"old_string": old, "new_string": new}]
+        else:
+            tool_input.update({"old_string": old, "new_string": new})
+        return self.run_hook(rules, {"tool_name": tool, "cwd": str(self.root), "tool_input": tool_input})
+
+    def test_section_edit_inside_allowed(self) -> None:
+        code, err = self.edit(PLANNER_SECTION, "_(Architecture Decisions: filled by /speckit-plan)_",
+                              "### 001-ADR-1: Parse prices\n\n**Status:** Accepted.")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.edit(PLANNER_SECTION, "_(Data Model: filled by /speckit-plan)_",
+                                   "No data change: the filter reads products.price.")[0], 0)
+        self.assertEqual(self.edit(PLANNER_SECTION, "_(Data Model: filled by /speckit-plan)_", "x", "MultiEdit")[0], 0)
+
+    def test_section_edit_outside_blocked(self) -> None:
+        code, err = self.edit(PLANNER_SECTION, "The system MUST filter.", "The system MUST sort.")
+        self.assertEqual(code, 2)
+        self.assertIn("not entirely between", err)
+        # touching a boundary heading is outside the section too
+        self.assertEqual(self.edit(PLANNER_SECTION, "## Clarifications", "## Notes")[0], 2)
+        self.assertEqual(self.edit(PLANNER_SECTION, "- Q: x → A: y", "- Q: x → A: z")[0], 2)
+
+    def test_section_edit_cannot_add_top_level_heading(self) -> None:
+        code, err = self.edit(PLANNER_SECTION, "_(Data Model: filled by /speckit-plan)_", "x\n\n## Requirements\n")
+        self.assertEqual(code, 2)
+        self.assertIn("heading", err)
+
+    def test_section_write_blocked(self) -> None:
+        code, err = self.write(PLANNER_SECTION, "specs/changes/001-x/spec.md")
+        self.assertEqual(code, 2)
+        self.assertIn("only be changed with Edit", err)
+
+    def test_section_rule_leaves_other_files_to_plain_rules(self) -> None:
+        self.assertEqual(self.write(PLANNER_SECTION, "specs/changes/001-x/plan.md")[0], 0)
+        self.assertEqual(self.write(PLANNER_SECTION, "specs/capabilities/products/spec.md")[0], 2)
+
+    def test_bad_section_rule_fails_closed(self) -> None:
+        self.assertEqual(self.write(["edit-section:specs/changes/*/spec.md:## A"], "specs/changes/001-x/spec.md")[0], 2)
 
     # ---- fail closed ------------------------------------------------------------
 

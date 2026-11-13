@@ -1,17 +1,25 @@
-# Change roadmap — React-CRUD-Practice (quản lý sản phẩm)
+# Change roadmap — React-CRUD-Practice (product management)
 
 | Change | Goal (what the user sees) | Domain | Source | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| 001-products-price-range | Người xem nhập giá tối thiểu và/hoặc giá tối đa; danh sách chỉ còn sản phẩm có giá trong khoảng (tính cả hai đầu), dùng kết hợp được với tìm kiếm, sắp xếp, phân trang | products | REQ-01–REQ-04; BR-PROD-01–BR-PROD-07; NFR-004, NFR-042 | — | planned |
+| 001-products-price-range | A viewer enters a minimum and/or maximum price; the list shows only products priced within the range (both ends inclusive), combined with search, sort and pagination | products | REQ-01–REQ-04; BR-PROD-01–BR-PROD-07; NFR-004, NFR-042 | — | archived |
+| 002-products-discount-filter | A viewer chooses a minimum discount; the list shows only products discounted at least that much, combined with search, price range, sort and pagination | products | docs/requirements/discount-filter.md | 001 | planned |
 
 ## Ordering notes
 
-- Brownfield: app đang chạy, nên không có walking skeleton; roadmap chỉ gồm thay đổi mới, hành vi đã có không được spec lại.
-- Repo chưa có framework test lẫn workflow CI (không có file test, không có `.github/workflows/`). Constitution (Principle I, IV) bắt buộc mỗi scenario có test và type checking chạy trong CI, nên `plan.md` của 001 phải thêm test runner và CI cho phần nó đụng tới, dùng stack đã có (NFR-033), không chọn stack mới.
-- Spec của 001 ghi vào `Out of Scope`: mâu thuẫn giá `≥ 0` (backend) / `> 0` (form tạo sản phẩm) không sửa trong change này.
-- Lọc giá là thao tác đọc công khai, không kiểm tra quyền — ngoại lệ đã biết so với constitution Principle II (nfr.md, NFR-011).
-- Bộ lọc giá mới phải nằm trong khoá cache danh sách (NFR-001) và query key của TanStack Query (frontend/src/api/queryKeys.ts), nếu không sẽ trả kết quả của bộ lọc khác.
+- 001 is specified and archived for the trial; its code is not implemented on this branch.
+- 002 modifies PROD-002 (combining the filters, URL state, clearing the filters), which 001 added.
+- Brownfield: the app is running, so there is no walking skeleton; the roadmap holds only new changes, existing
+  behavior is not specified again.
+- The repo has no test framework and no CI workflow (no test files, no `.github/workflows/`). The constitution
+  (Principles I, IV) requires a test for every scenario and type checking in CI, so the `plan.md` of 001 must add a
+  test runner and CI for the parts it touches, with the existing stack (NFR-033), not a new one.
+- 001's spec puts in Out of Scope: the price conflict `≥ 0` (backend) / `> 0` (create form) is not fixed in that change.
+- Filtering by price is a public read with no permission check — a known exception to constitution Principle II
+  (nfr.md, NFR-011).
+- A new price filter must be part of the list cache key (NFR-001) and the TanStack Query key
+  (frontend/src/api/queryKeys.ts), otherwise the result of another filter is returned.
 
 ## Open questions
 
-- _(không có)_
+- _(none)_
