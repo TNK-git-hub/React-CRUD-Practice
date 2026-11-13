@@ -24,6 +24,7 @@ When there is an app: put the requirement documents in `docs/requirements/`, run
 .specify/
   memory/constitution.md    project principles
   templates/overrides/      customised templates (spec-template.md = delta template, capability-template.md = living spec template,
+                            plan-template.md = adds mandatory ## Test Strategy,
                             tasks-template.md = no test tasks, every task lists its scenario IDs)
   presets/                  installed presets (speckit-level4)
   scripts/                  next_change.py, spec_check.py + Spec Kit core scripts
@@ -61,8 +62,9 @@ Two kinds of `spec.md`, told apart by location:
 2. `/speckit-clarify` → always run in the main session (a subagent cannot ask the user).
 3. `/spec-edge-cases` → walks `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`; writes `checklists/edge-cases.md`.
 4. **STOP — wait for the user to approve the spec.**
-5. `/speckit-plan` → `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`; `plan.md` states the test
-   strategy for the TEST harness (framework from **Testing** in Technical Context, where tests live, scenario → test mapping).
+5. `/speckit-plan` → `plan.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`. `plan.md` follows
+   `.specify/templates/overrides/plan-template.md` and MUST fill in `## Test Strategy` (runner and commands, environment,
+   naming, test level per scenario type, data safety).
 6. `/speckit-checklist` → `checklists/quality.md`. The default checklist name is `quality.md`; never write to
    `checklists/edge-cases.md` (it belongs to `/spec-edge-cases`).
 7. `/speckit-tasks` → `tasks.md` from `.specify/templates/overrides/tasks-template.md`: no test tasks, every task lists
@@ -71,6 +73,8 @@ Two kinds of `spec.md`, told apart by location:
 9. **STOP — wait for the user to approve plan and tasks.**
 10. **HANDOFF** (see "Handoff"): commit the change folder on branch `NNN-<name>`. Do not open the PR yet:
     `spec-check` fails until the change is archived.
+
+Do not use `specify workflow run speckit`: the core workflow still has an implement step.
 
 After the handoff (other harnesses, not this one): CODE harness → TEST harness → `/spec-archive <change>` in the
 main session (merges into `capabilities/`, moves the change to `archive/`) → PR into `new-project` →
@@ -84,7 +88,7 @@ The SPEC harness ends at step 10. What each downstream harness reads from `specs
 | Harness | Reads |
 | --- | --- |
 | CODE | `tasks.md`, `plan.md`, `data-model.md`, `contracts/`, `quickstart.md` |
-| TEST | `spec.md`, `checklists/edge-cases.md`, the test strategy section of `plan.md` |
+| TEST | `spec.md`, `checklists/edge-cases.md`, the `## Test Strategy` section of `plan.md` |
 
 Neither downstream harness edits `spec.md`; a spec problem found downstream comes back to this harness as a new
 clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesses are done.

@@ -28,7 +28,10 @@ Rules:
   tasks.md, checklists/). You may NOT edit the change's `spec.md`: a hook blocks it. If the spec is wrong or
   incomplete, stop and report what is wrong — never adjust the spec to fit the plan.
 - The first change of an app chooses the stack in `plan.md` and must name the strictest type-checking mode
-  (constitution, Principle IV). `plan.md` states the test strategy the TEST harness will follow.
+  (constitution, Principle IV). `plan.md` follows
+  `.specify/templates/overrides/plan-template.md` and fills in every subsection of `## Test Strategy` (runner and
+  commands, environment, naming, test level per scenario type, data safety with a guard against dev data);
+  unknowns are `[NEEDS CLARIFICATION]`. The TEST harness reads that section.
 - `tasks.md` follows `.specify/templates/overrides/tasks-template.md`: no test tasks, every task ends with
   `Scenarios: <ID,…>`, and every scenario of `spec.md` belongs to at least one task (Scenario Coverage table).
 - You cannot ask the user anything: return open questions to the main session.
