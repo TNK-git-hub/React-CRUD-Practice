@@ -1,0 +1,8 @@
+# docs/requirements/ — TÀI LIỆU YÊU CẦU GỐC (BA, khách hàng) (lấy theo khung spec harness của nhánh new-project)
+#
+# Đầu vào của /spec-bootstrap và trường `source:` trong frontmatter của mỗi delta spec.
+#
+# docs/requirements/
+# └── <topic>.md                  vd. price-range.md: yêu cầu viết bằng lời, có thể đánh mã REQ-xx / BR-xx
+#
+# Spec harness đọc từ đây; agent CODE/TEST không đọc trực tiếp mà đọc spec đã sinh trong specs/.

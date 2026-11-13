@@ -1,0 +1,14 @@
+# specs/capabilities/ — LIVING SPEC: hệ thống ĐANG làm gì (lấy theo khung spec harness của nhánh new-project)
+#
+# Mỗi domain một thư mục, tên khớp bảng mã domain (Code | Domain) trong CLAUDE.md. /spec-bootstrap tạo các
+# thư mục này; sau đó chỉ /spec-archive được sửa. Không bao giờ chứa chữ ADDED/MODIFIED/REMOVED/RENAMED.
+#
+# specs/capabilities/
+# └── <domain>/                  vd. products/
+#     ├── spec.md                 các requirement <CODE>-<NNN> hiện hành kèm scenario <CODE>-<NNN>-S<n>
+#     │                           (lúc bootstrap chỉ có Overview, Requirements = "_(none yet)_")
+#     ├── states.md               vòng đời / trạng thái của từng entity trong domain
+#     ├── rules.md                luật nghiệp vụ, mã BR-<CODE>-NN, có nguồn
+#     └── history.md              "Merged changes" (change · ngày · ID) và "Removed IDs" (ID đã xoá, không cấp lại)
+#
+# Agent CODE/TEST chỉ đọc thư mục này để hiểu hành vi hiện có; không sửa.
