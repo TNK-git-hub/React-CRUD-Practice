@@ -126,7 +126,8 @@ Being set up following a 7-day roadmap. If a skill or file mentioned above does 
 
 This harness deliberately has no `speckit-implement`, `speckit-converge` or `speckit-taskstoissues` skill and no
 `implementer` agent. Upgrading Spec Kit (`specify init` / `specify integration` …) can regenerate those skills: delete
-them again (and their entries in `.specify/integrations/claude.manifest.json`) after every upgrade.
+them again (and their entries in `.specify/integrations/claude.manifest.json`) after every upgrade, then run
+`specify preset update speckit-level4 --dev tools/speckit-level4` again so the manifest matches.
 
 ## Machine setup
 

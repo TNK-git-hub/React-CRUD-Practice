@@ -410,6 +410,19 @@ class SpecCheckTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("NFR-001 is defined 2 times", out)
 
+    def test_plan_placeholder_once_is_fine_and_filled_is_fine(self) -> None:
+        self.assertEqual(self.spec_stage()[0], 0)
+        filled = DELTA.replace("_(Architecture Decisions: filled by /speckit-plan)_", "### 002-ADR-1: Search index")
+        self.assertEqual(self.spec_stage(filled)[0], 0)
+
+    def test_plan_placeholder_twice(self) -> None:
+        twice = DELTA.replace("## Clarifications\n",
+                              "<!-- keep _(Data Model: filled by /speckit-plan)_ here -->\n\n## Clarifications\n")
+        code, out = self.spec_stage(twice)
+        self.assertEqual(code, 1)
+        self.assertIn("placeholder '_(Data Model: filled by /speckit-plan)_' appears 2 times", out)
+        self.assertNotIn("Architecture Decisions: filled by /speckit-plan)_' appears", out)
+
     def test_delta_keyword_in_nfr_md(self) -> None:
         self.open_change()
         self.write("specs/_system/nfr.md", NFR.replace("Vietnamese UI", "ADDED Vietnamese UI"))

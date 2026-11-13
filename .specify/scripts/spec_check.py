@@ -9,7 +9,8 @@
      Given / When / Then, NFR table with Change Applies / ADDED / MODIFIED
   2. IDs are unique: requirement IDs in specs/capabilities/, removed IDs never reused, ADDED requirement and
      NFR IDs not already in use (nor added by two open changes), scenario IDs unique, NFR IDs in nfr.md unique
-  3. no "(unassigned)" left in an open change
+  3. no "(unassigned)" left in an open change; each plan placeholder line, while still there, appears exactly
+     once in the file (the planner replaces it by Edit, which needs a unique match)
   4. every scenario of an open change, and every NFR row, is listed in its "## Traceability"
   5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED) in specs/capabilities/ or specs/_system/nfr.md
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
@@ -45,6 +46,10 @@ SECTIONS = (
     "Open Questions", "Traceability",
 )
 STAGES = ("spec", "archive")
+PLAN_PLACEHOLDERS = (
+    "_(Architecture Decisions: filled by /speckit-plan)_",
+    "_(Data Model: filled by /speckit-plan)_",
+)
 
 
 def default_root() -> Path:
@@ -230,6 +235,7 @@ class ChangeSpec:
         self.name = path.parent.name
         self.loc = rel(root, path)
         raw = path.read_text(encoding="utf-8")
+        self.raw = raw
         self.meta: dict[str, str] = {}
         body = raw
         if raw.startswith("---\n"):
@@ -372,6 +378,12 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
     for i, line in enumerate(ch.lines):
         if UNASSIGNED_RE.search(line):
             errors.append(f"{ch.at(i)}: '(unassigned)' left — run /spec-edge-cases")
+
+    # plan placeholders: absent (filled) or exactly once, counted in the raw file incl. comments
+    for placeholder in PLAN_PLACEHOLDERS:
+        count = ch.raw.count(placeholder)
+        if count > 1:
+            errors.append(f"{ch.loc}: placeholder '{placeholder}' appears {count} times; it must appear exactly once")
 
     # Traceability
     if "Traceability" in ch.sections:

@@ -164,8 +164,7 @@ source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources
 | `## Requirements` | see below |
 | `## Non-Functional Requirements` | see below |
 | `## Edge Cases & Error Handling` | header row only, plus a row per edge case already decided by the input (Scenario `_(unassigned)_`) |
-| `## Architecture Decisions` | only the line `_(Architecture Decisions: filled by /speckit-plan)_` |
-| `## Data Model` | only the line `_(Data Model: filled by /speckit-plan)_` |
+| `## Architecture Decisions`, `## Data Model` | only the placeholder line the template puts under each heading, unchanged; delete the guide comment. Each placeholder must appear exactly once in the spec (the plan replaces it by Edit) — never copy it anywhere else |
 | `## Clarifications` | leave empty (heading only); `__SPECKIT_COMMAND_CLARIFY__` fills it |
 | `## Assumptions` | assumptions in use and where the spec goes wrong if one is false |
 | `## Open Questions` | leave empty (heading only) |
@@ -258,6 +257,7 @@ Create `<FEATURE_DIR>/checklists/requirements.md`:
 - [ ] No ADDED requirement duplicates an existing requirement
 - [ ] ADDED IDs are the next free numbers of the domain (incl. history.md and other open changes)
 - [ ] Every requirement has details, a Permissions line and at least one nested Given/When/Then scenario `<ID>` (type, Pn)
+- [ ] Every error scenario at P1/P2 has → Recovery
 - [ ] Every NFR row has Change Applies / ADDED / MODIFIED and a Category that is a section of nfr.md
 - [ ] Traceability lists every scenario and every NFR row
 
