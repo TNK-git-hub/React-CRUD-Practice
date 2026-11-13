@@ -9,65 +9,231 @@ source: ["[docs/requirements/<file>#<section>]", "roadmap [NNN]"]
 
 <!--
 INSTRUCTIONS FOR THE AGENT (delete this block once filled in)
-- This is the DELTA SPEC of one change, not a living spec. It describes what this change ADDS / MODIFIES / REMOVES.
-- Before writing: read specs/_system/* and specs/capabilities/<domain>/ of every related domain.
-  Requirement already exists in the capability → use MODIFIED <old ID>; never create a duplicate requirement.
-- New requirement ID = the next number of that domain (see the capability spec.md and history.md; removed IDs are never reused).
-- Each requirement: one sentence "The system MUST …" describing observable behavior, NO technology.
-- Each requirement has at least 1 happy scenario; edge-case scenarios are added by /spec-edge-cases.
-- Never invent numbers, limits or permissions: write [NEEDS CLARIFICATION: question].
-- Keep the section headings (Overview, Requirements, Success Criteria, Assumptions):
-  the Spec Kit core commands (clarify, analyze, checklist, plan) look them up by name.
+
+This is the DELTA SPEC of one change: everything the change adds / modifies / removes, at full detail.
+Worked example: docs/examples/products-price-range-spec.md. Write it in English; quote user-facing product text
+(UI labels, messages, emails) verbatim in the product's language, in double quotes.
+
+Who fills which section:
+
+| Section                         | Filled by                                                        |
+| ------------------------------- | ---------------------------------------------------------------- |
+| frontmatter, Overview           | /speckit-specify                                                 |
+| Success Criteria, Scope         | /speckit-specify (sharpened by /speckit-clarify)                 |
+| Requirements                    | /speckit-specify: statement, details, Permissions, happy scenarios |
+|                                 | /spec-edge-cases: every other scenario                           |
+| Non-Functional Requirements     | /speckit-specify                                                 |
+| Edge Cases & Error Handling     | /speckit-clarify adds rows (Scenario "_(unassigned)_");          |
+|                                 | /spec-edge-cases fills the Scenario column and adds rows         |
+| Architecture Decisions          | /speckit-plan                                                    |
+| Data Model                      | /speckit-plan (only when the change alters stored data)          |
+| Clarifications, Open Questions  | /speckit-clarify                                                 |
+| Assumptions                     | /speckit-specify, /speckit-clarify                               |
+| Traceability                    | /speckit-specify, updated by /spec-edge-cases                    |
+
+Parsed by scripts — keep EXACTLY (change.py merges Requirements into specs/capabilities/<domain>/spec.md):
+- frontmatter keys kind, change, capabilities, primary, status, source.
+- "## Requirements" → "### <domain>" (one per entry in capabilities) → "#### ADDED|MODIFIED|REMOVED|RENAMED <CODE>-<NNN>: <name>".
+- Scenario IDs in backticks: `<CODE>-<NNN>-S<n>`. Inside a requirement block never put another requirement's
+  scenario ID in backticks (write it plain, e.g. "see PROD-003-S10"); use "Covers:" for cross-checks.
+- No "##", "###" or "####" heading inside a requirement: use bold paragraph labels ("**API.**", "**UI.**").
+- REMOVED / RENAMED fields are bullets: "- **Reason:**", "- **Migration:**", "- **Replaced by:**", "- **From:**", "- **To:**".
+- The whole requirement block (statement, details, Permissions, Scenarios) is copied into the capability spec:
+  never write ADDED / MODIFIED / REMOVED / RENAMED inside it.
+Kept by name for core Spec Kit commands: Overview, Requirements, Success Criteria, Assumptions, Clarifications, Out of Scope.
+
+Never invent numbers, limits, messages or permissions: write [NEEDS CLARIFICATION: question].
 -->
 
 # Change [NNN]: [Change name]
 
 ## Overview
 
-[2–4 sentences: what problem this change solves, for whom, why it is needed. No technology.]
+<!-- /speckit-specify. No technology here. -->
+
+### Context
+
+[What exists today, what problem this change solves, for whom. Brownfield: say which existing behaviors change.]
+
+### Goals
+
+- **[Goal]:** [one line, user-visible outcome]
+
+## Success Criteria
+
+<!-- /speckit-specify. Each criterion is measurable: a number from the input or specs/_system/nfr.md, and how it is
+     measured. No number → [NEEDS CLARIFICATION]. -->
+
+- **SC-001:** [measurable outcome with a number; how it is measured]
+
+## Scope
+
+<!-- /speckit-specify. Out of Scope cites its source (requirement document, roadmap, NFR) when there is one;
+     input silent → one line [NEEDS CLARIFICATION: what is out of scope?]. -->
+
+### In Scope
+
+- [what this change delivers]
+
+### Out of Scope
+
+- [what this change deliberately does NOT do] ([source])
 
 ## Requirements
+
+<!--
+/speckit-specify writes each requirement: the "The system MUST …" statement, the details, Permissions and at least
+one happy scenario. /spec-edge-cases adds the other scenarios (walking specs/_system/edge-case-catalog.md).
+Existing requirement in the capability → MODIFIED <old ID>, never a duplicate. New ID = next free number of the domain
+(capability spec.md + history.md; removed IDs are never reused).
+
+Details: anything the tests need to be exact — tables (parameters, checks in order, messages), JSON bodies, headers,
+status / error codes, URL state. Message text is quoted verbatim.
+
+Scenario format:
+- one bullet per scenario: `<ID>` (<type>, <P1|P2|P3>); type from the catalog's "Scenario types";
+- nested bullets **Given** / **When** / **Then**; Then states exact observable values: status code, header, body field,
+  verbatim message, counts, URL;
+- "→ Recovery:" for every error scenario (what the user does next; is entered data kept; does a retry duplicate);
+- "Covers: <other requirement ID>" when the scenario also verifies another requirement.
+A shared fixture may be stated once, before the first scenario.
+-->
 
 ### [domain]
 
 #### ADDED [CODE]-[NNN]: [Requirement name]
 
-The system MUST [observable behavior].
+The system MUST [observable behavior, one sentence].
 
-- **Permissions:** [which roles may do it; which roles are denied]
-- **Scenarios:**
-  - `[CODE]-[NNN]-S1` (happy) [P1] — **Given** [initial state] **When** [action] **Then** [observable result]
+**[Aspect, e.g. API].** [Detail the tests need:]
+
+| [Column] | [Column] | [Column] |
+| --- | --- | --- |
+| [value] | [value] | [value] |
+
+```json
+{ "[field]": "[value]" }
+```
+
+**[Aspect, e.g. UI].** [Labels, messages verbatim in double quotes, where they appear, URL state.]
+
+**Permissions:** [which roles may do it; which roles are denied, and what they get]
+
+**Scenarios:**
+
+[Fixture for scenarios unless stated: …]
+
+- `[CODE]-[NNN]-S1` (happy, P1)
+  - **Given** [initial state]
+  - **When** [action: UI steps, or the exact request]
+  - **Then** [exact observable result]
+- `[CODE]-[NNN]-S2` ([type], P2)
+  - **Given** [initial state]
+  - **When** [action]
+  - **Then** [exact observable result, e.g. HTTP 400; `message` contains "[verbatim]"]
+  - → Recovery: [what the user does next; data kept; retry safe?]
+  - Covers: [OTHER-CODE]-[NNN]
 
 #### MODIFIED [CODE]-[NNN]: [Existing requirement name]
 
-[Rewrite the WHOLE requirement and ALL its scenarios as they are after the change — spec-archive replaces the whole block.]
+[Rewrite the WHOLE requirement as it is after the change — statement, details, Permissions and ALL scenarios
+(existing ones keep their IDs). spec-archive replaces the whole block.]
 
 #### REMOVED [CODE]-[NNN]: [Existing requirement name]
 
 - **Reason:** [why it is removed]
 - **Migration:** [how existing data / users are handled]
+- **Replaced by:** [new ID or —]
 
 #### RENAMED [CODE]-[NNN]
 
 - **From:** [old name]
 - **To:** [new name]
 
-### Edge Cases (unassigned)
+## Non-Functional Requirements
 
-<!-- Scratch space for /speckit-clarify. /spec-edge-cases turns each line into a scenario with an ID, then deletes the line here. -->
+<!-- /speckit-specify. One row per NFR of specs/_system/nfr.md this change relies on or changes.
+     Change: Applies (unchanged, relied on) | ADDED (next free NFR ID) | MODIFIED (existing ID, full new text).
+     Category = the nfr.md section. Verification: scenario ID, SC-xxx, test or review. -->
 
-- [description of an edge case not yet assigned to a requirement]
+| ID | Change | Category | Requirement | Verification |
+| --- | --- | --- | --- | --- |
+| NFR-[NNN] | Applies | [Performance] | [requirement as in nfr.md] | [SC-001 / scenario ID / review] |
+| NFR-[NNN] | ADDED | [Category] | [new requirement, with its number] | [how it is checked] |
 
-## Success Criteria
+## Edge Cases & Error Handling
 
-### Measurable Outcomes
+<!-- /speckit-clarify adds a row per edge case it settles, Scenario "_(unassigned)_".
+     /spec-edge-cases turns each unassigned row into a scenario and adds a row per scenario it writes.
+     No row may stay "_(unassigned)_" when the spec is approved. -->
 
-- **SC-001:** [measurable outcome with a number; e.g. "a user creates an item in ≤ 3 steps"]
+| Situation | Decision | Scenario |
+| --- | --- | --- |
+| [situation] | [what the system does] | [CODE]-[NNN]-S[n] |
+
+**Fallback mode.** [Only when a dependency can fail: what the system does while it is down (degraded behavior,
+messages, recovery), with scenario IDs. Otherwise delete this paragraph.]
+
+## Architecture Decisions
+
+<!-- /speckit-plan. One ADR per decision a reviewer must approve. Leave "_(filled by /speckit-plan)_" until then. -->
+
+### [NNN]-ADR-1: [Decision title]
+
+**Status:** [Proposed | Accepted | Superseded by [NNN]-ADR-[n]].
+
+**Context.** [Forces: which requirements / NFRs drive it, what the current code does.]
+
+**Options:**
+
+| Option | How | [Criterion] | [Criterion] |
+| --- | --- | --- | --- |
+| [option] | [one line] | [value] | [value] |
+
+**Decision.** [The chosen option, concretely.]
+
+**Rationale.** [Why it wins against the criteria above.]
+
+**Trade-offs.** [What gets worse, and which scenario / NFR guards it.]
+
+## Data Model
+
+<!-- /speckit-plan. Only when the change alters stored data: entities, fields (type, required, constraints quoted
+     verbatim), migrations, deletion per specs/_system/nfr.md. Otherwise one line: "No data change: …". -->
+
+[Entity / table changes, or "No data change: [why]".]
+
+## Clarifications
+
+<!-- /speckit-clarify appends one session per run. -->
+
+### Session [YYYY-MM-DD]
+
+- Q: [question] → A: [answer]
 
 ## Assumptions
 
-- [assumption in use; where the spec goes wrong if it is false]
+<!-- Assumptions in use; say where the spec goes wrong if one is false. -->
 
-## Out of Scope
+- [assumption]
 
-- [what this change deliberately does NOT do]
+## Open Questions
+
+<!-- Only questions that do NOT block this change, each with a provisional direction the reviewer approved.
+     A blocking question is a [NEEDS CLARIFICATION] in the section it affects, never here. -->
+
+1. **[Topic].** [Question.] Provisional direction: [what this change does meanwhile]. Approved by: [who, date].
+   Does not block this change.
+
+## Traceability
+
+<!-- /speckit-specify, updated by /spec-edge-cases. Every requirement lists all its scenarios, plus scenarios of
+     other requirements that cover it ("Covers"). Every NFR row of the table above appears here. -->
+
+| Requirement | Scenarios |
+| --- | --- |
+| [CODE]-[NNN] | S1–S[n]; also [OTHER]-[NNN]-S[n] (Covers) |
+
+| NFR | Verified by |
+| --- | --- |
+| NFR-[NNN] | [SC-001 / scenario ID / review] |
