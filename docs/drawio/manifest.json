@@ -7,7 +7,6 @@
         "docker-compose*.yml",
         "*/Dockerfile",
         "frontend/nginx.conf",
-        "infra/terraform/*",
         "backend/src/main.ts",
         "backend/src/app.module.ts",
         "backend/src/seed.ts",
@@ -110,12 +109,6 @@
     "frontend/src/utils/genPageArray.js": "4c422bfc7908",
     "frontend/src/utils/getPreviousPrice.js": "8eb262362292",
     "frontend/src/utils/productForm.js": "e695ff98f5f6",
-    "infra/terraform/main.tf": "29d80106e785",
-    "infra/terraform/outputs.tf": "a86903f780b2",
-    "infra/terraform/terraform.tfvars.example": "1d8b268f7890",
-    "infra/terraform/user_data.sh.tftpl": "7334664f39d8",
-    "infra/terraform/variables.tf": "8bd72c9bfc27",
-    "infra/terraform/versions.tf": "84515ad725e2",
     "package.json": "2653f4c65c72"
   }
 }

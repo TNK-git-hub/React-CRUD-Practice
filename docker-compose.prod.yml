@@ -1,6 +1,6 @@
 # Chạy toàn bộ app trên server (EC2):
 #   docker compose -f docker-compose.prod.yml up -d --build
-# Biến lấy từ file .env ở root repo (user_data của Terraform tự tạo file này).
+# Biến lấy từ file .env ở root repo, tự tạo trên server (tối thiểu DB_PASSWORD). Xem docs/deploy-ec2.md.
 services:
   postgres:
     image: postgres:16
@@ -59,8 +59,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        # .env cũ trên EC2 (Terraform tạo) vẫn ghi VITE_API_URL -> dùng làm fallback
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-${VITE_API_URL:-}}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     restart: unless-stopped
 
   # nginx: cổng duy nhất mở ra ngoài. /api/* -> backend, còn lại -> frontend

@@ -14,10 +14,9 @@
 
     { "id": "arch.prod", "label": "Production: AWS (docker-compose.prod.yml)", "x": 640, "y": 60, "w": 620, "h": 480, "style": "zone" },
     { "id": "arch.prod.user", "label": "Internet user", "x": 670, "y": 100, "w": 170, "h": 50, "style": "external" },
-    { "id": "arch.prod.tf", "label": "Terraform (infra/terraform)\nsecurity group :80 · :22\nIAM role (SSM) · key pair\nrandom DB password · budget alert", "x": 1040, "y": 90, "w": 200, "h": 100, "style": "infra" },
     { "id": "arch.prod.ec2", "label": "EC2 instance", "x": 660, "y": 210, "w": 580, "h": 310, "style": "zone" },
     { "id": "arch.prod.web", "label": "web: nginx :80\nserves React build (VITE_API_URL=/api)\n/api/* → backend:3000 (strips /api)\n/assets/* cached 1y · other paths → index.html", "x": 680, "y": 240, "w": 300, "h": 100, "style": "page" },
-    { "id": "arch.prod.boot", "label": "user_data on first boot:\nswap · docker · git clone\nwrite .env · compose up --build", "x": 1020, "y": 240, "w": 200, "h": 90, "style": "note" },
+    { "id": "arch.prod.boot", "label": "Manual setup (docs/deploy-ec2.md):\nswap · docker · git clone\nwrite .env · compose up --build", "x": 1020, "y": 240, "w": 200, "h": 90, "style": "note" },
     { "id": "arch.prod.be", "label": "backend: NestJS :3000\n(internal network only)", "x": 680, "y": 410, "w": 300, "h": 60, "style": "backend" },
     { "id": "arch.prod.pg", "label": "postgres:16\nno public port · healthcheck\nvolume pgdata", "x": 1020, "y": 390, "w": 200, "h": 100, "style": "db" }
   ],
@@ -31,7 +30,6 @@
     { "id": "arch.e.seed-pg", "from": "arch.dev.seed", "to": "arch.dev.pg", "label": "save products + tags" },
 
     { "id": "arch.e.user-web", "from": "arch.prod.user", "to": "arch.prod.web", "label": "HTTP :80" },
-    { "id": "arch.e.tf-ec2", "from": "arch.prod.tf", "to": "arch.prod.boot", "label": "creates EC2" },
     { "id": "arch.e.web-be", "from": "arch.prod.web", "to": "arch.prod.be", "label": "/api proxy" },
     { "id": "arch.e.be-pg", "from": "arch.prod.be", "to": "arch.prod.pg", "label": "depends_on: healthy" }
   ]

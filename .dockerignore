@@ -3,6 +3,5 @@
 **/.env
 **/.env.*
 .git
-infra
 *.md
 **/.next

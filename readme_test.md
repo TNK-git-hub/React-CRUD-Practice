@@ -36,7 +36,7 @@ Do `.claude/hooks/guard.mjs` quyết định, dựa trên trường `agent_type`
 | Harness: `.claude/`, `CLAUDE.md`, `package.json`, `pnpm-*.yaml`, `vitest/stryker.config.*`, `.github/`, `ci/`, `k8s/` (trừ `k8s/agents/tasks/`) | ❓ hỏi | ❓ hỏi | ❌ | ❌ |
 | `k8s/agents/tasks/` (file task cho agent trong pod) | ✅ | ❌ | ❌ | ❌ |
 | `.env*` | ❌ | ❌ | ❌ | ❌ |
-| Còn lại (`docs/`, `README.md`, `infra/`…) | ✅ | ❌ | ❌ | ❌ |
+| Còn lại (`docs/`, `README.md`…) | ✅ | ❌ | ❌ | ❌ |
 
 Đọc: mọi agent đọc được hết, trừ `test/private` và `.env`.
 
