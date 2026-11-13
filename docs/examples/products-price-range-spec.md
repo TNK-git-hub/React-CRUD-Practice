@@ -335,15 +335,15 @@ keeps its previous results.
 
 ## Non-Functional Requirements
 
-| ID | Change | Category | Requirement | Verification |
-| --- | --- | --- | --- | --- |
-| NFR-001 | MODIFIED | Performance | `GET /products` results are cached in Redis per set of query parameters (`q`, `limit`, `skip`, `sortBy`, `order`, `minPrice`, `maxPrice`), live at most 30 seconds, and every list cache is invalidated by create / edit / delete | PROD-001-S14 |
-| NFR-004 | Applies | Performance | The product list responds in < 1 s on the current seed data, also when filtered by price | SC-001 |
-| NFR-011 | Applies | Security and permissions | No login; no endpoint checks identity or permissions — known exception to constitution Principle II | PROD-001-S8 |
-| NFR-031 | Applies | Availability and operations | Redis fails open: when it is down, every read goes straight to Postgres | PROD-001-S11 |
-| NFR-041 | Applies | User environment | Currency is USD (UI shows `$`); other currencies are out of scope | Review |
-| NFR-042 | Applies | User environment | Supported browsers: current Chrome, Safari, Firefox on desktop | SC-004 manual check |
-| NFR-044 | ADDED | User environment | Each price input has a visible label, and its error message is linked to it by `aria-describedby` | Accessibility assertions in the tests of PROD-003-S2, S6, S7, S9, S16 |
+| ID | Change | Category | Requirement | Number | Source | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-001 | MODIFIED | Performance | `GET /products` results are cached in Redis per set of query parameters (`q`, `limit`, `skip`, `sortBy`, `order`, `minPrice`, `maxPrice`); create / edit / delete invalidates every list cache | lives at most 30 seconds | backend/src/products/products.service.ts; change 001-products-price-range | PROD-001-S14 |
+| NFR-004 | Applies | Performance | The product list responds, also when filtered by price | < 1 second on the current seed data (backend/src/seed.ts) | user decision, 2026-11-12 | SC-001 |
+| NFR-011 | Applies | Security and permissions | No login; no endpoint checks identity or permissions — known exception to constitution Principle II | — | docs/requirements/price-range.md; backend/src/products/products.controller.ts | PROD-001-S8 |
+| NFR-031 | Applies | Availability and operations | Redis fails open: when it is down, every read goes straight to Postgres | — | docker-compose.prod.yml; backend/src/redis/cache.service.ts | PROD-001-S11 |
+| NFR-041 | Applies | User environment | Currency is USD (UI shows `$`); other currencies are out of scope | — | docs/requirements/price-range.md; user decision, 2026-11-12 | Review |
+| NFR-042 | Applies | User environment | Supported browsers: current Chrome, Safari, Firefox on desktop | — | user decision, 2026-11-12 | SC-004 manual check |
+| NFR-044 | ADDED | User environment | Each price input has a visible label, and its error message is linked to it by `aria-describedby` | — | change 001-products-price-range (clarify, 2026-11-12) | Accessibility assertions in the tests of PROD-003-S2, S6, S7, S9, S16 |
 
 ## Edge Cases & Error Handling
 

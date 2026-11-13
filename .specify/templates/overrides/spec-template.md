@@ -153,13 +153,16 @@ The system MUST [observable behavior, one sentence].
 ## Non-Functional Requirements
 
 <!-- /speckit-specify. One row per NFR of specs/_system/nfr.md this change relies on or changes.
-     Change: Applies (unchanged, relied on) | ADDED (next free NFR ID) | MODIFIED (existing ID, full new text).
-     Category = the nfr.md section. Verification: scenario ID, SC-xxx, test or review. -->
+     Columns = the columns of nfr.md (ID, Requirement, Number, Source, Verification) + Change + Category.
+     Change: Applies (unchanged, relied on; ignored by spec-archive) | ADDED (next free NFR ID, must not exist yet) |
+     MODIFIED (existing ID, full new row). spec-archive copies ADDED / MODIFIED rows into specs/_system/nfr.md.
+     Category = exactly the "## " section name of nfr.md that holds the row. Number "—" when there is none.
+     Verification: scenario ID, SC-xxx, test or review. -->
 
-| ID | Change | Category | Requirement | Verification |
-| --- | --- | --- | --- | --- |
-| NFR-[NNN] | Applies | [Performance] | [requirement as in nfr.md] | [SC-001 / scenario ID / review] |
-| NFR-[NNN] | ADDED | [Category] | [new requirement, with its number] | [how it is checked] |
+| ID | Change | Category | Requirement | Number | Source | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-[NNN] | Applies | [Performance] | [requirement as in nfr.md] | [number as in nfr.md] | [source as in nfr.md] | [SC-001 / scenario ID / review] |
+| NFR-[NNN] | ADDED | [section of nfr.md] | [new requirement] | [number or —] | [source] | [how it is checked] |
 
 ## Edge Cases & Error Handling
 
