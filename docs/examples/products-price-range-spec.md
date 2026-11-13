@@ -42,7 +42,8 @@ yet, and two of their behaviors change (see Assumptions).
   with a manual filter of the seed data.
 - **SC-003:** 100% of invalid price ranges are blocked in the UI before sending, and 100% of invalid requests sent
   straight to the server are rejected.
-- **SC-004:** The price filter works as specified in the current stable Chrome, Edge, Firefox and Safari on desktop.
+- **SC-004:** The price filter works as specified in the current stable Chrome, Firefox and Safari on desktop
+  (NFR-042).
 
 ## Scope
 
@@ -481,14 +482,18 @@ existing `products.price` column (`numeric(10,2)`, USD).
   requirements because the old behavior has no requirement in `specs/capabilities/products/spec.md` yet.
 - Loading keeps the current behavior: the previous list stays visible while new results load.
 - Layout: the two inputs use the existing responsive layout of the search bar.
-- SC-004 names Chrome, Edge, Firefox and Safari; in the trial only the browsers available on the machine are checked by
-  hand.
+- SC-004 names Chrome, Firefox and Safari (NFR-042); in the trial only the browsers available on the machine are
+  checked by hand.
 
 ## Open Questions
 
 1. **Price 0 in the create / edit form.** The server accepts a price `≥ 0` but the create form requires `> 0`.
    Provisional direction: the filter accepts 0 (BR-PROD-03); the form is left as is and settled in a later change
    (roadmap). Approved by: the user, 2026-11-12. Does not block this change.
+2. **Typo in the existing list-load error title.** The app shows "Không tải dược danh sách sản phẩm" ("dược" instead of
+   "được"; `frontend/src/views/ProductList.tsx:104`, `frontend/src/views/ProductDetail.tsx:26`). Should it be fixed?
+   Provisional direction: this change quotes the text exactly as the code shows it, so PROD-001-S12 matches the
+   current UI; a fix belongs to a later change. Approved by: the user, 2026-11-13. Does not block this change.
 
 ## Traceability
 
