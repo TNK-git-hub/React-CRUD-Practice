@@ -60,3 +60,7 @@ k8s/agents/logs/
 # File task do Claude tổng viết khi dispatch (chỉ giữ file mẫu)
 k8s/agents/tasks/*
 !k8s/agents/tasks/EXAMPLE.md
+
+# Python cache của script spec harness (.specify/scripts, .claude/hooks)
+__pycache__/
+*.pyc

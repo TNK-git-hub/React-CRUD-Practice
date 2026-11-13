@@ -23,7 +23,17 @@
       "Bash(gh run view:*)",
       "Bash(gh run list:*)",
       "Bash(kubectl get:*)",
-      "Bash(kubectl logs:*)"
+      "Bash(kubectl logs:*)",
+      "Bash(python3 .specify/scripts/next_change.py:*)",
+      "Bash(python3 .specify/scripts/spec_check.py:*)",
+      "Bash(bash .specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(bash .specify/scripts/bash/resolve-template.sh:*)",
+      "Bash(bash .specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(bash .specify/scripts/bash/setup-tasks.sh:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(.specify/scripts/bash/resolve-template.sh:*)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(.specify/scripts/bash/setup-tasks.sh:*)"
     ],
     "deny": [
       "Read(./.env)",

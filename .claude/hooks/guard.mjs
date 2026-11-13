@@ -3,6 +3,7 @@
 //   session chính (không có agent_type) -> điều phối: không sửa src/ hay test/
 //   code-writer  -> chỉ sửa backend/src, frontend/src, frontend/public
 //   test-writer  -> chỉ sửa <package>/test/public, frontend/test/e2e
+//   spec-writer, planner -> chỉ sửa specs/changes/, .specify/feature.json (spec harness)
 //   agent khác   -> không ghi gì
 // Không ai được đọc <package>/test/private và .env.
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
@@ -42,6 +43,7 @@ const PRIVATE = /(^|\/)test\/private(\/|$)/;
 const TEST_ANY = /(^|\/)test(\/|$)/;
 const TEST_WRITABLE = /^((backend|frontend)\/test\/public|frontend\/test\/e2e)(\/|$)/;
 const SRC = /^(backend\/src|frontend\/src|frontend\/public)(\/|$)/;
+const SPEC_WRITABLE = /^(specs\/changes\/|\.specify\/feature\.json$)/;
 // k8s/agents/tasks/ không phải harness: Claude tổng viết file task ở đó (skill dispatch-agents)
 const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/;
 
@@ -66,6 +68,9 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
     if (agent === "main" || agent === "code-writer") ask(`${who} muốn sửa file harness ${r}.`);
     block(`${who} không được sửa file harness ${r}.`);
   }
+  // Spec harness (từ nhánh new-project): spec-writer / planner chỉ ghi spec của change đang làm.
+  // Hook allow_paths.py trong frontmatter của chúng siết thêm (vd planner chỉ được Edit vài mục của spec.md).
+  if ((agent === "spec-writer" || agent === "planner") && SPEC_WRITABLE.test(r)) allow();
   if (agent === "main") allow();
   block(`${who} không được sửa ${r} (ngoài phạm vi của agent này).`);
 }
