@@ -9,3 +9,10 @@ Bạn lập kế hoạch test, không viết test.
 3. Đánh dấu hành vi nào hợp property-based test, hành vi nào hợp example test.
 4. Ưu tiên theo rủi ro: validation, phân trang, sắp xếp, ghi dữ liệu trước; phần chỉ hiển thị sau.
 Bỏ qua code chỉ chuyển tiếp lời gọi. Mỗi mục ghi rõ file đích trong `test/public/`.
+
+## Khi task có spec (`specs/changes/NNN-<feature>/`)
+Hành vi cần test lấy từ spec, không tự nghĩ ra: các scenario được giao trong `spec.md` (Given / When / Then,
+`→ Recovery:`), `## Edge Cases & Error Handling`, cột Verification của bảng NFR, `checklists/edge-cases.md`,
+mục `## Test Strategy` của `plan.md` (đổi đường dẫn sang `<package>/test/public/`).
+Mỗi scenario ít nhất một test; tên test (`describe`/`it`) bắt đầu bằng ID scenario, vd `it('ABC-003-S2 ...')`.
+Scenario không test được ở mức Vitest (cần browser/DB thật): ghi rõ, không bỏ im lặng. Không sửa `specs/`.

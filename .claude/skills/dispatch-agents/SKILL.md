@@ -19,6 +19,13 @@ Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.
 - Mỗi task chỉ sửa **một nhóm file riêng**. Hai task không được sửa cùng file (PR sẽ conflict). Không tách được thì gộp thành một task.
 - Task phải tự đủ: agent trong pod không thấy cuộc hội thoại này.
 
+## 1b. Có spec từ spec harness (`specs/changes/NNN-<feature>/`)
+- Không viết lại spec vào file task: dùng `--change NNN-<feature>` (và `--tasks T00x,...` để chọn task trong `tasks.md`).
+  `run.sh` tự nối mục `## Spec` (task được giao, scenario ID, file mỗi vai phải đọc) vào task của mọi agent.
+- Chia việc theo task ID của `tasks.md`: các task `[P]` chạm file khác nhau mới được dispatch song song.
+- File task có thể là `-` (sinh tự động) hoặc file viết tay chỉ thêm ràng buộc (Files you may change, Out of scope).
+- Không sửa `specs/`. PR có mục "Spec problems" thì báo người dùng để quay lại spec harness, không tự sửa spec.
+
 ## 2. Viết file task
 Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, gồm:
 - **Goal**: hành vi cần có, nói bằng kết quả quan sát được.

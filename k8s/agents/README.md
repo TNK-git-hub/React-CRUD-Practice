@@ -5,7 +5,8 @@ mỗi lần giao là một file markdown, truyền vào lúc chạy.
 
 ```
 Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) → tasks/<id>.md
-  → dispatch.sh <id> tasks/<id>.md --title "..." [--mode full|code-only]   (chạy song song được)
+  → dispatch.sh <id> tasks/<id>.md|- --title "..." [--mode full|code-only] [--change NNN-<feature> [--tasks T001,...]]
+                                                       (chạy song song được; --change: làm theo spec, xem "Làm theo spec")
       pod: clone level-3 → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
         1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
         2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
@@ -33,6 +34,8 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
 | Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
+| Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
+| Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
 
 Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/SKILL.md`.
 
@@ -72,6 +75,23 @@ bash k8s/agents/dispatch.sh search-btn-yellow k8s/agents/tasks/EXAMPLE.md --titl
 bash k8s/agents/dispatch.sh search-btn-yellow k8s/agents/tasks/EXAMPLE.md --title "Make the Search button yellow"
 bash k8s/agents/watch-pr.sh <pr-number>
 ```
+
+### Làm theo spec (`--change`)
+Spec do spec harness (nhánh `new-project`) viết, đặt ở `specs/changes/NNN-<feature>/` (cấu trúc: `specs/changes/.gitkeep`).
+```bash
+# task sinh từ spec ("-"), chỉ làm T002 và T003 của tasks.md
+bash k8s/agents/dispatch.sh price-range-be - --title "Add price range filter" \
+  --change 001-products-price-range --tasks T002,T003 --base refine-test-code-ci-cd --dry-run
+# hoặc file task viết tay + mục "## Spec" do run.sh nối thêm
+bash k8s/agents/dispatch.sh price-range-be k8s/agents/tasks/price-range-be.md --title "..." --change 001-products-price-range
+```
+- `dispatch.sh` nén cả `specs/` ở máy này (trừ `archive/`) vào ConfigMap `task-<id>`: spec **chưa commit vẫn dùng được**.
+  Trong pod, file nào đã có trên base branch thì giữ bản trên branch; file chưa commit được thêm vào `.git/info/exclude`
+  nên không lọt vào PR.
+- `run.sh` nối vào task mục `## Spec`: đường dẫn change, các dòng task được giao, danh sách scenario ID, file nào vai CODE
+  đọc (`spec.md` requirement + ADR + Data Model, `plan.md`, `tasks.md`) và vai TEST đọc (scenario, Edge Cases, NFR
+  Verification, `checklists/edge-cases.md`, `## Test Strategy`). Mọi agent, cả trọng tài, đều nhận mục này.
+- Agent gặp spec sai/thiếu ghi `SPEC_PROBLEM: ...`; các dòng này được gom vào mục "Spec" của PR để quay lại spec harness.
 
 ## Ghi chú
 - Mỗi lần chạy (và mỗi vòng sửa CI) tính vào giới hạn gói Claude subscription.

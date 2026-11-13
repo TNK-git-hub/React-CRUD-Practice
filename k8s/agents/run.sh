@@ -13,6 +13,12 @@
 #   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
 # MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
 #
+# Spec (tùy chọn, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): task được nối thêm mục "## Spec" trỏ tới
+# specs/changes/<change>/ (cấu trúc của spec harness nhánh new-project, xem specs/changes/.gitkeep). Agent CODE đọc
+# spec.md + plan.md + tasks.md, agent TEST đọc scenario + edge case + Test Strategy. Thêm 2 gate:
+#   - không ai được sửa specs/ (checksum, kể cả file spec chưa commit được gửi qua ConfigMap)
+#   - mỗi scenario ID của các task được giao phải có test mang tên bắt đầu bằng ID đó (chặn duyệt ở REVIEW)
+#
 # Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
 # agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
 # Dòng cuối log luôn là "==> RESULT: SUCCESS pr=<url>" hoặc "==> RESULT: FAILED reason=<lý do>".
@@ -86,10 +92,17 @@ run_agent() {
 # File đã đổi so với một SHA (cả file mới chưa track, cả file bị xoá)
 changed_since() { { git diff --no-renames --name-only "$1"; git ls-files --others --exclude-standard; } | sort -u; }
 
+# Checksum toàn bộ specs/ (cả file đã commit lẫn file spec gửi qua ConfigMap, bị git bỏ qua)
+spec_sum() { find specs -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'; }
+
 # assert_only <sha> <regex> <vai>: mọi file đổi kể từ <sha> phải khớp <regex>
 assert_only() {
   local sha="$1" re="$2" who="$3" bad
   git merge-base --is-ancestor "$sha" HEAD || fail "${who}: git history was rewritten (commit ${sha:0:8} is gone)"
+  if [[ -n "$CHANGE" && "$(spec_sum)" != "$SPEC_SUM" ]]; then
+    log "${who} modified files under specs/ (the spec is read-only for the CODE and TEST harnesses), NOT opening a PR"
+    fail "${who} modified the spec"
+  fi
   bad="$(changed_since "$sha" | grep -Ev "$re" || true)"
   if [[ -n "$bad" ]]; then
     log "${who} changed files outside its allowed area, NOT opening a PR:"
@@ -140,7 +153,7 @@ arbitrate() {
   ARBITRATED=1; ARB_RESULT=CODE_WRONG
   stage "ARBITRATION: code-writer says a test is wrong"
   run_agent test-critic /tmp/out/arbitration.txt "The code-writer claims that some tests on this branch are wrong, and the local CI fails because of them.
-Using ONLY the task below as the source of truth, decide whether the failing assertions are wrong (they reject output the task
+Using ONLY the task below as the source of truth (including the spec files its \"## Spec\" section points to, if any; the spec wins over the task text), decide whether the failing assertions are wrong (they reject output the task
 allows or asks for, e.g. they match the wrong thing) or the code is wrong (it does not do what the task asks).
 Read the failing tests and the code (\`git diff ${BASE_SHA}\`) before deciding.
 For each assertion you judge wrong, give file:line and what it should check instead so that it still catches the bug it was written for.
@@ -289,6 +302,29 @@ mutation_gate() {
   MUT_OK="$ok"
 }
 
+# Mỗi scenario ID của task phải có ít nhất một test (describe/it/test) mà tên bắt đầu bằng ID đó, trong test/public.
+# Đặt SCN_OK (1/0) và ghi báo cáo vào /tmp/out/scenarios.txt. Không có spec / không có scenario → luôn OK.
+scenario_gate() {
+  local report=/tmp/out/scenarios.txt id missing=() found=0
+  SCN_OK=1
+  if [[ -z "$SCENARIOS" ]]; then echo "no spec scenarios for this task" > "$report"; return 0; fi
+  for id in $SCENARIOS; do
+    if grep -rqE "(describe|it|test)(\.[A-Za-z]+)*(\([^)]*\))?\(\s*['\"\`]${id}([^0-9]|$)" backend/test/public frontend/test/public 2>/dev/null; then
+      found=$((found + 1))
+    else
+      missing+=("$id")
+    fi
+  done
+  {
+    echo "scenarios with a test named after them: ${found}/$(wc -w <<<"$SCENARIOS" | tr -d ' ')"
+    if (( ${#missing[@]} )); then
+      SCN_OK=0
+      echo "missing (no describe/it/test whose name starts with the ID): ${missing[*]}"
+    fi
+  } > "$report"
+  sed 's/^/    /' "$report"
+}
+
 verdict() { { grep -Eo 'VERDICT: (APPROVE|CHANGES)' "$1" || true; } | tail -n 1 | awk '{print $2}'; }
 
 # ---------- chuẩn bị ----------
@@ -315,10 +351,72 @@ git checkout -b "${BRANCH}"
 BASE_SHA="$(git rev-parse HEAD)"
 pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
 
+# ---------- spec (tùy chọn) ----------
+CHANGE="$(head -n 1 /task/change.txt 2>/dev/null || true)"
+SPEC_TASKS="$(head -n 1 /task/tasks.txt 2>/dev/null || true)"
+SPEC_SUM=""; SCENARIOS=""
+if [[ -n "$CHANGE" ]]; then
+  [[ "$CHANGE" =~ ^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid change '$CHANGE'"
+  SPEC_DIR="specs/changes/${CHANGE}"
+  if [[ -f /task/spec.tgz ]]; then
+    # File đã có trên BASE_BRANCH giữ nguyên (--skip-old-files); file chưa commit thì lấy bản dispatch.sh gửi
+    # và cho vào .git/info/exclude: agent đọc được nhưng không lọt vào commit / PR.
+    tar -xzf /task/spec.tgz --skip-old-files --warning=no-unknown-keyword
+    git ls-files --others --exclude-standard specs/ | sed 's|^|/|' >> .git/info/exclude
+    if git ls-files --error-unmatch "${SPEC_DIR}/spec.md" >/dev/null 2>&1; then
+      log "spec: using ${SPEC_DIR} committed on ${BASE_BRANCH}"
+    else
+      log "spec: ${SPEC_DIR} is not on ${BASE_BRANCH}; using the copy sent by dispatch.sh (read-only, not committed)"
+    fi
+  fi
+  [[ -f "${SPEC_DIR}/spec.md" && -f "${SPEC_DIR}/tasks.md" ]] || fail "change '${CHANGE}': ${SPEC_DIR}/spec.md or tasks.md missing"
+  # Dòng task trong tasks.md: "- [ ] T012 [P] [US1] ... — Scenarios: ABC-001-S1, ABC-001-S2"
+  TASK_LINES="$(grep -E '^[[:space:]]*- \[[ xX]\] T[0-9]+' "${SPEC_DIR}/tasks.md" || true)"
+  if [[ -n "$SPEC_TASKS" ]]; then
+    sel=""
+    for t in ${SPEC_TASKS//,/ }; do
+      l="$(grep -E "^[[:space:]]*- \[[ xX]\] ${t}([^0-9]|$)" <<<"$TASK_LINES" || true)"
+      [[ -n "$l" ]] || fail "task ${t} not found in ${SPEC_DIR}/tasks.md"
+      sel+="${l}"$'\n'
+    done
+    TASK_LINES="$sel"
+  fi
+  [[ -n "${TASK_LINES// }" ]] || fail "no tasks found in ${SPEC_DIR}/tasks.md"
+  SCENARIOS="$(grep -oE '[A-Z]{2,5}-[0-9]{3}-S[0-9]+' <<<"$TASK_LINES" | sort -u | paste -sd' ' - || true)"
+  SPEC_SUM="$(spec_sum)"
+  log "spec: change ${CHANGE}, tasks ${SPEC_TASKS:-all}, scenarios: ${SCENARIOS:-none}"
+  TASK="${TASK}
+
+## Spec (source of truth)
+This task implements change \`${CHANGE}\` of the spec harness. Its files are in \`${SPEC_DIR}/\`:
+\`spec.md\` (delta spec), \`plan.md\`, \`tasks.md\`, \`checklists/\`. Current behaviour: \`specs/capabilities/<domain>/\`;
+shared knowledge (glossary, domain model, NFRs): \`specs/_system/\`.
+
+Tasks to implement (from \`${SPEC_DIR}/tasks.md\`):
+${TASK_LINES}
+Scenarios these tasks must make pass: ${SCENARIOS:-none listed}
+
+What to read before planning or writing:
+- CODE roles (code-planner, code-writer, code-reviewer): \`spec.md\`: the requirement details (API, UI, messages, checks)
+  of the requirements behind these scenarios, \`## Architecture Decisions\` (follow every ADR, cite it as \`<NNN>-ADR-<n>\`),
+  \`## Data Model\`; \`plan.md\` (stack, project structure, Quickstart); the task lines above (exact paths, quoted constraints).
+- TEST roles (test-planner, test-writer, test-critic): \`spec.md\`: the scenarios listed above (Given / When / Then,
+  \`→ Recovery:\`), \`## Edge Cases & Error Handling\`, the Verification column of the NFR table;
+  \`checklists/edge-cases.md\`; the \`## Test Strategy\` section of \`plan.md\` (adapt paths to backend|frontend/test/public).
+
+Spec rules:
+- Nobody edits anything under \`specs/\` (the pipeline fails the job if a file there changes).
+- The spec wins over the task text. Spec wrong, unclear (\`[NEEDS CLARIFICATION]\`) or impossible with this code base:
+  do not guess; put a line \`SPEC_PROBLEM: <file> <section> <why>\` at the start of a line in your answer and do the rest.
+- Every scenario listed above gets at least one test whose name starts with its ID,
+  e.g. \`it('ABC-003-S2 rejects min greater than max', ...)\`. The pipeline checks this."
+fi
+
 log "Installing project dependencies"
 pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
-FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1
+FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1; SCN_OK=1
+echo "no spec scenarios for this task" > /tmp/out/scenarios.txt
 ARBITRATED=0; ARB_RESULT=""; ARB_SHA=""; ARB_NOTE=""
 : > /tmp/out/red.txt; : > /tmp/out/review.txt; echo "skipped (code-only mode)" > /tmp/out/mutation.txt
 
@@ -372,6 +470,8 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
   fi
   grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate found no runnable test files"
   strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
+  log "RED: spec scenario coverage (checked again at REVIEW, where it blocks approval)"
+  scenario_gate
   TEST_SHA="$(commit_stage "test: ${PR_TITLE}")"
   log "RED gate: PASSED (tests committed as ${TEST_SHA:0:8})"
 
@@ -417,6 +517,7 @@ $(cat /tmp/out/test-fix.txt)
 "
     fi
     mutation_gate
+    scenario_gate
     run_agent code-reviewer /tmp/out/code-review.txt "Review the change on this branch: \`git diff ${BASE_SHA} HEAD\` (tests were written first by another agent, then the code).
 
 ## Task
@@ -430,6 +531,9 @@ End your answer with exactly one line: \`VERDICT: APPROVE\` (no blocking issue) 
     run_agent test-critic /tmp/out/test-review.txt "Review the tests added on this branch: \`git diff ${BASE_SHA} HEAD -- backend/test frontend/test\`.
 Mutation testing was already run by the pipeline on the changed src files (do not run stryker yourself):
 $(cat /tmp/out/mutation.txt)
+
+Spec scenario coverage (checked by the pipeline: each scenario of the task needs a test named after its ID):
+$(cat /tmp/out/scenarios.txt)
 
 Output of the new tests BEFORE the code existed (they must have failed because the behaviour was missing):
 $(strip_colors < /tmp/out/red.txt | tail -n 80)
@@ -448,17 +552,17 @@ End your answer with exactly one line: \`VERDICT: APPROVE\` (tests would catch r
     cp /tmp/out/test-review.txt /tmp/out/test-review-prev.txt
     CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
     {
-      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW)"
+      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
     } >> /tmp/out/review.txt
-    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} mutation_ok=${MUT_OK}"
-    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$MUT_OK" == 1 ]]; then
+    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} mutation_ok=${MUT_OK} scenarios_ok=${SCN_OK}"
+    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$MUT_OK" == 1 && "$SCN_OK" == 1 ]]; then
       REVIEW_DONE=1; break
     fi
     (( round < REVIEW_ROUNDS )) || break
     round=$((round + 1))
     echo "(the test-writer did not run in this round: only the code review asked for changes)" > /tmp/out/test-fix.txt
 
-    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 ]]; then
+    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 ]]; then
       stage "REVIEW round ${round}: test-writer addresses test review"
       run_agent test-writer /tmp/out/test-fix.txt "Improve the tests on this branch based on the review below. The production code now exists.
 Tests must check the behaviour asked for in the task; do not weaken them to match the code.
@@ -472,6 +576,10 @@ $(cat /tmp/out/test-review.txt)
 
 ## Mutation testing
 $(cat /tmp/out/mutation.txt)
+
+## Spec scenario coverage
+$(cat /tmp/out/scenarios.txt)
+Each missing scenario needs a test whose name starts with its ID (see the task's Spec section).
 
 ## Deleting a test file
 You cannot delete files yourself. To delete a test file that was ADDED on this branch, put a line
@@ -535,8 +643,18 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
     strip_colors < /tmp/out/red.txt | tail -n 60 > /tmp/out/red-tail.txt
     section "RED: new tests failing before the code change" /tmp/out/red-tail.txt
     section "Mutation testing" /tmp/out/mutation.txt
+    section "Spec scenario coverage" /tmp/out/scenarios.txt
     section "Code review (last round)" /tmp/out/code-review.txt
     section "Test review (last round)" /tmp/out/test-review.txt
+  fi
+  if [[ -n "$CHANGE" ]]; then
+    echo "## Spec"
+    echo "Change \`${CHANGE}\`, tasks: ${SPEC_TASKS:-all}. Scenarios: ${SCENARIOS:-none}"; echo
+    { grep -hE '^[[:space:]]*SPEC_PROBLEM:' /tmp/plan/*.md /tmp/out/*.txt 2>/dev/null || true; } | sort -u > /tmp/out/spec-problems.txt
+    if [[ -s /tmp/out/spec-problems.txt ]]; then
+      echo "**Spec problems reported by the agents** (go back to the spec harness, the spec was not changed):"
+      echo '```'; cat /tmp/out/spec-problems.txt; echo '```'; echo
+    fi
   fi
   echo "## Local CI (run in the agent pod before opening this PR)"
   echo '```'; echo "${CI_SUMMARY}"; echo '```'; echo

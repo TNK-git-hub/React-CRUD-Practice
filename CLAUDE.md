@@ -26,6 +26,13 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
 - Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
 
+## Spec (đầu vào từ spec harness nhánh `new-project`)
+- Cấu trúc `specs/`: `_system/`, `capabilities/<domain>/`, `changes/NNN-<feature>/` (spec.md, plan.md, tasks.md, checklists/), `archive/`. Mô tả từng thư mục trong `.gitkeep` của nó.
+- Agent CODE đọc `spec.md` (chi tiết requirement, `## Architecture Decisions`, `## Data Model`), `plan.md`, `tasks.md`. Agent TEST đọc scenario, `## Edge Cases & Error Handling`, cột NFR Verification của `spec.md`, `checklists/edge-cases.md`, `## Test Strategy` của `plan.md`.
+- Không agent nào sửa `specs/`. Spec sai/thiếu: ghi `SPEC_PROBLEM: <file> <mục> <lý do>`, quay lại spec harness.
+- Tên mỗi test bắt đầu bằng ID scenario, vd `it('ABC-003-S2 ...')`.
+- Giao cho agent trong pod: `dispatch.sh ... --change NNN-<feature> [--tasks T001,T002]` (`k8s/agents/README.md`, mục "Làm theo spec").
+
 ## CI
 - `pnpm ci:local`: install → lint, typecheck, build frontend → build backend → `pnpm test`. Phải ra `CI PASSED`.
 - PR chạy cùng pipeline đó qua `.github/workflows/ci.yml` trên runner tự host ARC trong kind (`k8s/runner/RUNNER.md`).

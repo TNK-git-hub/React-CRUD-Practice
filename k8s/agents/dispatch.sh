@@ -2,11 +2,15 @@
 # Giao MỘT task cho một agent chạy headless trong pod (kind cluster), đợi xong, in kết quả.
 #
 # Usage (từ gốc repo):
-#   bash k8s/agents/dispatch.sh <job-id> <task-file> --title "<PR title>" [--mode full|code-only] [--base level-3]
-#                               [--no-wait] [--no-private] [--dry-run]
+#   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base level-3]
+#                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--no-private] [--dry-run]
 #
 #   <job-id>     chữ thường, số, dấu "-" (vd: search-btn-yellow). Branch sẽ là agent/<job-id>-<timestamp>.
 #   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
+#                "-" (chỉ khi có --change): task sinh tự động từ spec.
+#   --change     làm theo spec của spec harness: specs/changes/NNN-<feature>/ (spec.md, plan.md, tasks.md, checklists/).
+#                Cả thư mục specs/ ở máy này được gửi vào pod, nên spec chưa commit vẫn dùng được (không lọt vào PR).
+#   --tasks      chỉ làm các task này trong tasks.md (mặc định: mọi task). Scenario của chúng phải có test.
 #   --mode       full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
 #                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
 #   --base       branch để clone và mở PR vào (mặc định: level-3). Phải đã push lên origin.
@@ -19,17 +23,19 @@
 # Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
 set -euo pipefail
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 fail() { echo "RESULT: FAILED reason=$*"; exit 1; }
 
 [[ $# -ge 2 ]] || usage
 JOB_ID="$1"; TASK_FILE="$2"; shift 2
-TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; PRIVATE=1
+TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
     --base) BASE="${2:-}"; shift 2 ;;
     --mode) MODE="${2:-}"; shift 2 ;;
+    --change) CHANGE="${2:-}"; shift 2 ;;
+    --tasks) SPEC_TASKS="${2:-}"; shift 2 ;;
     --no-private) PRIVATE=0; shift ;;
     --no-wait) WAIT=0; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -43,19 +49,61 @@ DIR="$ROOT/k8s/agents"
 # --- kiểm tra đầu vào ---
 [[ "$JOB_ID" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || fail "invalid job-id '$JOB_ID' (a-z, 0-9, '-', max 42 chars)"
 [[ "$BASE" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "invalid base branch '$BASE'"
-[[ -s "$TASK_FILE" ]] || fail "task file '$TASK_FILE' not found or empty"
 [[ -n "${TITLE// }" ]] || fail "missing --title"
 case "$MODE" in full) DEADLINE=5400 ;; code-only) DEADLINE=2400 ;; *) fail "invalid --mode '$MODE' (full|code-only)" ;; esac
+
+# --- spec (tùy chọn) ---
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+SPEC_ARGS=()
+if [[ -n "$CHANGE" ]]; then
+  [[ "$CHANGE" =~ ^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid --change '$CHANGE' (NNN-<feature>)"
+  [[ -z "$SPEC_TASKS" || "$SPEC_TASKS" =~ ^T[0-9]+(,T[0-9]+)*$ ]] || fail "invalid --tasks '$SPEC_TASKS' (T001,T002)"
+  CDIR="$ROOT/specs/changes/$CHANGE"
+  [[ -f "$CDIR/spec.md" && -f "$CDIR/tasks.md" ]] || fail "specs/changes/$CHANGE/spec.md or tasks.md not found"
+  for t in ${SPEC_TASKS//,/ }; do
+    grep -qE "^[[:space:]]*- \[[ xX]\] ${t}([^0-9]|\$)" "$CDIR/tasks.md" || fail "task $t not found in specs/changes/$CHANGE/tasks.md"
+  done
+  # specs/archive không cần cho agent; bỏ file rác của macOS
+  COPYFILE_DISABLE=1 tar -C "$ROOT" --exclude '.DS_Store' --exclude 'specs/archive' -czf "$TMP/spec.tgz" specs
+  [[ "$(wc -c < "$TMP/spec.tgz")" -lt 900000 ]] || fail "specs/ is too big for a ConfigMap (max ~1 MiB)"
+  SPEC_ARGS=(--from-file=spec.tgz="$TMP/spec.tgz" --from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS")
+elif [[ -n "$SPEC_TASKS" ]]; then
+  fail "--tasks needs --change"
+fi
+if [[ "$TASK_FILE" == "-" ]]; then
+  [[ -n "$CHANGE" ]] || fail "task file '-' needs --change"
+  TASK_FILE="$TMP/task.md"
+  cat > "$TASK_FILE" <<EOF
+## Goal
+Implement ${SPEC_TASKS:+tasks ${SPEC_TASKS} of }change \`${CHANGE}\` exactly as its spec says (see the Spec section below).
+
+## Files you may change
+- The paths named in the task lines and in plan.md, inside \`backend/src\`, \`frontend/src\`, \`frontend/public\`
+- Tests: \`backend/test/public/\`, \`frontend/test/public/\` (test-writer only, --mode full)
+
+## Out of scope
+- Tasks of tasks.md not listed below, and any behaviour the spec does not ask for.
+- Any file under \`specs/\`.
+
+## Done when
+- Every scenario listed below has a passing test whose name starts with its ID.
+- \`pnpm ci:local\` prints CI PASSED.
+EOF
+fi
+[[ -s "$TASK_FILE" ]] || fail "task file '$TASK_FILE' not found or empty"
 
 render() {
   sed -e "s|__JOB_ID__|$JOB_ID|g" -e "s|__BASE_BRANCH__|$BASE|g" -e "s|__MODE__|$MODE|g" -e "s|__DEADLINE__|$DEADLINE|g" \
     "$DIR/job-template.yaml"
 }
 if [[ "$DRY" == 1 ]]; then
-  kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" --dry-run=client -o yaml
+  # spec.tgz (nhị phân) không in ra: chỉ liệt kê nội dung
+  kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" \
+    ${CHANGE:+--from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS"} --dry-run=client -o yaml
+  if [[ -n "$CHANGE" ]]; then echo "# spec.tgz ($(wc -c < "$TMP/spec.tgz" | tr -d ' ') bytes):"; tar -tzf "$TMP/spec.tgz" | sed 's/^/#   /'; fi
   echo "---"
   render
-  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE mode=$MODE"
+  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE mode=$MODE${CHANGE:+ change=$CHANGE tasks=${SPEC_TASKS:-all}}"
   exit 0
 fi
 
@@ -70,9 +118,9 @@ fi
 kubectl create configmap agent-script --from-file=run.sh="$DIR/run.sh" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl delete job "agent-$JOB_ID" --ignore-not-found --wait=true >/dev/null
 kubectl delete configmap "task-$JOB_ID" --ignore-not-found >/dev/null
-kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" >/dev/null
+kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"} >/dev/null
 render | kubectl apply -f - >/dev/null
-echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE)"
+echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE${CHANGE:+, change: $CHANGE, tasks: ${SPEC_TASKS:-all}})"
 
 [[ "$WAIT" == 1 ]] || { echo "RESULT: DISPATCHED job=agent-$JOB_ID"; exit 0; }
 
