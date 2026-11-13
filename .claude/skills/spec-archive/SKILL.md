@@ -1,6 +1,6 @@
 ---
 name: spec-archive
-description: Merges a finished change's delta spec into the living specs (specs/capabilities/<domain>/spec.md + history.md) by requirement ID, then moves the change from specs/changes/ to specs/archive/. Stops without writing anything when an ID does not match. Run in the main session only after the CODE and TEST harnesses are done and the test suite is green.
+description: Merges a finished change's delta spec into the living specs (specs/capabilities/<domain>/spec.md + history.md by requirement ID; ADDED / MODIFIED NFR rows into specs/_system/nfr.md), then moves the change from specs/changes/ to specs/archive/. Stops without writing anything when an ID does not match. Run in the main session only after the CODE and TEST harnesses are done and the test suite is green.
 argument-hint: "<change, e.g. 001-product-bulk-delete>"
 disable-model-invocation: true
 license: MIT
@@ -11,8 +11,8 @@ metadata:
 
 # spec-archive
 
-This is the **only** step allowed to modify `specs/capabilities/`. All writes to specs go through
-`scripts/change.py`, which validates the whole change first and writes nothing if any check fails.
+This is the **only** step allowed to modify `specs/capabilities/` and `specs/_system/nfr.md`. All writes to specs go
+through `scripts/change.py`, which validates the whole change first and writes nothing if any check fails.
 Never edit `specs/capabilities/*/spec.md` or `history.md` by hand in this skill, and never "fix" the delta spec
 or the capability to make the script pass — report the problem instead.
 
@@ -61,7 +61,10 @@ python3 $S sync --change <change> --dry-run
   - an ID whose code does not match the domain's `code`;
   - `capabilities` frontmatter and `### <domain>` sections that do not match;
   - an ADDED / MODIFIED requirement without a `<ID>-S<n>` scenario, or with `[NEEDS CLARIFICATION]` still open;
-  - a result that would leave ADDED / MODIFIED / REMOVED / RENAMED words in `specs/capabilities/`.
+  - a result that would leave ADDED / MODIFIED / REMOVED / RENAMED words in `specs/capabilities/` or `nfr.md`;
+  - an NFR row whose Change is not `Applies` / `ADDED` / `MODIFIED`, an ADDED NFR ID that already exists, a MODIFIED
+    NFR ID that does not exist or sits in another section, a Category that is not a `## ` section of `nfr.md` with an
+    ID table, or a value for a column that section does not have.
 - Exit code 0 → show the plan per domain from the JSON (`applied`), in the order the script applies it:
   RENAMED → MODIFIED → REMOVED → ADDED.
 
@@ -82,6 +85,16 @@ What the script does, per domain in `capabilities`:
 - **ADDED** `<ID>`: adds the block; requirements are kept in ascending ID order, so a new ID lands last.
 - Every ADDED / MODIFIED block gets `- **Source:** change <change>` (replacing an older Source line).
 - Adds a row to "Merged changes" of `history.md`: change · date · `new` / `updated` / `dropped` / `renamed` + IDs.
+
+And once for the change, from its `## Non-Functional Requirements` table (`applied["_system/nfr"]`):
+
+- **ADDED** `NFR-NNN`: appended to the ID table of the `nfr.md` section named in Category, with the columns that
+  table has (ID, Requirement, Number, Source, Verification).
+- **MODIFIED** `NFR-NNN`: the row with that ID is replaced.
+- **Applies**: ignored.
+
+Everything else in the change's spec.md (Architecture Decisions, Data Model, Edge Cases, Traceability…) stays in the
+change and goes to `specs/archive/<change>/` in step 5.
 
 ## Step 5 — Archive
 
@@ -106,14 +119,15 @@ If they exist, update (these are outside `specs/capabilities/`, so editing them 
 
 ```bash
 git status --short specs/
-grep -rnE '\b(ADDED|MODIFIED|REMOVED|RENAMED)\b' specs/capabilities/ || echo "no delta keywords"
+grep -rnE '\b(ADDED|MODIFIED|REMOVED|RENAMED)\b' specs/capabilities/ specs/_system/nfr.md || echo "no delta keywords"
+python3 .specify/scripts/spec_check.py --stage archive --change <change>
 ```
 
 Report:
 
 1. Change archived and where to (`specs/archive/<change>/`).
 2. Per domain: requirements renamed / updated / dropped / new, with IDs.
-3. Files changed (`spec.md`, `history.md` per domain, roadmap / traceability).
+3. Files changed (`spec.md`, `history.md` per domain, `nfr.md`, roadmap / traceability).
 4. Next step per `CLAUDE.md`: two commits (code; spec) → push → PR into `new-project`.
 
 Do not commit or push in this skill.

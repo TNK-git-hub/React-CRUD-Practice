@@ -63,8 +63,10 @@ jobs:
         if: steps.app.outputs.node == 'true'
         run: npm test
 
-  # Required check "spec-check": change archived, no delta keywords in capabilities,
-  # unique IDs, every scenario has a test.
+  # Required check "spec-check" (--stage spec): open changes follow the rich delta template,
+  # unique requirement / scenario / NFR IDs, no "(unassigned)", every scenario and NFR row in
+  # Traceability, no delta keywords in capabilities or nfr.md. Tests are not checked here: the
+  # archive gate (spec_check.py --stage archive) runs after the CODE and TEST harnesses.
   spec-check:
     name: spec-check
     runs-on: ubuntu-latest
@@ -79,4 +81,4 @@ jobs:
       - name: spec_check.py
         env:
           CHANGE: ${{ github.head_ref }}
-        run: python .specify/scripts/spec_check.py --change "$CHANGE"
+        run: python .specify/scripts/spec_check.py --stage spec --change "$CHANGE"
