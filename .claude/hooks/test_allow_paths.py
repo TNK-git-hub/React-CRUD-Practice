@@ -88,7 +88,7 @@ class AllowPathsTest(unittest.TestCase):
 
     def test_deny_glob_does_not_cross_directories(self) -> None:
         # '*' is one path segment: a nested spec.md deeper down is not the change spec
-        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/contracts/spec.md")[0], 0)
+        self.assertEqual(self.write(PLANNER, "specs/changes/001-x/checklists/spec.md")[0], 0)
 
     def test_dotdot_cannot_escape(self) -> None:
         code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")

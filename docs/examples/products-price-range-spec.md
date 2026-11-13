@@ -12,8 +12,8 @@ source: ["docs/requirements/price-range.md", "roadmap 001"]
 > **Worked example of the rich spec template** (`.specify/templates/overrides/spec-template.md`). Abridged from the
 > approved spec on branch `001-products-price-range`: every section is at full detail, but only representative
 > scenarios are shown (the approved change has 48). Scenario IDs are those of the approved spec, so gaps in the
-> numbering are scenarios left out here. Architecture Decisions and Data Model come from that change's `research.md`
-> and `data-model.md`. User-facing text is quoted verbatim in the product's language (Vietnamese); everything else is
+> numbering are scenarios left out here. Architecture Decisions and Data Model come from the research notes and the
+> data model written for that change. User-facing text is quoted verbatim in the product's language (Vietnamese); everything else is
 > English.
 
 ## Overview
