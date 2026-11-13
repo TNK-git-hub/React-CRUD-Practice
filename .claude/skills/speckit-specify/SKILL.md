@@ -77,7 +77,7 @@ The text the user typed after `/speckit-specify` in the triggering message **is*
 feature description. Assume you always have it available in this conversation even if `$ARGUMENTS`
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
-This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the spec's prose in Vietnamese and keep its structure (headings, labels, keywords, IDs, frontmatter) in English, as the Language section of `.claude/CLAUDE.md` requires.
+This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the whole spec in English (requirement sentences read "The system MUST …") and keep its structure (headings, labels, keywords, IDs, frontmatter) exactly as in the template, as the Language section of `.claude/CLAUDE.md` requires. If the feature description or a requirement source is in another language, translate it to English. Exception: user-facing text of the product (UI labels, messages, emails) is quoted verbatim in the product's language, in double quotes, so tests can match it exactly.
 This command creates **one** change and writes only to `specs/changes/<change>/` and
 `.specify/feature.json`. It does not modify `specs/capabilities/`, `specs/_system/` or code.
 

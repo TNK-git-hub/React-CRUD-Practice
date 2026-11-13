@@ -120,14 +120,16 @@ them again (and their entries in `.specify/integrations/claude.manifest.json`) a
 
 ## Language
 
-- **Harness files** (skills, templates, constitution, catalog, scripts) are written in English.
-- **Content that agents write** for an app or a change is written in **Vietnamese**: the prose of
-  `specs/changes/*` (spec, plan, research, tasks, checklists), `specs/_system/*` and `specs/capabilities/*`.
-  A requirement sentence reads "Hệ thống PHẢI …".
-- **Structure stays in English, exactly as in the templates**, because scripts and core Spec Kit commands
-  parse it: headings (`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`,
-  `Merged changes`, `Removed IDs`, …), labels (`**Permissions:**`, `**Scenarios:**`, `**Reason:**`,
-  `**Migration:**`, `**From:**`, `**To:**`, `**Replaced by:**`, `**Source:**`, `→ Recovery:`),
-  delta keywords (`ADDED`, `MODIFIED`, `REMOVED`, `RENAMED`), `Given` / `When` / `Then`, scenario types,
-  `P1`–`P3`, frontmatter keys and the marker `[NEEDS CLARIFICATION: …]` (the question inside is Vietnamese).
+- All files are written in English: harness files (skills, templates, constitution, catalog, scripts),
+  `docs/requirements/`, `specs/_system/`, `specs/capabilities/` and `specs/changes/` (spec, plan, research, tasks,
+  checklists). Requirement sentences read "The system MUST …".
+- Requirement sources in another language are translated to English before they go into `docs/requirements/`.
+- Exception: user-facing text of the product (UI labels, messages, emails) is quoted verbatim in the product's
+  language, in double quotes, so tests can match it exactly.
+- Structure stays exactly as in the templates, because scripts and core Spec Kit commands parse it: headings
+  (`Overview`, `Requirements`, `Success Criteria`, `Assumptions`, `Out of Scope`, `Merged changes`, `Removed IDs`, …),
+  labels (`**Permissions:**`, `**Scenarios:**`, `**Reason:**`, `**Migration:**`, `**From:**`, `**To:**`,
+  `**Replaced by:**`, `**Source:**`, `→ Recovery:`), delta keywords (`ADDED`, `MODIFIED`, `REMOVED`, `RENAMED`),
+  `Given` / `When` / `Then`, scenario types, `P1`–`P3`, frontmatter keys and the marker `[NEEDS CLARIFICATION: …]`.
 - IDs, file / folder / branch / change names, variable names, code and commit messages are in English.
+- Reply to the user in the language they write in.

@@ -5,7 +5,8 @@ Differs from the core template in 2 places:
   2. Adds the MANDATORY section "## Test Strategy". The TEST harness reads it (with spec.md and
      checklists/edge-cases.md) to write the tests; a plan without a complete Test Strategy is not ready for approval.
      Never invent limits, numbers or environments the project does not have: write [NEEDS CLARIFICATION: …].
-Prose is written in Vietnamese; headings, labels and IDs stay as here (see .claude/CLAUDE.md, Language).
+Everything is written in English; headings, labels and IDs stay as here; user-facing product text is quoted
+verbatim in the product's language (see .claude/CLAUDE.md, Language).
 -->
 
 # Implementation Plan: [FEATURE]

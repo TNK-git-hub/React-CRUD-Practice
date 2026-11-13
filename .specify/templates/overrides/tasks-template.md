@@ -15,7 +15,8 @@ Differs from the core template in 3 places:
   3. A user story is one requirement (or a small group of requirements) of the delta spec; name the
      requirement IDs in the phase heading.
 Phases, user stories, [P] and the format below are kept from the core template.
-Prose is written in Vietnamese; headings, labels and IDs stay as here (see .claude/CLAUDE.md, Language).
+Everything is written in English; headings, labels and IDs stay as here; user-facing product text is quoted
+verbatim in the product's language (see .claude/CLAUDE.md, Language).
 -->
 
 # Tasks: [CHANGE NAME]
