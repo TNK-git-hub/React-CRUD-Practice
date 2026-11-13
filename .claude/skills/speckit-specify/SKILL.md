@@ -273,7 +273,8 @@ Tell the user:
 - **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
 - The checklist result.
 - Next steps per `CLAUDE.md`: `/speckit-clarify` (main session) → `/spec-edge-cases` →
-  `/speckit-checklist edge cases` → stop and wait for spec approval.
+  stop and wait for spec approval → `/speckit-plan` → `/speckit-checklist` (`checklists/quality.md`) →
+  `/speckit-tasks` → `/speckit-analyze` → stop and wait for plan + tasks approval → handoff.
 
 ## Done When
 
