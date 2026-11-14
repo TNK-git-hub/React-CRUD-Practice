@@ -220,8 +220,9 @@ next steps per `.claude/CLAUDE.md`: `__SPECKIT_COMMAND_CHECKLIST__` (`checklists
 ## Key rules
 
 - plan.md is self-contained: state every decision, number and command in it. Never point instead of stating
-  ("as for change 001", "as in change 001", "see research R2", "research.md"); a source in parentheses is fine.
-  `spec_check.py --stage spec` rejects those phrases in spec.md and plan.md.
+  ("as for change 001", "as in change 001", "see research R2", "research.md"); a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/`.
+  A decision that exists only in an archived change's ADRs → restate it as an ADR of this change.
+  `spec_check.py --stage spec` rejects those phrases and any `specs/archive/` reference in spec.md and plan.md.
 - Use absolute paths for filesystem operations; use project-relative paths for references in documentation
 - ERROR on gate failures or unresolved clarifications
 - Never create research.md, data-model.md, contracts/ or quickstart.md

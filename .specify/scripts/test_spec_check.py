@@ -449,6 +449,31 @@ class SpecCheckTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("'as for the price filter in change 001' points elsewhere", out)
 
+    def test_archive_reference_in_spec_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace(
+            "The system MUST search products.",
+            "The previous list stays visible (specs/archive/001-products-price-range/spec.md, Assumptions)."))
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/spec.md:", out)
+        self.assertIn("points into specs/archive/", out)
+        self.assertIn("the capability is missing it", out)
+
+    def test_archive_reference_in_plan_rejected(self) -> None:
+        self.open_change()
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\nDTO: see specs\\archive\\001-x\\spec.md, 001-ADR-1.\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:3: points into specs/archive/", out)
+
+    def test_valid_sources_are_fine(self) -> None:
+        delta = DELTA.replace(
+            "The system MUST search products.",
+            "The system MUST search products, following PROD-001 (capability products/catalog; "
+            "specs/_system/nfr.md; backend/src/products/products.service.ts; docs/requirements/search.md).\n\n"
+            "<!-- an archived change lives in specs/archive/<change>/ -->")
+        code, out = self.spec_stage(delta)
+        self.assertEqual(code, 0, out)
+
     def test_source_in_parentheses_and_comments_are_fine(self) -> None:
         delta = DELTA.replace("The system MUST search products.",
                               "The system MUST search products (change 001-products-price-range, clarify).\n\n"

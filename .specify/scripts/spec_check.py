@@ -18,7 +18,8 @@
   3. no "(unassigned)" left in an open change; each plan placeholder line, while still there, appears exactly
      once in the file (the planner replaces it by Edit, which needs a unique match)
   3b. spec.md and plan.md of an open change are self-contained: no pointer instead of content
-     ("as for change 001", "as in change 001", "same as change 001", "see research R2", "research.md")
+     ("as for change 001", "as in change 001", "same as change 001", "see research R2", "research.md") and no
+     reference into specs/archive/ (an archived change is history, not a source)
   4. every scenario of an open change, and every NFR row, is listed in its "## Traceability"
   5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED, MOVED) in specs/capabilities/ or specs/_system/nfr.md
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
@@ -55,6 +56,9 @@ POINTER_RE = re.compile(
     r"|\bresearch\s+(?:note\s+)?R\d+\b|\bR\d+\s+(?:of|in)\s+(?:the\s+)?research\b|\bresearch\.md\b",
     re.I,
 )
+# An archived change is history, not a source: valid sources are an ID in a capability, a file of specs/_system/, a
+# code path or docs/requirements/. A rule found only in the archive means the capability is missing it.
+ARCHIVE_RE = re.compile(r"specs[/\\]+archive(?:[/\\]|\b)", re.I)
 SCENARIO_HEAD_RE = re.compile(rf"^- `({REQ_ID})-S(\d+)` \(([a-z]+), (P[123])\)\s*$")
 NFR_ID_RE = re.compile(r"^NFR-\d{3}$")
 TRACE_TOKEN_RE = re.compile(rf"(?<![A-Za-z0-9])(?:({REQ_ID})-)?S(\d+)(?:\s*[–-]\s*(?:{REQ_ID}-)?S(\d+))?")
@@ -589,6 +593,10 @@ def check_pointers(root: Path) -> list[str]:
                 for m in POINTER_RE.finditer(line):
                     errors.append(f"{rel(root, path)}:{n}: '{m.group(0)}' points elsewhere instead of stating the "
                                   "content; write the behavior / decision itself (a source in parentheses is fine)")
+                if ARCHIVE_RE.search(line):
+                    errors.append(f"{rel(root, path)}:{n}: points into specs/archive/; cite a capability ID, a "
+                                  "specs/_system/ file, a code path or docs/requirements/ instead. A rule that exists "
+                                  "only in the archive means the capability is missing it: stop and report")
     return errors
 
 

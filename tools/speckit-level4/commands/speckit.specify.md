@@ -244,8 +244,9 @@ feature of a MOVED needs no section when nothing else in it changes):
 - **Self-contained.** Archive merges only the requirement blocks, so every behavior that stays true after the change
   (loading state, layout, which side filters, an existing rule) is written in a requirement's details, never in
   Assumptions. Never point to another change, archive or research instead of stating the content ("as for change
-  001", "as in change 001", "see research R2"): state the behavior itself; a source in parentheses is fine.
-  `spec_check.py --stage spec` rejects those phrases.
+  001", "as in change 001", "see research R2"): state the behavior itself; a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/`.
+  A rule the change needs that exists only in `specs/archive/` → the capability is missing it: **STOP** and report
+  it, do not cite the archive. `spec_check.py --stage spec` rejects those phrases and any `specs/archive/` reference.
 
 **Non-Functional Requirements** — one row per NFR of `specs/_system/nfr.md` the change relies on or changes:
 

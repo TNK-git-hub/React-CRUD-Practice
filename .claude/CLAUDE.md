@@ -160,6 +160,10 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
   (Assumptions are not merged at archive; they hold only what is temporary to the change); an existing rule is
   written "follows <ID>" with its source; never "as for change NNN" or "research Rn" instead of the content
   (`spec_check --stage spec` rejects those phrases).
+- Valid sources in a change's spec and plan: an ID in a capability (`PROD-002`, capability `<domain>/<feature>`), a
+  file of `specs/_system/`, a code path, `docs/requirements/`. **Never `specs/archive/`**: an archived change is
+  history, not a source (`spec_check --stage spec` rejects it). If a rule the change needs exists only in the archive,
+  the capability is missing it — stop and report; do not point into the archive.
 - The planner may change the change's `spec.md` only by Edit between `## Architecture Decisions` and `## Clarifications`
   (ADRs, Data Model), never by Write; its hook (`allow_paths.py`, `edit-section:` rule) blocks everything else.
 - Spec wrong or incomplete during plan / tasks: stop and report; never edit the spec to match the plan.

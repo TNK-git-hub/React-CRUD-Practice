@@ -54,7 +54,8 @@ Self-contained: archive merges ONLY the requirement blocks (and NFR rows). So:
 - An existing rule of a capability the change relies on is written where it applies as "follows <ID>" with its source
   (e.g. "follows PROD-002: a new range returns to page 1 (capability products/filtering)").
 - Never point to another change or to research instead of stating the content: no "as for change 001", "as in
-  change 001", "see research R2". State the behavior itself; a source in parentheses is fine.
+  change 001", "see research R2". State the behavior itself; a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/` (a rule found only
+  in the archive means the capability is missing it: stop and report).
 -->
 
 # Change [NNN]: [Change name]
