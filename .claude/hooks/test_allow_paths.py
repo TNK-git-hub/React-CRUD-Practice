@@ -75,7 +75,7 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(ROOT_FILES, "package.json")[0], 0)
         self.assertEqual(self.write(ROOT_FILES, ".gitignore")[0], 0)
         self.assertEqual(self.write(ROOT_FILES, ".claude/CLAUDE.md")[0], 2)
-        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/catalog/spec.md")[0], 2)
 
     def test_notebook_path(self) -> None:
         payload = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "src/a.ipynb"}}
@@ -100,7 +100,7 @@ class AllowPathsTest(unittest.TestCase):
     def test_dotdot_cannot_escape(self) -> None:
         code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")
         self.assertEqual(code, 2)
-        self.assertIn("specs/capabilities/products/spec.md", err)
+        self.assertIn("specs/capabilities/products/catalog/spec.md", err)
 
     def test_outside_project(self) -> None:
         code, err = self.write(["specs/changes/"], "/etc/passwd")
@@ -162,7 +162,7 @@ class AllowPathsTest(unittest.TestCase):
 
     def test_section_rule_leaves_other_files_to_plain_rules(self) -> None:
         self.assertEqual(self.write(PLANNER_SECTION, "specs/changes/001-x/plan.md")[0], 0)
-        self.assertEqual(self.write(PLANNER_SECTION, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(PLANNER_SECTION, "specs/capabilities/products/catalog/spec.md")[0], 2)
 
     def test_bad_section_rule_fails_closed(self) -> None:
         self.assertEqual(self.write(["edit-section:specs/changes/*/spec.md:## A"], "specs/changes/001-x/spec.md")[0], 2)

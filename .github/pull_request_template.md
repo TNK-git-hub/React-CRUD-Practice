@@ -5,7 +5,7 @@
 ## Checklist
 
 - [ ] Ran `/spec-archive <change>` (feature change): `specs/changes/<change>/` is gone and `specs/archive/<change>/` exists
-- [ ] Read the diff of `specs/capabilities/` (requirements, scenarios, `history.md`)
+- [ ] Read the diff of `specs/capabilities/` (per feature: requirements, scenarios, Merged changes; the domain's `history.md`)
 - [ ] Every task in `tasks.md` is ticked
 - [ ] Every scenario has a test whose name starts with its scenario ID
 - [ ] Two commits: code; spec

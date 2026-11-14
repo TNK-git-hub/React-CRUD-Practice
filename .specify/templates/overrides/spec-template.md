@@ -248,7 +248,7 @@ _(Data Model: filled by /speckit-plan)_
 <!-- Only what is TEMPORARY to this change (true while it is in progress, dropped at archive): e.g. "change 001's
      code is in place", "this change is not in roadmap.md". Say where the spec goes wrong if one is false.
      A behavior that stays true after the change is NOT an assumption: write it in the requirement details
-     (Assumptions are not merged into the capability spec at archive). -->
+     (Assumptions are not merged into the feature spec at archive). -->
 
 - [assumption]
 
