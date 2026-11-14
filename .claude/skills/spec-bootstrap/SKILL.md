@@ -1,6 +1,6 @@
 ---
 name: spec-bootstrap
-description: Turns the requirement documents in docs/requirements/ into the knowledge base (specs/_system/), one capability folder per domain, the domain code table, the change roadmap and traceability. Run ONCE when starting a new app, before change 001.
+description: Turns the requirement documents in docs/requirements/ into the knowledge base (specs/_system/), one capability folder per domain with one sub-folder per feature, the domain code table, the change roadmap and traceability. Run ONCE when starting a new app, before change 001.
 argument-hint: "[requirement documents folder, default docs/requirements/]"
 disable-model-invocation: true
 ---
@@ -60,6 +60,21 @@ Do not infer requirements that are not in the documents.
   In that case pick another code (e.g. domain `todos` → `TDO` or `ITEM`).
 - Login / accounts is usually its own domain (e.g. `auth` / `AUTH`) if the documents cover it.
 
+## Step 2b — List the features of each domain
+
+A **feature** is a long-lived area of behavior inside a domain (e.g. `products/catalog`, `products/filtering`); its
+living spec will be `specs/capabilities/<domain>/<feature>/spec.md`. A feature is NOT a change: a change may touch
+several features, and many changes touch the same feature over time.
+
+- **Greenfield** (no app code yet): group the functional requirement items of Step 1 by the behavior the user sees
+  (browse / search / edit / pay …), following the structure of the requirement documents.
+- **Brownfield** (the app already has code): group by the behavior groups the code already has — screens, routes,
+  API endpoints or modules that belong together (e.g. list + search + sort + pagination = one feature). Name the
+  files that show each group in the feature's scope line, so the split can be checked.
+- Each feature: English `kebab-case` name, unique inside its domain; a one-line scope. Every requirement item of the
+  domain must fit in exactly one feature. 1–5 features per domain is usual; one feature is fine for a small domain.
+- Requirement IDs stay per domain (`<CODE>-NNN`), whatever the feature.
+
 ## Step 3 — Write the knowledge base into `specs/_system/`
 
 Fill from the templates, keep every template heading, delete the HTML guide block once filled:
@@ -67,7 +82,7 @@ Fill from the templates, keep every template heading, delete the HTML guide bloc
 | File | Content |
 | --- | --- |
 | `glossary.md` | Terms, roles, names used in code |
-| `domain-model.md` | Entities, attributes, relationships, mermaid diagram |
+| `domain-model.md` | Entities, attributes, relationships, mermaid diagram; one `## Features — domain <domain>` table per domain (Step 2b: Feature \| Scope) |
 | `nfr.md` | NFRs with numbers. **The "Data and deletion policy" section is mandatory**: documents silent → `[NEEDS CLARIFICATION]` in every cell, never choose soft or hard delete |
 | `roadmap.md` | List of changes (Step 5) |
 | `traceability.md` | Requirement item → change (Step 5) |
@@ -78,14 +93,22 @@ that the documents clearly show (e.g. "the room is already full"), one question 
 
 ## Step 4 — Create `specs/capabilities/<domain>/` for each domain
 
+Shared by every feature of the domain, in `specs/capabilities/<domain>/`:
+
 | File | Content |
 | --- | --- |
-| `spec.md` | From `capability-template`: fill only Overview; Requirements stays `_(none yet)_` |
 | `states.md` | From `states-template`, for each entity of the domain that has a lifecycle. Every cell must have a value |
 | `rules.md` | From `rules-template`: the domain's business rules, code `BR-<CODE>-NN`, with source |
-| `history.md` | From `history-template`, left empty |
+| `history.md` | From `history-template`, left empty (title `# History: <domain> (<CODE>)`) |
 
-**Do not write requirements into `spec.md`.** The living spec only gets content when a change is archived.
+One folder per feature of the Features table, `specs/capabilities/<domain>/<feature>/`:
+
+| File | Content |
+| --- | --- |
+| `spec.md` | From `capability-template`: frontmatter `domain`, `feature`, `code`; Overview = the feature's scope line; Requirements stays `_(none yet)_`; Merged changes stays `_(none yet)_` |
+
+There is **no** `spec.md` at domain level (`specs/capabilities/<domain>/spec.md` must not exist).
+**Do not write requirements into any `spec.md`.** A living spec only gets content when a change is archived.
 
 ## Step 5 — Roadmap and traceability
 
@@ -95,6 +118,7 @@ Split changes following the rules in `roadmap-template`:
   end-to-end flow (usually login, or create/view the main object).
 - Each change has one user-visible outcome and can be finished in 1–3 days.
 - A change depends only on changes with a smaller number.
+- The "Features" column lists every feature the change touches as `<domain>/<feature>` (Step 2b).
 - Every REQ, BR and NFR item has an owning change in `traceability.md`; out-of-scope items are marked
   "out of scope"; items that fit nowhere → "Unassigned" + `[NEEDS CLARIFICATION]`.
 
@@ -109,12 +133,16 @@ Put the list of codes in the Step 8 report and tell the user that `CLAUDE.md` do
 ## Step 7 — Self-check before reporting
 
 - [ ] All 5 files exist in `specs/_system/` (catalog not counted), no HTML guide blocks left.
-- [ ] Each domain has all 4 files; `spec.md` has no requirements.
+- [ ] Each domain has `states.md`, `rules.md`, `history.md` and no `spec.md` of its own.
+- [ ] Each row of each Features table has a folder `<domain>/<feature>/` with a `spec.md` without requirements, and
+      every feature folder has a row.
+- [ ] Every requirement item of a domain fits in exactly one of its features.
 - [ ] Every cell of every `states.md` table has a value.
 - [ ] Every REQ / BR / NFR item of the documents appears in `traceability.md`.
 - [ ] `roadmap.md`: consecutive numbers, `001` is the walking skeleton, no backward dependency.
 - [ ] No number, limit or permission invented beyond the documents.
 - [ ] Domain codes in `CLAUDE.md` match the folder names in `specs/capabilities/`.
+- [ ] `roadmap.md` lists, for each change, the features it touches (`<domain>/<feature>`).
 
 Any item failing → fix it and check again.
 
@@ -122,7 +150,7 @@ Any item failing → fix it and check again.
 
 Tell the user:
 
-1. The list of domains (folder, code, main entities).
+1. The list of domains (folder, code, main entities) and, per domain, its features (name, scope).
 2. A short roadmap table (change, goal, dependencies).
 3. **Every `[NEEDS CLARIFICATION]` question**, grouped by file and numbered so the user can answer.
 4. The files created / modified.

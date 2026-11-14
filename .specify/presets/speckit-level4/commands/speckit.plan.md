@@ -80,7 +80,9 @@ verbatim in the product's language, in double quotes. The spec of the change mus
    FEATURE_DIR not under `specs/changes/` → **STOP** and report.
 
 2. **Load context**: Read FEATURE_SPEC (the delta spec), `.specify/memory/constitution.md`, every file in
-   `specs/_system/`, and `specs/capabilities/<domain>/` for each domain in the spec's `capabilities`. Load the
+   `specs/_system/`, and, by declared feature (`capabilities` lists `<domain>/<feature>`):
+   `specs/capabilities/<domain>/<feature>/spec.md` of each declared feature plus the shared `states.md`, `rules.md`,
+   `history.md` of their domains. Never the spec.md of an undeclared feature. Load the
    IMPL_PLAN template (already copied by the script). The worked example `docs/examples/products-price-range-spec.md`
    shows the expected Architecture Decisions and Data Model.
 

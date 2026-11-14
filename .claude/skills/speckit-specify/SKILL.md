@@ -1,7 +1,7 @@
 ---
 name: speckit-specify
 description: Create a delta spec for one change in specs/changes/NNN-<name>/spec.md,
-  against the living capability specs.
+  against the living feature specs of specs/capabilities/<domain>/<feature>/.
 argument-hint: "Describe the feature you want to specify"
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
@@ -18,8 +18,11 @@ Preset speckit-level4 (tools/speckit-level4/), replaces the core speckit.specify
 Differs from the core command in 5 places:
   1. The change number comes from .specify/scripts/next_change.py; the folder is specs/changes/NNN-<name>/.
   2. Creates branch NNN-<name> itself (this repo does not use the Spec Kit git extension).
-  3. Reads specs/_system/* and specs/capabilities/<domain>/ before writing.
-  4. Existing requirement → MODIFIED <old ID>; new requirement → ADDED with the domain's next ID.
+  3. Reads specs/_system/*, then only the spec.md of the features it declares plus the 3 shared files of their
+     domains (states.md, rules.md, history.md) before writing.
+  4. Existing requirement → MODIFIED <old ID> under its feature; new requirement → ADDED with the domain's next ID;
+     a requirement that belongs to another feature → MOVED (ID kept). A new feature gets a row in the Features
+     table of domain-model.md.
   5. Fills the frontmatter kind/change/capabilities/primary/status/source.
   6. Writes the rich delta spec of .specify/templates/overrides/spec-template.md (worked example:
      docs/examples/products-price-range-spec.md): detailed requirements with nested scenarios, NFR table,
@@ -81,21 +84,32 @@ feature description. Assume you always have it available in this conversation ev
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
 This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the whole spec in English (requirement sentences read "The system MUST …") and keep its structure (headings, labels, keywords, IDs, frontmatter) exactly as in the template, as the Language section of `.claude/CLAUDE.md` requires. If the feature description or a requirement source is in another language, translate it to English. Exception: user-facing text of the product (UI labels, messages, emails) is quoted verbatim in the product's language, in double quotes, so tests can match it exactly.
-This command creates **one** change and writes only to `specs/changes/<change>/` and
-`.specify/feature.json`. It does not modify `specs/capabilities/`, `specs/_system/` or code.
+This command creates **one** change and writes only to `specs/changes/<change>/`, `.specify/feature.json` and, for a
+new feature, one row of the Features table in `specs/_system/domain-model.md`. It does not modify
+`specs/capabilities/`, any other part of `specs/_system/`, or code.
 
 ### Step 1 — Read the knowledge base (before writing anything)
 
 1. Read `.claude/CLAUDE.md` (flow, ID conventions, **domain code table**) and `.specify/memory/constitution.md`.
 2. Read every file present in `specs/_system/`: `glossary.md`, `domain-model.md`, `nfr.md`, `roadmap.md`,
    `traceability.md`, `edge-case-catalog.md`. A missing file is noted, never created.
-3. Determine the domains the feature touches, using the glossary, domain model and domain code table:
+3. Determine the **features** the change touches (a feature is a long-lived area of behavior of a domain, e.g.
+   `products/filtering`; it is not the change), using the glossary, the domain code table and the
+   `## Features — domain <domain>` tables of `domain-model.md`:
    - Each domain must be in the domain code table of `CLAUDE.md` **and** have a folder
      `specs/capabilities/<domain>/`. Either one missing → **STOP**, tell the user that the new domain must
      be registered first (via `/spec-bootstrap` or by editing the code table). Never register it yourself.
-   - `primary` = the domain that holds most of the change's behavior.
-4. For **each** related domain, read `specs/capabilities/<domain>/spec.md`, `states.md`, `rules.md`,
-   `history.md`. List the existing requirements (ID, name, behavior summary) and the removed IDs.
+   - Pick each feature from its domain's Features table by its scope line. Declare it as `<domain>/<feature>`.
+   - The behavior fits no existing feature → a **new feature**: an English kebab-case name, unique in the domain,
+     and a one-line scope. Add the row `| <feature> | <scope> |` to that domain's Features table in
+     `domain-model.md` (the only edit allowed there); its section in the spec holds only `ADDED` / `MOVED`
+     requirements (spec-archive creates `specs/capabilities/<domain>/<feature>/spec.md` from the scope line).
+   - `primary` = the feature that holds most of the change's behavior.
+4. Read **only** these capability files — never the spec.md of a feature you did not declare:
+   - for each declared feature: `specs/capabilities/<domain>/<feature>/spec.md` (none yet for a new feature);
+   - for each domain of a declared feature: `states.md`, `rules.md`, `history.md` in `specs/capabilities/<domain>/`.
+   List the existing requirements (ID, name, behavior summary) and the removed IDs. While reading, a behavior of the
+   change turns out to live in another feature of the domain → declare that feature too and read its spec.md.
 5. If `roadmap.md` has a change row matching the feature: use exactly that row's short name and put the row
    in frontmatter `source`. No matching row → still create the change, but add to Assumptions:
    "This change is not in roadmap.md".
@@ -147,8 +161,8 @@ Delete the template's HTML guide block and every per-section guide comment once 
 ---
 kind: delta
 change: "<CHANGE_NAME>"
-capabilities: ["<domain>", ...]   # every domain that has a section under Requirements
-primary: "<domain>"
+capabilities: ["<domain>/<feature>", ...]   # every feature the change touches, incl. the From of a MOVED
+primary: "<domain>/<feature>"
 status: draft
 source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources only; drop an element that does not exist
 ---
@@ -170,20 +184,28 @@ source: ["docs/requirements/<file>#<section>", "roadmap <NNN>"]   # real sources
 | `## Open Questions` | leave empty (heading only) |
 | `## Traceability` | one row per requirement listing all its scenarios; one row per NFR of the NFR table |
 
-**Requirements** — one `### <domain>` section per domain in `capabilities`, `primary` first:
+**Requirements** — one `### <domain>/<feature>` section per feature in `capabilities`, `primary` first (the From
+feature of a MOVED needs no section when nothing else in it changes):
 
-- Behavior that **already has** a requirement in the capability (same behavior, even under another name) →
-  `#### MODIFIED <old ID>: <name>`: rewrite the **whole** requirement and **all** its scenarios as they are after
-  the change (spec-archive replaces the whole block). Never create a new requirement with the same meaning.
+- Behavior that **already has** a requirement in a declared feature (same behavior, even under another name) →
+  `#### MODIFIED <old ID>: <name>` in **that feature's** section: rewrite the **whole** requirement and **all** its
+  scenarios as they are after the change (spec-archive replaces the whole block). Never create a new requirement
+  with the same meaning.
+- An existing requirement that belongs in another feature → `#### MOVED <ID>: <name>` in the section of the feature
+  it moves **to**, with `- **From:** <feature>`, `- **To:** <feature>`, `- **Reason:**`. The ID never changes. Both
+  features are in `capabilities`. Changing its content too → also a `MODIFIED <ID>` in the same section.
 - Removing an existing requirement → `#### REMOVED <ID>: <name>` with `- **Reason:**`, `- **Migration:**`,
   `- **Replaced by:**`.
 - Rename only → `#### RENAMED <ID>` with `- **From:**` / `- **To:**`.
 - New behavior → `#### ADDED <CODE>-<NNN>: <name>`.
-  - `<CODE>` comes from the domain code table. `<NNN>` = the highest number in use for that code + 1, taking
-    into account **all of**: requirements in `capabilities/<domain>/spec.md`, IDs in the "Removed IDs" table of
-    `history.md`, and `ADDED` IDs in other changes currently in `specs/changes/*/spec.md`.
+  - `<CODE>` comes from the domain code table. IDs are unique in the whole **domain**, across all its features.
+    `<NNN>` = the highest number in use for that code + 1, taking into account **all of**: requirement headings in
+    every `capabilities/<domain>/*/spec.md` (list them without reading those specs:
+    `grep -rhoE '^### <CODE>-[0-9]{3}' specs/capabilities/<domain>/`), IDs in the "Removed IDs" table of the
+    domain's `history.md`, and `ADDED` IDs in other changes currently in `specs/changes/*/spec.md`.
     A removed ID is **never** reissued. Several new requirements → consecutive numbers.
-- Only use MODIFIED / REMOVED / RENAMED with an ID that **really exists** in the capability; otherwise never invent an ID.
+- Only use MODIFIED / REMOVED / RENAMED / MOVED with an ID that **really exists** — in the feature of its section
+  (MOVED: in its From feature); otherwise never invent an ID.
 - Each ADDED / MODIFIED requirement, in this order:
   1. One sentence "The system MUST …" about observable behavior.
   2. **Details** the tests need to be exact, as bold-labelled paragraphs (`**API.**`, `**UI.**`, `**Checks.**`,
@@ -252,10 +274,11 @@ Create `<FEATURE_DIR>/checklists/requirements.md`:
 
 - [ ] Frontmatter has kind: delta, change, capabilities, primary, status, source
 - [ ] All template headings present, in template order; Architecture Decisions / Data Model left to the plan
-- [ ] Every domain in `capabilities` has a `### <domain>` section, and vice versa
-- [ ] Every MODIFIED / REMOVED / RENAMED ID exists in the capability spec
+- [ ] Every feature in `capabilities` is in its domain's Features table (domain-model.md) and has a `### <domain>/<feature>` section (except the From of a MOVED), and vice versa
+- [ ] Every MODIFIED / REMOVED / RENAMED ID exists in the spec.md of its section's feature; every MOVED ID in its From feature
+- [ ] A new feature's section holds only ADDED / MOVED requirements
 - [ ] No ADDED requirement duplicates an existing requirement
-- [ ] ADDED IDs are the next free numbers of the domain (incl. history.md and other open changes)
+- [ ] ADDED IDs are the next free numbers of the domain (all its features, history.md and other open changes)
 - [ ] Every requirement has details, a Permissions line and at least one nested Given/When/Then scenario `<ID>` (type, Pn)
 - [ ] Every error scenario at P1/P2 has → Recovery
 - [ ] Every NFR row has Change Applies / ADDED / MODIFIED and a Category that is a section of nfr.md
@@ -321,7 +344,8 @@ Check if `.specify/extensions.yml` exists in the project root.
 Tell the user:
 
 - The branch created and the change folder (`specs/changes/<CHANGE_NAME>/`), file `spec.md`.
-- Domains (`capabilities`, `primary`) and the requirements: ADDED / MODIFIED / REMOVED / RENAMED with IDs.
+- Features (`capabilities`, `primary`; new features and the row added to domain-model.md) and the requirements:
+  ADDED / MODIFIED / REMOVED / RENAMED / MOVED with IDs.
 - **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
 - The checklist result.
 - Next steps per `CLAUDE.md`: `/speckit-clarify` (main session) → `/spec-edge-cases` →
