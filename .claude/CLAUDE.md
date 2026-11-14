@@ -12,6 +12,16 @@ When there is an app: put the requirement documents in `docs/requirements/`, run
 - Harness setup: branch `harness/<task>` (e.g. `harness/day1-init`).
 - Feature change: branch `NNN-<name>`, created automatically by `/speckit-specify`. Never name a branch `NNN-...` for anything else.
 
+## Domains, features, changes
+
+- **Domain** = a group of entities the user recognises (e.g. `products`), with one code (`PROD`).
+- **Feature** = a long-lived area of behavior inside a domain (e.g. `products/filtering`, `products/catalog`),
+  listed in the domain's Features table of `specs/_system/domain-model.md`; its living spec is
+  `specs/capabilities/<domain>/<feature>/spec.md`. Feature names are English kebab-case.
+- **Change** = one round of work (`NNN-<name>`); it may touch one or more features. A feature is NOT a change.
+- Requirement IDs keep the domain code (`PROD-xxx`), are unique in the whole domain, and never change when a
+  requirement moves to another feature.
+
 ## Directory layout
 
 ```

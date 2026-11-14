@@ -1,8 +1,8 @@
 ---
 kind: delta
 change: "001-products-price-range"
-capabilities: ["products"]
-primary: "products"
+capabilities: ["products/filtering"]
+primary: "products/filtering"
 status: approved
 source: ["docs/requirements/price-range.md", "roadmap 001"]
 ---
@@ -68,7 +68,7 @@ yet, and two of their behaviors change (see Assumptions).
 
 ## Requirements
 
-### products
+### products/filtering
 
 #### ADDED PROD-001: Filter the product list by price range
 
@@ -479,7 +479,7 @@ existing `products.price` column (`numeric(10,2)`, USD).
   behavior.
 - This change alters two existing behaviors (PROD-002): (1) the empty-state description becomes common to every
   filter, keyword-only included; (2) the clear-filter button also clears the price range. They cannot be `MODIFIED`
-  requirements because the old behavior has no requirement in `specs/capabilities/products/spec.md` yet.
+  requirements because the old behavior has no requirement in `specs/capabilities/products/filtering/spec.md` yet.
 - Loading keeps the current behavior: the previous list stays visible while new results load.
 - Layout: the two inputs use the existing responsive layout of the search bar.
 - SC-004 names Chrome, Firefox and Safari (NFR-042); in the trial only the browsers available on the machine are
