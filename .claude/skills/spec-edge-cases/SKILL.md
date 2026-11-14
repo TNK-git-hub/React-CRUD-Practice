@@ -24,6 +24,9 @@ $ARGUMENTS
 1. Change folder = the argument above if given; otherwise read `feature_directory` in `.specify/feature.json`.
    Folder not inside `specs/changes/`, or without `spec.md` → **STOP**, tell the user to run
    `/speckit-specify` first.
+   **Precondition:** no `[NEEDS CLARIFICATION` marker is left in the change's `spec.md` (outside HTML comments).
+   Any left → **STOP**: list them with their line and tell the user to run `/speckit-clarify` first (main
+   session). Edge cases are only added to a spec whose open questions are settled.
 2. The change's `spec.md` (format: `.specify/templates/overrides/spec-template.md`, worked example
    `docs/examples/products-price-range-spec.md`): frontmatter `kind: delta` (missing → STOP), `capabilities`, every
    requirement marked `ADDED` / `MODIFIED` (skip `REMOVED`, `RENAMED`, `MOVED`), the table under

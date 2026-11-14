@@ -80,17 +80,22 @@ Two kinds of `spec.md`, told apart by location:
 
 1. `/speckit-specify` → creates `specs/changes/NNN-<name>/spec.md` (every section except Architecture Decisions and
    Data Model). Before writing: read `specs/_system/*` and the related `capabilities/<domain>/`.
-2. `/speckit-clarify` → always run in the main session (a subagent cannot ask the user). Edge cases it settles become
-   `_(unassigned)_` rows of `## Edge Cases & Error Handling`.
-3. `/spec-edge-cases` → walks `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`, turns every
-   `_(unassigned)_` row into a scenario, updates Traceability; writes `checklists/edge-cases.md`.
-4. **STOP — wait for the user to approve the spec.**
+2. `/speckit-clarify` → always run in the main session (a subagent cannot ask the user). Refuses when the change has
+   no `spec.md` yet. Edge cases it settles become `_(unassigned)_` rows of `## Edge Cases & Error Handling`.
+3. `/spec-edge-cases` → refuses while a `[NEEDS CLARIFICATION]` is left (run clarify first). Walks
+   `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`, turns every `_(unassigned)_` row into a
+   scenario, updates Traceability; writes `checklists/edge-cases.md`.
+4. **STOP — wait for the user to approve the spec.** On approval the main session sets the frontmatter
+   `status: approved`; `/speckit-plan` refuses any other status.
 5. `/speckit-plan` → `plan.md` (from `.specify/templates/overrides/plan-template.md`; MUST fill in `## Test Strategy` —
    runner and commands, environment, naming, test level per scenario type, data safety — and `## Quickstart`) plus
    `## Architecture Decisions` (ADRs) and `## Data Model` in `spec.md`. No research.md, data-model.md, contracts/ or
    quickstart.md.
 6. `/speckit-checklist` → `checklists/quality.md`. The default checklist name is `quality.md`; never write to
-   `checklists/edge-cases.md` (it belongs to `/spec-edge-cases`).
+   `checklists/edge-cases.md` (it belongs to `/spec-edge-cases`). Reviewing `quality.md`: **every decision added to
+   the spec while resolving an item** (a rule in the details, a Clarifications answer) **comes with a scenario** — a
+   new `<ID>-S<n>`, its row in `## Edge Cases & Error Handling` and in Traceability — or names the existing scenario
+   that already tests it. A decision without a scenario has no test.
 7. `/speckit-tasks` → `tasks.md` from `.specify/templates/overrides/tasks-template.md`: no test tasks, every task lists
    `Scenarios: <ID,…>`, every scenario of `spec.md` belongs to at least one task.
 8. `/speckit-analyze` → fix CRITICAL findings in plan / tasks (spec problems: stop and report).
@@ -120,6 +125,14 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 ## Hard rules
 
 - Only `spec-archive` may modify `specs/capabilities/` and `specs/_system/nfr.md` (bootstrap creates nfr.md once).
+- `/speckit-specify` may **append** rows to three files of `specs/_system/`, never change an existing row:
+  `traceability.md` (the items of a requirement document that has none yet, owned by the new change),
+  `glossary.md` (a term the spec introduces, with its source) and the Features table of `domain-model.md`
+  (a feature the change introduces). Every other file of `specs/_system/` is read-only for it.
+- Specs and plans are self-contained: a behavior that stays true after the change lives in a requirement's details
+  (Assumptions are not merged at archive; they hold only what is temporary to the change); an existing rule is
+  written "follows <ID>" with its source; never "as for change NNN" or "research Rn" instead of the content
+  (`spec_check --stage spec` rejects those phrases).
 - The planner may change the change's `spec.md` only by Edit between `## Architecture Decisions` and `## Clarifications`
   (ADRs, Data Model), never by Write; its hook (`allow_paths.py`, `edit-section:` rule) blocks everything else.
 - Spec wrong or incomplete during plan / tasks: stop and report; never edit the spec to match the plan.

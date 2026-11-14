@@ -84,9 +84,11 @@ feature description. Assume you always have it available in this conversation ev
 appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
 This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). Write the whole spec in English (requirement sentences read "The system MUST …") and keep its structure (headings, labels, keywords, IDs, frontmatter) exactly as in the template, as the Language section of `.claude/CLAUDE.md` requires. If the feature description or a requirement source is in another language, translate it to English. Exception: user-facing text of the product (UI labels, messages, emails) is quoted verbatim in the product's language, in double quotes, so tests can match it exactly.
-This command creates **one** change and writes only to `specs/changes/<change>/`, `.specify/feature.json` and, for a
-new feature, one row of the Features table in `specs/_system/domain-model.md`. It does not modify
-`specs/capabilities/`, any other part of `specs/_system/`, or code.
+This command creates **one** change and writes only to `specs/changes/<change>/`, `.specify/feature.json` and three
+append-only places of `specs/_system/`: one row per new feature in the Features table of `domain-model.md`, one row
+per item of a **new** requirement document in `traceability.md` (Owning change = this change, Requirement ID
+empty), and one row per **new** term in `glossary.md`. It never changes an existing row there, and does not modify
+`specs/capabilities/`, `nfr.md`, `roadmap.md`, the catalog, or code.
 
 ### Step 1 — Read the knowledge base (before writing anything)
 
@@ -113,6 +115,11 @@ new feature, one row of the Features table in `specs/_system/domain-model.md`. I
 5. If `roadmap.md` has a change row matching the feature: use exactly that row's short name and put the row
    in frontmatter `source`. No matching row → still create the change, but add to Assumptions:
    "This change is not in roadmap.md".
+6. A requirement document in `docs/requirements/` that has no item in `traceability.md` yet (a new document) →
+   number its items after the last `REQ-NN` and append one row each to `traceability.md`:
+   `| REQ-NN (<file>#<section>) | <one-line summary> | <type> | <CHANGE_NAME> | |`. A term the spec uses that is
+   not in `glossary.md` → append one row to its table, with the source of the definition (requirement document or
+   code); no source → `[NEEDS CLARIFICATION]` in the Definition cell. Never edit or delete an existing row.
 
 ### Step 2 — Check the input
 
@@ -229,6 +236,16 @@ feature of a MOVED needs no section when nothing else in it changes):
   `## Edge Cases & Error Handling` table with Scenario `_(unassigned)_`.
 - Rules in `rules.md` and transitions in `states.md` are the reference: a requirement must not contradict them;
   if it does → write `[NEEDS CLARIFICATION]` instead of picking a side.
+- A behavior or rule that **already exists** in a capability (a requirement of a declared feature, a rule of
+  `rules.md`) and that the change relies on is written in the details where it applies, as
+  "follows <ID>: <the rule, stated in full> (<source: capability <domain>/<feature> or rules.md>)" — e.g.
+  "drops `page` — follows PROD-002: a new range returns to page 1 (capability products/filtering)". Never as an
+  Assumption.
+- **Self-contained.** Archive merges only the requirement blocks, so every behavior that stays true after the change
+  (loading state, layout, which side filters, an existing rule) is written in a requirement's details, never in
+  Assumptions. Never point to another change, archive or research instead of stating the content ("as for change
+  001", "as in change 001", "see research R2"): state the behavior itself; a source in parentheses is fine.
+  `spec_check.py --stage spec` rejects those phrases.
 
 **Non-Functional Requirements** — one row per NFR of `specs/_system/nfr.md` the change relies on or changes:
 
@@ -251,7 +268,9 @@ feature of a MOVED needs no section when nothing else in it changes):
   write `[NEEDS CLARIFICATION: <specific question>]` on that very line. **No limit on the number** of such markers.
 - Deletion: follow the "Data and deletion policy" table in `nfr.md`; that cell still `[NEEDS CLARIFICATION]`
   or missing → write `[NEEDS CLARIFICATION]` in the spec, never choose soft or hard delete.
-- Other details (layout…) may use reasonable defaults, recorded under **Assumptions**.
+- Other details (layout…) may use reasonable defaults: write the default in the requirement details (it stays true
+  after the change) and say it is a default ("layout default"). **Assumptions** hold only what is temporary to this
+  change (e.g. "change 001's code is in place", "not in roadmap.md").
 
 ### Step 5 — Quality self-check
 
@@ -290,7 +309,8 @@ Create `<FEATURE_DIR>/checklists/requirements.md`:
 - [ ] Requirements are testable and unambiguous
 - [ ] Success criteria are measurable and technology-agnostic
 - [ ] Scope is clearly bounded (In Scope and Out of Scope filled or marked)
-- [ ] Assumptions listed
+- [ ] Assumptions hold only what is temporary to this change; every lasting behavior is in a requirement's details
+- [ ] An existing rule the change relies on reads "follows <ID>" with its source; no "as for change NNN" / "research Rn"
 
 ## Notes
 
@@ -348,6 +368,7 @@ Tell the user:
   ADDED / MODIFIED / REMOVED / RENAMED / MOVED with IDs.
 - **Every** `[NEEDS CLARIFICATION]`, numbered, with its location.
 - The checklist result.
+- Rows appended to `specs/_system/` (Features table, traceability, glossary), if any.
 - Next steps per `CLAUDE.md`: `/speckit-clarify` (main session) → `/spec-edge-cases` →
   stop and wait for spec approval → `/speckit-plan` → `/speckit-checklist` (`checklists/quality.md`) →
   `/speckit-tasks` → `/speckit-analyze` → stop and wait for plan + tasks approval → handoff.

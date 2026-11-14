@@ -17,6 +17,8 @@
      section's feature, From is another declared feature of the same domain that holds the ID
   3. no "(unassigned)" left in an open change; each plan placeholder line, while still there, appears exactly
      once in the file (the planner replaces it by Edit, which needs a unique match)
+  3b. spec.md and plan.md of an open change are self-contained: no pointer instead of content
+     ("as for change 001", "as in change 001", "same as change 001", "see research R2", "research.md")
   4. every scenario of an open change, and every NFR row, is listed in its "## Traceability"
   5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED, MOVED) in specs/capabilities/ or specs/_system/nfr.md
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
@@ -45,6 +47,14 @@ NAME = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 FEATURE_KEY_RE = re.compile(rf"^({NAME})/({NAME})$")
 MOVE_FIELD_RE = re.compile(r"^\s*-\s+\*\*(From|To):\*\*\s*(.*?)\s*$")
 FEATURES_HEAD_RE = re.compile(rf"^##\s+Features\s+[—–-]+\s+domain\s+`?({NAME})`?\s*$")
+# A spec / plan states its content; it never points to another change or to research instead (archive merges only
+# the requirement blocks, and a change has no research.md). A source in parentheses ("change 001-x") is fine.
+POINTER_RE = re.compile(
+    r"\b(?:as|like)\s+(?:for|in|of|with|per)\s+(?:the\s+)?change\s+\d{3}\b"
+    r"|\b(?:same\s+as|as)\s+(?:in\s+)?change\s+\d{3}\b"
+    r"|\bresearch\s+(?:note\s+)?R\d+\b|\bR\d+\s+(?:of|in)\s+(?:the\s+)?research\b|\bresearch\.md\b",
+    re.I,
+)
 SCENARIO_HEAD_RE = re.compile(rf"^- `({REQ_ID})-S(\d+)` \(([a-z]+), (P[123])\)\s*$")
 NFR_ID_RE = re.compile(r"^NFR-\d{3}$")
 TRACE_TOKEN_RE = re.compile(rf"(?<![A-Za-z0-9])(?:({REQ_ID})-)?S(\d+)(?:\s*[–-]\s*(?:{REQ_ID}-)?S(\d+))?")
@@ -566,6 +576,22 @@ def check_change(ch: ChangeSpec, types: set[str], cap: Capabilities | None = Non
     return errors
 
 
+def check_pointers(root: Path) -> list[str]:
+    """spec.md and plan.md of every open change: no 'as for change NNN' / 'research Rn' instead of content."""
+    errors: list[str] = []
+    for change_dir in sorted(p for p in (root / "specs/changes").glob("*") if p.is_dir()):
+        for name in ("spec.md", "plan.md"):
+            path = change_dir / name
+            if not path.is_file():
+                continue
+            text = strip_comments(path.read_text(encoding="utf-8"))
+            for n, line in enumerate(text.split("\n"), 1):
+                for m in POINTER_RE.finditer(line):
+                    errors.append(f"{rel(root, path)}:{n}: '{m.group(0)}' points elsewhere instead of stating the "
+                                  "content; write the behavior / decision itself (a source in parentheses is fine)")
+    return errors
+
+
 def check_changes(root: Path, cap: Capabilities, nfr_where: dict[str, str]) -> list[str]:
     errors: list[str] = []
     req_locs, removed = cap.req_locs, cap.removed
@@ -618,6 +644,7 @@ def run(root: Path, change: str, stage: str = "spec") -> list[str]:
     nfr_locs, nfr_where = collect_nfr(root)
     errors += check_ids(cap.req_locs, cap.removed, nfr_locs)
     errors += check_changes(root, cap, nfr_where)
+    errors += check_pointers(root)
     if stage == "archive":
         errors += check_tests(root, scenarios)
     return errors

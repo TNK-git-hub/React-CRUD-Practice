@@ -14,7 +14,8 @@ import unittest
 from pathlib import Path
 
 HOOK = Path(__file__).resolve().parent / "allow_paths.py"
-SPEC_WRITER = ["specs/changes/", ".specify/feature.json"]
+SPEC_WRITER = ["specs/changes/", ".specify/feature.json", "specs/_system/traceability.md",
+               "specs/_system/glossary.md", "specs/_system/domain-model.md"]  # as in .claude/agents/spec-writer.md
 PLANNER = ["specs/changes/", "!specs/changes/*/spec.md"]
 ROOT_FILES = ["*"]
 PLANNER_SECTION = ["specs/changes/", "edit-section:specs/changes/*/spec.md:## Architecture Decisions:## Clarifications"]  # generic rule: a pattern without "/" only matches files in the repo root
@@ -59,6 +60,12 @@ class AllowPathsTest(unittest.TestCase):
     def test_exact_file(self) -> None:
         self.assertEqual(self.write(SPEC_WRITER, ".specify/feature.json")[0], 0)
         self.assertEqual(self.write(SPEC_WRITER, ".specify/feature.json.bak")[0], 2)
+
+    def test_spec_writer_may_append_to_three_system_files_only(self) -> None:
+        for path in ("specs/_system/traceability.md", "specs/_system/glossary.md", "specs/_system/domain-model.md"):
+            self.assertEqual(self.write(SPEC_WRITER, path)[0], 0, path)
+        for path in ("specs/_system/nfr.md", "specs/_system/roadmap.md", "specs/capabilities/products/history.md"):
+            self.assertEqual(self.write(SPEC_WRITER, path)[0], 2, path)
 
     def test_dir_rule_does_not_match_prefix_sibling(self) -> None:
         self.assertEqual(self.write(["src/"], "src2/a.ts")[0], 2)

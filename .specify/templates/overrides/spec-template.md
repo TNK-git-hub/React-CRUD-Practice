@@ -47,6 +47,14 @@ Parsed by scripts — keep EXACTLY (change.py merges Requirements into specs/cap
 Kept by name for core Spec Kit commands: Overview, Requirements, Success Criteria, Assumptions, Clarifications, Out of Scope.
 
 Never invent numbers, limits, messages or permissions: write [NEEDS CLARIFICATION: question].
+
+Self-contained: archive merges ONLY the requirement blocks (and NFR rows). So:
+- A behavior that is still true after the change (loading state, layout, "the server filters all products", an
+  existing rule the change relies on) goes into the details of a requirement, never into Assumptions.
+- An existing rule of a capability the change relies on is written where it applies as "follows <ID>" with its source
+  (e.g. "follows PROD-002: a new range returns to page 1 (capability products/filtering)").
+- Never point to another change or to research instead of stating the content: no "as for change 001", "as in
+  change 001", "see research R2". State the behavior itself; a source in parentheses is fine.
 -->
 
 # Change [NNN]: [Change name]
@@ -237,7 +245,10 @@ _(Data Model: filled by /speckit-plan)_
 
 ## Assumptions
 
-<!-- Assumptions in use; say where the spec goes wrong if one is false. -->
+<!-- Only what is TEMPORARY to this change (true while it is in progress, dropped at archive): e.g. "change 001's
+     code is in place", "this change is not in roadmap.md". Say where the spec goes wrong if one is false.
+     A behavior that stays true after the change is NOT an assumption: write it in the requirement details
+     (Assumptions are not merged into the capability spec at archive). -->
 
 - [assumption]
 

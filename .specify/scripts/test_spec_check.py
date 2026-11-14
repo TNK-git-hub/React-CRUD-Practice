@@ -427,6 +427,29 @@ class SpecCheckTest(unittest.TestCase):
         self.assertIn("specs/_system/nfr.md:", out)
         self.assertIn("delta keyword 'ADDED'", out)
 
+    # ---- self-contained spec and plan ----------------------------------------------
+
+    def test_pointer_in_spec_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("The system MUST search products.",
+                                                  "The system MUST search products, as for change 001."))
+        self.assertEqual(code, 1)
+        self.assertIn("'as for change 001' points elsewhere", out)
+
+    def test_pointer_in_plan_rejected(self) -> None:
+        self.open_change()
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\nCaching: see research R2.\nSame as change 001 for the DTO.\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:3: 'research R2'", out)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:4: 'Same as change 001'", out)
+
+    def test_source_in_parentheses_and_comments_are_fine(self) -> None:
+        delta = DELTA.replace("The system MUST search products.",
+                              "The system MUST search products (change 001-products-price-range, clarify).\n\n"
+                              "<!-- as for change 001: guide comment -->")
+        code, out = self.spec_stage(delta)
+        self.assertEqual(code, 0, out)
+
     # ---- features ----------------------------------------------------------------
 
     LISTING = "specs/capabilities/products/listing/spec.md"
