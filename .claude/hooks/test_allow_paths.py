@@ -98,9 +98,40 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(PLANNER, "specs/changes/001-x/checklists/spec.md")[0], 0)
 
     def test_dotdot_cannot_escape(self) -> None:
-        code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")
+        code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/catalog/spec.md")
         self.assertEqual(code, 2)
         self.assertIn("specs/capabilities/products/catalog/spec.md", err)
+
+    # ---- backslash paths: same decision on Windows and macOS / Linux ----------------
+
+    def test_backslash_relative_path_allowed(self) -> None:
+        self.assertEqual(self.write(SPEC_WRITER, "specs\\changes\\001-x\\spec.md")[0], 0)
+        self.assertEqual(self.write(SPEC_WRITER, ".specify\\feature.json")[0], 0)
+
+    def test_backslash_path_blocked_and_reported_with_slashes(self) -> None:
+        code, err = self.write(SPEC_WRITER, "specs\\capabilities\\products\\catalog\\spec.md")
+        self.assertEqual(code, 2)
+        self.assertIn("'specs/capabilities/products/catalog/spec.md' is outside the allowed paths", err)
+        self.assertNotIn("specs\\\\capabilities", err)
+
+    def test_backslash_dotdot_cannot_escape(self) -> None:
+        code, _ = self.write(SPEC_WRITER, "specs\\changes\\..\\capabilities\\products\\catalog\\spec.md")
+        self.assertEqual(code, 2)
+
+    def test_backslash_absolute_path_inside_dir(self) -> None:
+        path = str(self.root / "specs/changes/001-x/spec.md").replace("/", "\\")
+        self.assertEqual(self.write(SPEC_WRITER, path)[0], 0)
+
+    def test_backslash_in_rules(self) -> None:
+        self.assertEqual(self.write(["specs\\changes\\"], "specs/changes/001-x/tasks.md")[0], 0)
+        self.assertEqual(self.write(["specs\\changes\\", "!specs\\changes\\*\\spec.md"],
+                                    "specs/changes/001-x/spec.md")[0], 2)
+
+    def test_norm_is_posix_and_relative(self) -> None:
+        sys.path.insert(0, str(HOOK.parent))
+        import allow_paths
+        self.assertEqual(allow_paths.norm(".\\specs\\changes\\x.md"), "specs/changes/x.md")
+        self.assertEqual(allow_paths.norm("./specs/changes/"), "specs/changes")
 
     def test_outside_project(self) -> None:
         code, err = self.write(["specs/changes/"], "/etc/passwd")
