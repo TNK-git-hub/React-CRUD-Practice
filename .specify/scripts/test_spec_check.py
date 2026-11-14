@@ -443,6 +443,12 @@ class SpecCheckTest(unittest.TestCase):
         self.assertIn(f"specs/changes/{OPEN}/plan.md:3: 'research R2'", out)
         self.assertIn(f"specs/changes/{OPEN}/plan.md:4: 'Same as change 001'", out)
 
+    def test_pointer_with_words_between_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("The system MUST search products.",
+                                                  "The previous list stays visible, as for the price filter in change 001."))
+        self.assertEqual(code, 1)
+        self.assertIn("'as for the price filter in change 001' points elsewhere", out)
+
     def test_source_in_parentheses_and_comments_are_fine(self) -> None:
         delta = DELTA.replace("The system MUST search products.",
                               "The system MUST search products (change 001-products-price-range, clarify).\n\n"

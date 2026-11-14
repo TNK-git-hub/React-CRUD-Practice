@@ -50,7 +50,7 @@ FEATURES_HEAD_RE = re.compile(rf"^##\s+Features\s+[—–-]+\s+domain\s+`?({NAME
 # A spec / plan states its content; it never points to another change or to research instead (archive merges only
 # the requirement blocks, and a change has no research.md). A source in parentheses ("change 001-x") is fine.
 POINTER_RE = re.compile(
-    r"\b(?:as|like)\s+(?:for|in|of|with|per)\s+(?:the\s+)?change\s+\d{3}\b"
+    r"\b(?:as|like)\s+(?:for|in|of|with|per)\s+(?:[\w-]+\s+){0,5}?(?:in\s+)?change\s+\d{3}\b"
     r"|\b(?:same\s+as|as)\s+(?:in\s+)?change\s+\d{3}\b"
     r"|\bresearch\s+(?:note\s+)?R\d+\b|\bR\d+\s+(?:of|in)\s+(?:the\s+)?research\b|\bresearch\.md\b",
     re.I,
