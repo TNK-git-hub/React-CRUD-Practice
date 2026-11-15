@@ -29,6 +29,18 @@ describe('QueryProductDto price bounds', () => {
     expect(dto.maxPrice).toBe('10');
   });
 
+  it('PROD-003-S11 a repeated key (array) is not trimmed: validation answers, no TypeError', async () => {
+    // Catches: calling .trim() on a non-string and crashing before validation can answer
+    const outcome = await pipe
+      .transform({ minPrice: ['10', '20'] } as unknown as Record<string, string>, {
+        type: 'query',
+        metatype: QueryProductDto,
+      })
+      .then(() => 'accepted', (e: unknown) => e);
+
+    expect(outcome instanceof TypeError).toBe(false);
+  });
+
   it('PROD-003-S11 an empty maxPrice becomes absent too', async () => {
     // Catches: only the minimum being normalised
     const dto = await parse({ minPrice: '5', maxPrice: '' });

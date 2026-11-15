@@ -59,7 +59,17 @@ describe('ProductsService.findAll price filter', () => {
     expect(res.data.total).toBe(4);
   });
 
-  it('PROD-001-S7 exact to 2 decimals: 19.99-20 keeps 19.99 and 20.00, not 20.01', async () => {
+  it('PROD-003-S1 bounds 10.50 and 20 on 5, 10, 10.50, 20, 30 return exactly 10.50 and 20.00', async () => {
+    // Catches: a bound with 2 decimals being rounded, truncated or rejected
+    const rows = [listRow(1, 5), listRow(2, 10), listRow(3, 10.5), listRow(4, 20), listRow(5, 30)];
+
+    const res = await makeListService(rows).findAll(dtoOf({ minPrice: '10.50', maxPrice: '20' }));
+
+    expect(prices(res)).toEqual([10.5, 20]);
+    expect(res.data.total).toBe(2);
+  });
+
+  it('PROD-001-S7exact to 2 decimals: 19.99-20 keeps 19.99 and 20.00, not 20.01', async () => {
     // Catches: rounding, float comparison, or an exclusive bound
     const rows = [listRow(1, 19.99), listRow(2, 20), listRow(3, 20.01)];
 

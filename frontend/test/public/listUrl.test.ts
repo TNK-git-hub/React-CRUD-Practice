@@ -7,8 +7,6 @@ import * as listUrl from '../../src/utils/listUrl';
 //   readListParams(searchParams: URLSearchParams): object with q|query, page, sortBy, order, minPrice, maxPrice
 //   (an ignored bound is '' or undefined).
 type Changes = Record<string, string | number | null>;
-const rawBuild: (current: URLSearchParams, changes: Changes) => unknown = listUrl.buildListUrl;
-const rawRead: (sp: URLSearchParams) => unknown = listUrl.readListParams;
 
 interface Built {
   url: string;
@@ -18,43 +16,13 @@ interface Built {
 }
 
 function build(current: string, changes: Changes): Built {
-  const url = String(rawBuild(new URLSearchParams(current), changes));
+  const url = listUrl.buildListUrl(new URLSearchParams(current), changes);
   const [path, qs = ''] = url.split('?');
   const sp = new URLSearchParams(qs);
   return { url, path, keys: [...sp.keys()], get: (k) => sp.get(k) };
 }
 
-interface Read {
-  q: string;
-  page: number;
-  sortBy: string;
-  order: string;
-  minPrice: string;
-  maxPrice: string;
-}
-
-const field = (o: unknown, ...keys: string[]): unknown => {
-  if (typeof o !== 'object' || o === null) return undefined;
-  const rec = o as Record<string, unknown>;
-  for (const k of keys) if (k in rec) return rec[k];
-  return undefined;
-};
-
-function read(qs: string): Read {
-  const r = rawRead(new URLSearchParams(qs));
-  const rangeOf = (...keys: string[]) => {
-    const v = field(r, ...keys) ?? field(field(r, 'range', 'price'), ...keys);
-    return typeof v === 'string' ? v : '';
-  };
-  return {
-    q: String(field(r, 'q', 'query') ?? ''),
-    page: Number(field(r, 'page')),
-    sortBy: String(field(r, 'sortBy')),
-    order: String(field(r, 'order')),
-    minPrice: rangeOf('minPrice', 'min'),
-    maxPrice: rangeOf('maxPrice', 'max'),
-  };
-}
+const read = (qs: string) => listUrl.readListParams(new URLSearchParams(qs));
 
 describe('buildListUrl', () => {
   it('PROD-001-S1 writes minPrice and maxPrice, on the path "/"', () => {
@@ -97,14 +65,6 @@ describe('buildListUrl', () => {
     const b = build('minPrice=10&maxPrice=20&page=2', { sortBy: 'price', order: 'asc', page: null });
 
     expect(b.url).toBe('/?minPrice=10&maxPrice=20&sortBy=price&order=asc');
-  });
-
-  it('PROD-002-S12 a sort change depends only on the applied URL: typed-but-unapplied values cannot appear', () => {
-    // Catches: form state leaking into the URL (the builder takes no form values)
-    const b = build('minPrice=10&maxPrice=20', { sortBy: 'title', order: 'desc', page: null });
-
-    expect(b.get('minPrice')).toBe('10');
-    expect(b.get('maxPrice')).toBe('20');
   });
 
   it('PROD-002-S12 changing the page keeps every other applied key', () => {
@@ -207,6 +167,35 @@ describe('readListParams', () => {
       expect(r.minPrice).toBe('');
       expect(r.maxPrice).toBe('5');
     }
+  });
+
+  it('PROD-002-S4 an invalid maximum is ignored, the valid minimum still applies', () => {
+    // Catches: junk "abc" in maxPrice passed down, or the valid minimum dropped with it
+    const r = read('minPrice=5&maxPrice=abc');
+
+    expect(r.minPrice).toBe('5');
+    expect(r.maxPrice).toBe('');
+  });
+
+  it('PROD-002-S4 negative, too many decimals and over-limit maximum values are ignored', () => {
+    // Catches: the maximum side skipping the PROD-003 checks
+    for (const bad of ['-1', '10.123', '100000000', '1e3']) {
+      const r = read(`minPrice=5&maxPrice=${bad}`);
+      expect(r.minPrice).toBe('5');
+      expect(r.maxPrice).toBe('');
+    }
+  });
+
+  it('PROD-002-S13 Back restores the previous applied range: each URL reads back its own range', () => {
+    // Catches: range kept anywhere but the URL (Back would not restore inputs and list)
+    const first = build('', { minPrice: '10', maxPrice: '20' }).url;
+    const second = build('minPrice=10&maxPrice=20', { minPrice: '30', maxPrice: '40', page: null }).url;
+
+    expect(second).toBe('/?minPrice=30&maxPrice=40');
+    const back = read(first.split('?')[1]);
+    expect([back.minPrice, back.maxPrice]).toEqual(['10', '20']);
+    const beforeFiltering = read('');
+    expect([beforeFiltering.minPrice, beforeFiltering.maxPrice]).toEqual(['', '']);
   });
 
   it('PROD-002-S4 valid values are read back as typed ("010", "20.00")', () => {
