@@ -2,7 +2,7 @@
 
 | Change | Goal (what the user sees) | Features | Source | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| 001-product-price-filter | A visitor enters a minimum price and/or a maximum price; the product list shows only products whose price is in the range (both ends included), together with the existing search, sort and pagination | products/filtering | REQ-01–REQ-04; BR-PROD-01–BR-PROD-05; NFR-004, NFR-042 | — | planned |
+| 001-product-price-filter | A visitor enters a minimum price and/or a maximum price; the product list shows only products whose price is in the range (both ends included), together with the existing search, sort and pagination | products/filtering | REQ-01–REQ-04; BR-PROD-01–BR-PROD-05; NFR-004, NFR-042 | — | archived |
 
 ## Ordering notes
 

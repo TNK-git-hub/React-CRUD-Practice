@@ -9,17 +9,17 @@ that names the earlier answer, so it can be confirmed or changed.
 
 | ID | Requirement | Number | Source | Verification |
 | --- | --- | --- | --- | --- |
-| NFR-001 | `GET /products` results are cached in Redis per set of query parameters (`q`, `limit`, `skip`, `sortBy`, `order`); creating / editing / deleting a product invalidates every cached list | lives at most 30 seconds | backend/src/products/products.service.ts | [to be set by the first change] |
+| NFR-001 | `GET /products` results are cached in Redis per set of query parameters (`q`, `limit`, `skip`, `sortBy`, `order`, `minPrice`, `maxPrice`); creating / editing / deleting a product invalidates every cached list | lives at most 30 seconds | backend/src/products/products.service.ts; change 001-product-price-filter | PROD-001-S14, PROD-001-S10 |
 | NFR-002 | `GET /products/:id` results are cached in Redis; editing / deleting the product removes that entry | lives at most 60 seconds | backend/src/products/products.service.ts | [to be set by the first change] |
 | NFR-003 | Maximum number of products in one `GET /products` call | `limit` 1–100; the UI uses 10 | backend/src/products/dto/query-product.dto.ts; frontend/src/views/ProductList.tsx | [to be set by the first change] |
-| NFR-004 | Response time of the product list (also when filtered by price) | [NEEDS CLARIFICATION: on branch 001 you chose "< 1 second on the current seed data (backend/src/seed.ts)"; keep?] | [NEEDS CLARIFICATION] | [to be set by the first change] |
+| NFR-004 | Response time of the product list (also when filtered by price) | < 1 second on the current seed data (backend/src/seed.ts) | user decision, clarify 2026-11-15 (change 001-product-price-filter) | SC-001 |
 
 ## Security and permissions
 
 | ID | Requirement | Source | Verification |
 | --- | --- | --- | --- |
 | NFR-010 | Every permission check happens in the backend (constitution, Principle II) | constitution | denied-case test per protected operation |
-| NFR-011 | The app has no login; no endpoint checks identity or permission. [NEEDS CLARIFICATION: on branch 001 you decided this is deliberate (practice app) and a **known exception to constitution Principle II**: with no identity there is no permission to check in the backend; keep?] | docs/requirements/price-range.md#Requirement ("the app has no login yet"); backend/src/products/products.controller.ts | [to be set by the first change] |
+| NFR-011 | The app has no login; no endpoint checks identity or permission. This is deliberate (practice app) and a known exception to constitution Principle II: with no identity there is no permission to check in the backend | docs/requirements/price-range.md#Requirement; backend/src/products/products.controller.ts; user decision, clarify 2026-11-15 | PROD-001-S4 |
 | NFR-012 | Input is validated by `ValidationPipe` (`whitelist: true`, `transform: true`): wrong type / out of range → 400; undeclared fields or parameters are dropped silently, without an error | backend/src/main.ts | [to be set by the first change] |
 | NFR-013 | CORS allows only the origin in the environment variable `FRONTEND_URL` | backend/src/main.ts | [to be set by the first change] |
 
@@ -65,10 +65,11 @@ shape although the row is gone; uploaded files under `backend/uploads/` are not 
 
 | ID | Requirement | Source | Verification |
 | --- | --- | --- | --- |
-| NFR-040 | UI language: [NEEDS CLARIFICATION: the UI is mixed today — validation messages in Vietnamese (frontend/src/utils/productForm.ts), some labels in English ("Previous" / "Next", frontend/src/comopnents/ProductListPageCom/PageNav.tsx), `<html lang="en">` (frontend/src/app/layout.tsx). Which language do new messages use? On branch 001 you chose Vietnamese]. Narrow screens (≤ 400 px, `max-xs`) have their own layout | frontend/src/styles/index.css; frontend/src/comopnents/ | [to be set by the first change] |
+| NFR-040 | UI language: new UI text (labels, messages) is Vietnamese; existing English labels stay as they are. Narrow screens (≤ 400 px, `max-xs`) have their own layout | frontend/src/styles/index.css; frontend/src/comopnents/; user decision, clarify 2026-11-15 | Review |
 | NFR-041 | Currency: USD (the UI shows `$`); other currencies are out of scope | docs/requirements/price-range.md#Out of scope; frontend/src/comopnents/ProductListPageCom/ProductCard.tsx | [to be set by the first change] |
-| NFR-042 | Supported browsers: [NEEDS CLARIFICATION: on branch 001 you chose "current Chrome, Safari and Firefox on desktop"; keep?] | [NEEDS CLARIFICATION] | [to be set by the first change] |
+| NFR-042 | Supported browsers: current Chrome, Safari and Firefox on desktop | user decision, clarify 2026-11-15 | SC-004 manual check |
 | NFR-043 | Image upload: PNG, JPG or WEBP only; at most 2 MB per file | backend/src/uploads/uploads.controller.ts | [to be set by the first change] |
+| NFR-044 | Each price input has a visible label tied to it; an input whose check failed is marked `aria-invalid="true"` and its message is linked to it by `aria-describedby` | change 001-product-price-filter (clarify 2026-11-15) | PROD-003-S23 |
 
 ## Open questions
 

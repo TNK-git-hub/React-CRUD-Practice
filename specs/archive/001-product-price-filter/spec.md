@@ -3,7 +3,7 @@ kind: delta
 change: "001-product-price-filter"
 capabilities: ["products/filtering"]
 primary: "products/filtering"
-status: approved
+status: archived
 source: ["docs/requirements/price-range.md#Requirement", "docs/requirements/price-range.md#Out of scope", "roadmap 001"]
 ---
 
