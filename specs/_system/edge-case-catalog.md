@@ -164,7 +164,10 @@ Example (nested format of the delta spec template):
 Business traps specific to each app. Empty in the harness; `/spec-bootstrap` or each app's retro adds
 them here (on the app's branch), one question per line.
 
-- _(none yet)_
+- Which price does a price rule use: the stored selling price (`price`) or the struck-through pre-discount price the card also shows?
+- Does a new list parameter (filter, keyword) take part in the Redis list cache key and the TanStack Query key, so a cached list of another filter is never returned?
+- When a filter or keyword changes, does the list go back to page 1, so the visitor is not left on a page past the last one?
+- Does a product priced exactly at a bound, or at 0, appear when that bound is set?
 
 ---
 
