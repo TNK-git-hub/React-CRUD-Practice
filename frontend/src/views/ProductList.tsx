@@ -5,13 +5,14 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
-import { isSortField, isSortOrder } from '../utils/sortParams';
+import { buildListUrl, readListParams } from '../utils/listUrl';
 import { btn } from '../utils/buttonStyles';
-import type { ProductSummary, SortField, SortOrder } from '../types/product';
+import type { ProductSummary } from '../types/product';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
 
 
 import SearchForm from '../comopnents/ProductListPageCom/SearchForm';
+import type { PriceRangeInput } from '../comopnents/ProductListPageCom/SearchForm';
 import ProList from '../comopnents/ProductListPageCom/ProList';
 import StatusMessage from '../comopnents/ProductListPageCom/StatusMessage';
 import PageNav from '../comopnents/ProductListPageCom/PageNav';
@@ -22,36 +23,15 @@ function ProductList() {
     const router = useRouter();
 
     // URL là "nơi lưu state": đọc giá trị từ URL, không lưu trong useState nữa ----{cần đọc thêm }
-    const query = searchParams.get('q') ?? '';
-    const page = Number(searchParams.get('page')) || 1;
-    // sortBy / order không hợp lệ (vd ?sortBy=abc) -> dùng mặc định thay vì để backend trả 400
-    const sortByParam = searchParams.get('sortBy');
-    const sortBy: SortField = isSortField(sortByParam) ? sortByParam : 'title';
-    const orderParam = searchParams.get('order');
-    const order: SortOrder = isSortOrder(orderParam) ? orderParam : 'asc';
+    // sortBy / order / khoảng giá không hợp lệ -> dùng mặc định thay vì để backend trả 400
+    const { q: query, page, sortBy, order, minPrice, maxPrice } = readListParams(searchParams);
 
-    // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL ----{cần đọc thêm }
+    // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL (thứ tự key + path: buildListUrl)
     const updateParams = (changes: Record<string, string | number | null>) => {
-        const next = new URLSearchParams(searchParams);          // (1) copy params hiện tại
-
-        Object.entries(changes).forEach(([key, value]) => {      // (2) áp từng thay đổi
-            if (value) next.set(key, String(value));
-            else next.delete(key);
-        });
-
-        // (3) sắp xếp lại thứ tự key: q → page → sortBy → order
-        const ordered = new URLSearchParams();
-        ['q', 'page', 'sortBy', 'order'].forEach((key) => {
-            const value = next.get(key);
-            if (value) ordered.set(key, value);
-        });
-
-        const path = ordered.get('q') ? '/products/search' : '/'; // (4) có từ khoá → trang search
-        const qs = ordered.toString();                           // (5) tự encode: "iphone 15" → "iphone+15"
-        router.push(qs ? `${path}?${qs}` : path, { scroll: false }); // (6) đổi URL, giữ vị trí cuộn như cũ
+        router.push(buildListUrl(searchParams, changes), { scroll: false }); // đổi URL, giữ vị trí cuộn như cũ
     };
     // useProducts values
-    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
+    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order, minPrice, maxPrice });
 
     const [productToDelete, setProductToDelete] = useState<ProductSummary | null>(null); // null = dialog đóng
     const deleteMutation = useDeleteProduct();
@@ -83,8 +63,8 @@ function ProductList() {
         updateParams({ sortBy: next.sortBy, order: next.order, page: null }); // sort mới → về trang 1
     };
 
-    const handleSearch = (newQuery: string) => {
-        updateParams({ q: newQuery, page: null });   // search mới → về trang 1
+    const handleSearch = (newQuery: string, range: PriceRangeInput) => {
+        updateParams({ q: newQuery, minPrice: range.minPrice, maxPrice: range.maxPrice, page: null });   // search mới → về trang 1
     };
 
     const clearSearch = () => {
@@ -134,8 +114,10 @@ function ProductList() {
             </div>
             <div>
                 <SearchForm
-                    key={query}
+                    key={`${query}|${minPrice}|${maxPrice}`}
                     initialValue={query}
+                    initialMinPrice={minPrice}
+                    initialMaxPrice={maxPrice}
                     onSearch={handleSearch}
                     sortBy={sortBy} // thêm sort
                     order={order} // thêm sort

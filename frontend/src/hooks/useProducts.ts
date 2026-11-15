@@ -14,15 +14,18 @@ interface UseProductsParams {
     query?: string;
     sortBy?: SortField | '';
     order?: SortOrder;
+    minPrice?: string;
+    maxPrice?: string;
 }
 
-export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc' }: UseProductsParams) {
+export function useProducts({ page, limit, query = "", sortBy = '', order = 'asc', minPrice = '', maxPrice = '' }: UseProductsParams) {
     const skip = limit * (page - 1);
 
-    // check xem là search hay là lấy danh sách full
-    const params: ProductQuery = query
-        ? { q: query, limit, skip, sortBy, order }
-        : { limit, skip, sortBy, order };
+    // chỉ đưa q / minPrice / maxPrice vào khi có giá trị -> query key sạch, mỗi khoảng giá = 1 key
+    const params: ProductQuery = { limit, skip, sortBy, order };
+    if (query) params.q = query;
+    if (minPrice) params.minPrice = minPrice;
+    if (maxPrice) params.maxPrice = maxPrice;
 
     // mỗi page / search / sort = 1 key riêng -> quay lại page cũ lấy từ cache, ko loading
     const { data, status, error, refetch } = useQuery<ProductListResponse, ApiError>({

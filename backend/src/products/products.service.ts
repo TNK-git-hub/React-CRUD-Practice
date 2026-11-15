@@ -1,7 +1,7 @@
 import { randomInt } from 'crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, ILike, In, QueryFailedError, Repository } from 'typeorm';
+import { Between, DataSource, EntityManager, FindOperator, FindOptionsWhere, ILike, In, LessThanOrEqual, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
 import { Tag } from './tag.entity';
 import { CreateProductDto } from './dto/create-product.dto'; // Step 7
 import { QueryProductDto } from './dto/query-product.dto';
@@ -46,8 +46,8 @@ export class ProductsService {
     //   vd products:list:v3:{"q":"phone","limit":20,"skip":0,"sortBy":"price","order":"desc"}
     async findAll(query: QueryProductDto) {
         const version = (await this.cache.get<number>(LIST_VERSION_KEY)) ?? 0; // chưa có / Redis tắt -> 0
-        const { q, limit, skip, sortBy, order } = query;
-        const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order })}`;
+        const { q, limit, skip, sortBy, order, minPrice, maxPrice } = query;
+        const key = `products:list:v${version}:${JSON.stringify({ q, limit, skip, sortBy, order, minPrice, maxPrice })}`;
 
         const cached = await this.cache.get<ProductList>(key);
         if (cached) return { data: cached, cache: 'HIT' as CacheStatus };
@@ -62,10 +62,18 @@ export class ProductsService {
         return this.cache.incr(LIST_VERSION_KEY);
     }
 
-    private async loadList({ q, limit, skip, sortBy, order }: QueryProductDto) {
+    private async loadList({ q, limit, skip, sortBy, order, minPrice, maxPrice }: QueryProductDto) {
         const pattern = ILike(`%${q}%`); // caseinsensitive search
+        // strings go straight to Postgres, compared as numeric(10,2) (001-ADR-1)
+        // the entity types price as number, but the operator must carry the raw string: cast the operator only
+        const asPrice = (op: FindOperator<string>) => op as unknown as FindOperator<number>;
+        const priceCond: FindOptionsWhere<Product> | undefined =
+            minPrice !== undefined && maxPrice !== undefined ? { price: asPrice(Between(minPrice, maxPrice)) }
+            : minPrice !== undefined ? { price: asPrice(MoreThanOrEqual(minPrice)) }
+            : maxPrice !== undefined ? { price: asPrice(LessThanOrEqual(maxPrice)) }
+            : undefined;
         const [products, total] = await this.productRepo.findAndCount({
-            where: q ? [{ title: pattern }, { description: pattern }] : undefined,
+            where: q ? [{ title: pattern, ...priceCond }, { description: pattern, ...priceCond }] : priceCond,
             order: sortBy
                 ? { [sortBy]: order, id: 'ASC' }
                 : { id: order },  // fixed: decides WHICH products are on the page

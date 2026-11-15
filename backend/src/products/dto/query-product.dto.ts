@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
+import { Transform, Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
 
@@ -11,6 +11,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
 @Min(): query param value must be greater than or equal to the given value
 @Type(): query param value must be of the given type
 */
+
+// trim; an empty value means "no bound"; arrays (repeated key) are left for validation
+const trimToAbsent = ({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+};
 
 export const SORTABLE_FIELDS = ['title', 'price', 'rating', 'stock'] as const;
 
@@ -50,4 +57,15 @@ export class QueryProductDto {
     @IsOptional()
     @IsIn(['asc', 'desc'])
     order?: 'asc' | 'desc' = 'asc';
+
+    // strings on purpose (001-ADR-1): Postgres compares them as numeric(10,2), no float rounding
+    @ApiPropertyOptional({ description: 'Minimum price (inclusive), decimal string, e.g. 10 or 10.50' })
+    @IsOptional()
+    @Transform(trimToAbsent)
+    minPrice?: string;
+
+    @ApiPropertyOptional({ description: 'Maximum price (inclusive), decimal string, e.g. 20 or 20.00' })
+    @IsOptional()
+    @Transform(trimToAbsent)
+    maxPrice?: string;
 }
