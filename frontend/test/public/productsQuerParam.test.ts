@@ -110,7 +110,7 @@ describe('getProducts: query string', () => {
     const special = fc.constantFrom('&', '=', '#', '?', '%', '+', ' ', 'đ', '/');
     const anyGrapheme = fc.string({ unit: 'grapheme', minLength: 1, maxLength: 1 });
     const qArb = fc.string({ unit: fc.oneof(special, anyGrapheme) });
-    const allowedKeys = ['limit', 'skip', 'order', 'q', 'sortBy'];
+    const allowedKeys = ['limit', 'skip', 'order', 'q', 'sortBy', 'minPrice', 'maxPrice'];
 
     await fc.assert(
       fc.asyncProperty(
@@ -136,6 +136,61 @@ describe('getProducts: query string', () => {
           }
         },
       ),
+    );
+  });
+});
+
+describe('getProducts: price range', () => {
+  it('PROD-001-S1 sends minPrice and maxPrice as given', async () => {
+    // Catches: bounds not sent, or turned into numbers
+    const echo = await call(api.getProducts({ minPrice: '10', maxPrice: '20' }));
+
+    expect(queryOf(echo)).toEqual({ limit: '10', skip: '0', order: 'asc', minPrice: '10', maxPrice: '20' });
+  });
+
+  it('PROD-001-S1 keeps "010" and "20.00" exactly as typed', async () => {
+    // Catches: Number() normalisation of the bound
+    const q = queryOf(await call(api.getProducts({ minPrice: '010', maxPrice: '20.00' })));
+
+    expect(q.minPrice).toBe('010');
+    expect(q.maxPrice).toBe('20.00');
+  });
+
+  it('PROD-001-S5 an empty or absent bound is not sent', async () => {
+    // Catches: sending "minPrice=" (an empty value)
+    const url = parse(await call(api.getProducts({ minPrice: '', maxPrice: undefined })));
+
+    expect(url.searchParams.has('minPrice')).toBe(false);
+    expect(url.searchParams.has('maxPrice')).toBe(false);
+  });
+
+  it('PROD-001-S5 only the set side is sent', async () => {
+    // Catches: both keys sent as soon as one is set
+    const url = parse(await call(api.getProducts({ minPrice: '', maxPrice: '10' })));
+
+    expect(url.searchParams.has('minPrice')).toBe(false);
+    expect(url.searchParams.get('maxPrice')).toBe('10');
+  });
+
+  it('PROD-001-S9 the bound "0" is still sent', async () => {
+    // Catches: a truthiness check on Number(value) dropping 0
+    const url = parse(await call(api.getProducts({ minPrice: '0', maxPrice: '0' })));
+
+    expect(url.searchParams.get('minPrice')).toBe('0');
+    expect(url.searchParams.get('maxPrice')).toBe('0');
+  });
+
+  it('PROD-001-S5 any non-empty bound is sent exactly once with its exact value, an empty one never', async () => {
+    // Catches: encoding loss for special characters, empty value leaking
+    const noPad = fc.string({ maxLength: 10 }).filter((s) => s === s.trim());
+    await fc.assert(
+      fc.asyncProperty(noPad, noPad, async (min, max) => {
+        const url = parse(await call(api.getProducts({ minPrice: min, maxPrice: max })));
+        const p = url.searchParams;
+
+        expect(p.getAll('minPrice')).toEqual(min ? [min] : []);
+        expect(p.getAll('maxPrice')).toEqual(max ? [max] : []);
+      }),
     );
   });
 });

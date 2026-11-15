@@ -1,5 +1,6 @@
 import 'reflect-metadata';
-import { QueryFailedError } from 'typeorm';
+import { FindOperator, QueryFailedError } from 'typeorm';
+import type { FindManyOptions } from 'typeorm';
 import { ProductsService } from '../../src/products/products.service';
 import { CacheService } from '../../src/redis/cache.service';
 import { RedisService } from '../../src/redis/redis.service';
@@ -102,7 +103,7 @@ export interface FakeDb {
   // what productRepo.findOne returns for a given id (null = not in the db)
   findOne: (id: number) => Row | null;
   // what productRepo.findAndCount returns (called once per list MISS)
-  findAndCount: () => [unknown[], number];
+  findAndCount: (opts: FindManyOptions) => [unknown[], number];
   // what manager.findOneBy(Product, where) returns inside update's transaction
   managerFindOneBy: (where: Record<string, unknown>) => Record<string, unknown> | null;
   // what manager.save does inside the transaction (throw to simulate a db error)
@@ -122,8 +123,8 @@ export function makeService(db: Partial<FakeDb> = {}, redis: RedisService = fake
     async findOne(opts: { where: { id: number } }) {
       return cfg.findOne(opts.where.id);
     },
-    async findAndCount() {
-      return cfg.findAndCount();
+    async findAndCount(opts: FindManyOptions) {
+      return cfg.findAndCount(opts);
     },
     async existsBy() {
       return false; // every generated barcode is free
@@ -177,3 +178,104 @@ export async function rejection(p: Promise<unknown>): Promise<any> {
 
 // HIT returns what came out of JSON.parse, MISS returns live objects (Date etc.)
 export const asJson = <T>(v: T): unknown => JSON.parse(JSON.stringify(v));
+
+// ---- in-memory list repository: really evaluates where / order / skip / take ----
+
+export interface ListRow {
+  id: number;
+  title: string;
+  description: string;
+  price: number;
+  discountPercentage: number;
+  rating: number;
+  stock: number;
+}
+
+export function listRow(id: number, price: number, overrides: Partial<ListRow> = {}): ListRow {
+  return {
+    id,
+    title: `Item ${id}`,
+    description: `Desc ${id}`,
+    price,
+    discountPercentage: 0,
+    rating: 4,
+    stock: 1,
+    ...overrides,
+  };
+}
+
+// exact decimal -> integer cents (BigInt, no float). '010' -> 1000n, '20.00' -> 2000n, '19.99' -> 1999n
+const centsOfString = (s: string): bigint => {
+  const [whole, frac = ''] = s.trim().split('.');
+  return BigInt(whole || '0') * 100n + BigInt((frac + '00').slice(0, 2));
+};
+const centsOf = (v: unknown): bigint =>
+  typeof v === 'number' ? BigInt(Math.round(v * 100)) : centsOfString(String(v));
+
+function matchesOperator(op: FindOperator<unknown>, actual: unknown): boolean {
+  const value = op.value as unknown;
+  switch (op.type) {
+    case 'ilike': {
+      const needle = String(value).replace(/^%|%$/g, '').toLowerCase();
+      return String(actual).toLowerCase().includes(needle);
+    }
+    case 'between': {
+      const [from, to] = value as [unknown, unknown];
+      return centsOf(actual) >= centsOf(from) && centsOf(actual) <= centsOf(to);
+    }
+    case 'moreThanOrEqual':
+      return centsOf(actual) >= centsOf(value);
+    case 'lessThanOrEqual':
+      return centsOf(actual) <= centsOf(value);
+    case 'and':
+      return (value as FindOperator<unknown>[]).every((o) => matchesOperator(o, actual));
+    default:
+      throw new Error(`fake repository does not support operator ${op.type}`);
+  }
+}
+
+function matchesWhere(row: ListRow, where: Record<string, unknown>): boolean {
+  return Object.entries(where).every(([key, cond]) => {
+    const actual = (row as unknown as Record<string, unknown>)[key];
+    if (cond instanceof FindOperator) return matchesOperator(cond as FindOperator<unknown>, actual);
+    return actual === cond;
+  });
+}
+
+export function evaluateFind(rows: ListRow[], opts: FindManyOptions): [ListRow[], number] {
+  const where = opts.where as Record<string, unknown> | Record<string, unknown>[] | undefined;
+  const matched = rows.filter((row) => {
+    if (where === undefined) return true;
+    if (Array.isArray(where)) return where.some((w) => matchesWhere(row, w));
+    return matchesWhere(row, where);
+  });
+  const order = (opts.order ?? { id: 'ASC' }) as Record<string, string>;
+  const sorted = [...matched].sort((a, b) => {
+    for (const [key, dir] of Object.entries(order)) {
+      const av = (a as unknown as Record<string, unknown>)[key] as number | string;
+      const bv = (b as unknown as Record<string, unknown>)[key] as number | string;
+      const c = av === bv ? 0 : av < bv ? -1 : 1;
+      if (c !== 0) return dir.toLowerCase() === 'desc' ? -c : c;
+    }
+    return 0;
+  });
+  const skip = opts.skip ?? 0;
+  const page = opts.take === undefined ? sorted.slice(skip) : sorted.slice(skip, skip + opts.take);
+  return [page, sorted.length];
+}
+
+// Service over a mutable in-memory table. `rows` is live: update() edits it, later lists see the edit.
+export function makeListService(rows: ListRow[], redis: RedisService = fakeRedis()) {
+  return makeService(
+    {
+      findAndCount: (opts) => evaluateFind(rows, opts),
+      managerFindOneBy: (where) => (rows.find((r) => r.id === where.id) as unknown as Record<string, unknown>) ?? null,
+      managerSave: (entity) => entity,
+      findOne: (id) => {
+        const r = rows.find((x) => x.id === id);
+        return r ? productRow(id, { ...r }) : null;
+      },
+    },
+    redis,
+  );
+}
