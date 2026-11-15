@@ -29,16 +29,19 @@ describe('QueryProductDto price bounds', () => {
     expect(dto.maxPrice).toBe('10');
   });
 
-  it('PROD-003-S11 a repeated key (array) is not trimmed: validation answers, no TypeError', async () => {
-    // Catches: calling .trim() on a non-string and crashing before validation can answer
+  it('PROD-003-S11 a repeated key (array) reaches the service untouched, not a TypeError / 500', async () => {
+    // Catches: calling .trim() on a non-string (TypeError -> HTTP 500) or mangling the array
     const outcome = await pipe
       .transform({ minPrice: ['10', '20'] } as unknown as Record<string, string>, {
         type: 'query',
         metatype: QueryProductDto,
       })
-      .then(() => 'accepted', (e: unknown) => e);
+      .then(
+        (dto: QueryProductDto) => ({ kind: 'accepted' as const, minPrice: dto.minPrice as unknown }),
+        (e: unknown) => ({ kind: 'rejected' as const, error: e }),
+      );
 
-    expect(outcome instanceof TypeError).toBe(false);
+    expect(outcome).toEqual({ kind: 'accepted', minPrice: ['10', '20'] });
   });
 
   it('PROD-003-S11 an empty maxPrice becomes absent too', async () => {

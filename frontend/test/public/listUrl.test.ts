@@ -186,8 +186,8 @@ describe('readListParams', () => {
     }
   });
 
-  it('PROD-002-S13 Back restores the previous applied range: each URL reads back its own range', () => {
-    // Catches: range kept anywhere but the URL (Back would not restore inputs and list)
+  it('PROD-002-S4 the range lives only in the URL: each URL reads back its own range', () => {
+    // Catches: range kept anywhere but the URL. (Does not prove Back works: that needs router.push per apply.)
     const first = build('', { minPrice: '10', maxPrice: '20' }).url;
     const second = build('minPrice=10&maxPrice=20', { minPrice: '30', maxPrice: '40', page: null }).url;
 
