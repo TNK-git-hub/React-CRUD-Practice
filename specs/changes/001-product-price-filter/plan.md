@@ -16,8 +16,8 @@ server (PROD-003). Technical approach:
 - **Frontend**: two text inputs in `SearchForm`; one pure function `checkPriceRange` serves the submit checks and
   the URL reading (001-ADR-3); the URL stays the single source of the applied range, and a server 400 becomes a field
   error with the last list kept (001-ADR-4).
-- **Tests**: pure functions and fakes in Vitest for every logic part, an e2e script for rendering and real-Postgres
-  exactness (001-ADR-5).
+- **Tests**: every scenario has a Vitest test in `test/public`: pure functions and fakes for the logic, component
+  tests (jsdom + Testing Library) for the UI; an e2e script adds real-Postgres checks (001-ADR-5).
 
 No stored data changes (spec.md, Data Model).
 
@@ -44,7 +44,7 @@ on one EC2 instance (NFR-030)
 
 **Constraints**: Exact 2-decimal comparison, no float parsing (PROD-001-S7, 001-ADR-1); the same 5 checks and
 messages in UI and server (PROD-003); list cache key must include the range (NFR-001); existing stack only, no
-`package.json` change (001-ADR-5)
+`package.json` change in this change (jsdom and Testing Library came with the harness change `harness/dom-tests`, 001-ADR-5)
 
 **Scale/Scope**: Current seed data (`backend/src/seed.ts`, all products of dummyjson); one page, one endpoint, 3
 requirements, 53 scenarios
@@ -104,13 +104,15 @@ frontend/
 └── test/
     ├── public/priceRange.test.ts       # NEW
     ├── public/listUrl.test.ts          # NEW
-    ├── public/productsQuerParam.test.ts# + minPrice / maxPrice in the request
-    └── e2e/price_filter.py             # NEW: browser checks (not in CI)
+    ├── public/productsQuerParam.test.ts# + minPrice / maxPrice in the request, 400 `errors`
+    ├── public/SearchForm.test.tsx      # NEW: component tests (jsdom): inputs, checks, messages, aria-*
+    ├── public/ProductList.test.tsx     # NEW: component tests (jsdom): URL state, empty / error / loading states, server 400
+    └── e2e/price_filter.py             # NEW: extra checks on real Postgres (not in CI)
 ```
 
 **Structure Decision**: The existing monorepo layout; new code sits next to the code it extends
 (`backend/src/products/dto/`, `frontend/src/utils/`). `listUrl.ts` and `priceRange.ts` are pure modules so the URL and
-check logic run in Vitest without a browser (001-ADR-5).
+check logic run in Vitest without a browser; `SearchForm` and `ProductList` are covered by component tests (001-ADR-5).
 
 ## Test Strategy
 
@@ -119,7 +121,7 @@ check logic run in Vitest without a browser (001-ADR-5).
 | Part | Test runner | Command (from repo root) | Test file location / pattern |
 | --- | --- | --- | --- |
 | backend | Vitest 5 + `unplugin-swc` | `pnpm --filter backend test` | `backend/test/public/*.test.ts` |
-| frontend | Vitest 5 (node environment) | `pnpm --filter frontend test` | `frontend/test/public/*.test.ts` |
+| frontend | Vitest 5 (node environment; component tests `*.test.tsx` start with `// @vitest-environment jsdom`, Testing Library) | `pnpm --filter frontend test` | `frontend/test/public/*.test.ts`, `*.test.tsx` |
 | both (CI gate) | — | `pnpm test` (and `pnpm ci:local`, must print `CI PASSED`) | — |
 | browser (e2e, not in CI) | Python Playwright | `.venv/bin/python frontend/test/e2e/price_filter.py` (Windows: `.venv\Scripts\python`) with backend and frontend running | `frontend/test/e2e/*.py` |
 
@@ -148,16 +150,16 @@ check logic run in Vitest without a browser (001-ADR-5).
 
 | Scenario type | Level (unit / integration / e2e) | Why / what is real, what is faked |
 | --- | --- | --- |
-| happy | integration (backend: real `ValidationPipe` + real `ProductsService` + fake repository) + unit (frontend `listUrl`) + e2e for the UI steps | Real DTO, service and URL code; only the database and Redis are faked |
-| input | unit (`checkPriceRange`) + integration (DTO through `ValidationPipe`) + e2e for messages under the inputs | Same check table on both sides; the e2e verifies where each message appears |
-| boundary | integration (service + fake repository) + e2e for the real `numeric` comparison (PROD-001-S7) | The fake compares like Postgres on 2-decimal strings; e2e confirms on real Postgres |
+| happy | integration (backend: real `ValidationPipe` + real `ProductsService` + fake repository) + unit (frontend `listUrl`) + component (`SearchForm`, `ProductList`) | Real DTO, service, URL code and components; only the database, Redis, `fetch` and the router are faked |
+| input | unit (`checkPriceRange`) + integration (DTO through `ValidationPipe`) + component (messages under the inputs, `aria-*`) | Same check table on both sides |
+| boundary | integration (service + fake repository) + unit / component for UI bounds; e2e adds the real `numeric` comparison (PROD-001-S7) | The fake compares like Postgres on 2-decimal strings |
 | missing | integration (DTO + service) + unit (`listUrl`) | — |
-| collection | integration (service totals, order) + unit (`listUrl`, "Xoá bộ lọc") + e2e (empty-state text, pagination) | — |
+| collection | integration (service totals, order) + unit (`listUrl`) + component (empty-state text, "Xoá bộ lọc", pagination hidden) | — |
 | state | integration (service: `update` then `findAll` with `fakeRedis`) | Real version-bump invalidation; database faked |
 | permission | N/A as a type in this spec; the direct-call scenarios (PROD-001-S4, PROD-003 server scenarios) call the backend's DTO + service directly with no identity (Principle II) | No permission exists (NFR-011) |
-| concurrency | e2e (delayed responses, browser Back) + unit (`listUrl` for typed-not-applied) | Needs a real browser history and query cache |
+| concurrency | component (`ProductList` with a delayed fake `fetch` and a fake router keeping a history for Back) + unit (`listUrl` for typed-not-applied) | Only the network timing and the router are faked |
 | time | N/A | No scenario of this type |
-| dependency | integration (`fakeRedis({ isReady: false })` for Redis down) + e2e (route interception for 5xx / 400) | — |
+| dependency | integration (`fakeRedis({ isReady: false })` for Redis down) + component (fake `fetch` answering 5xx / 400 with `errors`) | — |
 | resource | unit + integration (30-digit value) | — |
 | data | N/A | No scenario of this type |
 | domain | integration (selling vs pre-discount price, cache key, min > max on the server) + unit (min > max in the UI, page reset in `listUrl`) | — |
@@ -172,7 +174,9 @@ Scenario → test file (each scenario has at least these):
 | `frontend/test/public/listUrl.test.ts` | PROD-001-S1, S2, S3, S5 (URL part); PROD-002-S3, S4, S7, S10, S12, S15 |
 | `frontend/test/public/productsQuerParam.test.ts` | PROD-001-S1 (request carries `minPrice` / `maxPrice`), PROD-001-S5 (neither sent) |
 | `frontend/test/public/productsQuerParam.test.ts` (400 body) | PROD-003-S13, S21 (`ApiError` carries `errors.minPrice` / `errors.maxPrice`) |
-| `frontend/test/e2e/price_filter.py` | PROD-001-S1, S2, S3, S5, S6, S7, S11, S13; PROD-002-S1, S2, S4, S6, S8, S9, S10, S12, S13, S14, S16; PROD-003-S4, S5, S13, S15, S17, S21, S22, S23; SC-001, SC-002 |
+| `frontend/test/public/SearchForm.test.tsx` | PROD-001-S1, S2, S3, S5, S6 (form part); PROD-002-S12; PROD-003-S4, S5, S8, S9, S10, S14, S15, S17, S18, S19 (UI part), S22, S23 |
+| `frontend/test/public/ProductList.test.tsx` | PROD-001-S11; PROD-002-S1, S2, S6, S8, S9, S10, S13, S14, S16; PROD-003-S13, S21 |
+| `frontend/test/e2e/price_filter.py` (extra, real Postgres, not the only test of any scenario) | PROD-001-S7, S13 on seed prices; SC-001, SC-002 |
 
 The fixtures of PROD-001-S7 / S13 are not in the seed data; the e2e script checks the same rule on seed prices
 (a bound equal to a real product's price; a discounted seed product), the exact fixtures are in the backend tests.
@@ -223,6 +227,5 @@ python3 -m venv .venv && .venv/bin/pip install playwright && .venv/bin/python -m
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-| --- | --- | --- |
-| UI rendering scenarios are only in the hand-run e2e script, not in CI (001-ADR-5) | No DOM test library in the frontend; adding one changes `package.json` (user approval) | Component tests would need jsdom + Testing Library, a dependency change the user has not approved |
+None: the Constitution Check has no unjustified violation (Principle IV holds through `harness/test-typecheck`, UI
+scenarios run in CI through `harness/dom-tests`).

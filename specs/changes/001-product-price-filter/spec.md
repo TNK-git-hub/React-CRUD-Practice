@@ -699,30 +699,33 @@ a field error, so a network failure is still reported as today.
 **Trade-offs.** `ProductList` grows a small "last successful result" state; the list query key changes on every
 applied range, so the previous key's data is what gets kept.
 
-### 001-ADR-5: Test levels without a DOM test library
+### 001-ADR-5: Test levels: Vitest for every scenario, component tests for the UI
 
-**Status:** Accepted.
+**Status:** Accepted (revised after the first agent run, PR #42 closed).
 
 **Context.** Tests are Vitest in both packages (backend with `unplugin-swc`); backend tests fake the repository and
-Redis (backend/test/public/products.fakes.ts), and the frontend has no DOM test library (no jsdom /
-Testing Library in frontend/package.json). Adding one changes `package.json`, a harness file that needs the user's
-approval (root `CLAUDE.md`). Browser tests exist as Python Playwright scripts in `frontend/test/e2e/`, run by hand
-against a real Postgres, not in CI.
+Redis (backend/test/public/products.fakes.ts). The agent pipeline (k8s/agents/run.sh) approves a change only when
+every assigned scenario has a `describe` / `it` / `test` in `test/public` whose name starts with its ID, so a scenario
+tested only in the hand-run e2e script can never pass (PROD-002-S13 and PROD-002-S16 blocked the first run). The
+frontend now has jsdom and Testing Library (`@testing-library/react`, `@testing-library/user-event`) as
+devDependencies; a component test starts with `// @vitest-environment jsdom` (root `CLAUDE.md`, Quy ước test).
 
 **Options:**
 
-| Option | How | Runs in CI | Needs a `package.json` change | Covers rendering (labels, messages under inputs) |
+| Option | How | Every scenario passes the pipeline gate | Rendering (labels, messages, `aria-*`) in CI | Real-Postgres exactness |
 | --- | --- | --- | --- | --- |
-| Pure functions + fakes in Vitest, rendering in e2e | Backend: DTO validation through a real `ValidationPipe`, service filtering against an in-memory fake repository that evaluates the price operators; frontend: `checkPriceRange`, URL building / reading, query params as pure functions; UI rendering and real-Postgres exactness in `frontend/test/e2e/` | Yes, except e2e | No | Yes, in e2e |
-| Add jsdom + Testing Library | Component tests of `SearchForm` / `ProductList` in Vitest | Yes | Yes (user approval) | Yes |
+| Vitest everywhere: pure functions, fakes and component tests; e2e only as an extra check | Backend: DTO through a real `ValidationPipe`, service against the in-memory fake repository; frontend: pure modules plus component tests of `SearchForm` and `ProductList` with `fetch` and `next/navigation` faked; `frontend/test/e2e/` keeps SC-001, SC-002 and a real-database check of PROD-001-S7 / S13 | Yes | Yes | Yes, by hand-run e2e |
+| Pure functions in Vitest, rendering only in e2e (previous decision) | As above without component tests | No | No | Yes |
 
-**Decision.** Pure functions + fakes in Vitest for every scenario that has a logic part, plus an e2e script for the
-scenarios whose result is rendering or real database comparison (see plan.md, Test Strategy).
+**Decision.** Every scenario has at least one Vitest test in `test/public` (backend or frontend); UI scenarios are
+component tests (`*.test.tsx`) that render `SearchForm` / `ProductList` with only the network (`fetch`) and the
+router (`next/navigation`, a fake that keeps a history so Back can be exercised) faked. The e2e script is an extra
+check on real Postgres, not the only test of any scenario.
 
-**Rationale.** Keeps the harness unchanged and every logic scenario in CI; rendering is still tested, by hand-run e2e.
+**Rationale.** All 53 scenarios run in CI and pass the pipeline's scenario gate; nothing of the app is mocked except
+the network and the router.
 
-**Trade-offs.** UI-only scenarios are not in CI; a regression in rendering is caught only when the e2e script is run
-(Quickstart). Revisit when a DOM test library is approved.
+**Trade-offs.** jsdom is not a real browser (no layout); layout at ≤ 400 px (NFR-040) and SC-004 stay manual checks.
 
 ## Data Model
 

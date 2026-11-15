@@ -157,18 +157,20 @@ Task: "T006 buildListUrl / readListParams in frontend/src/utils/listUrl.ts"
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### One job for the whole change
 
-1. Complete Phase 2: Foundational (T001 – T003)
-2. Complete Phase 3: User Story 1 (T004 – T009)
-3. **STOP and VALIDATE**: PROD-001 scenarios pass (TEST harness)
+Dispatch T001 – T019 as **one** job (`dispatch.sh … --change 001-product-price-filter` without `--tasks`). Do not
+dispatch per user story: the `Scenarios:` of US1 tasks include PROD-002 / PROD-003 scenarios that only pass with the
+US2 / US3 tasks (UI checks, server 400, "Xoá bộ lọc"), US1 and US3 edit the same files (`SearchForm.tsx`,
+`ProductList.tsx`, `query-product.dto.ts`), and a US1-only merge would leave `GET /products` answering 500 for an
+invalid price (no 400 yet).
 
-### Incremental Delivery
+### Order inside the job
 
-1. Foundational → US1 → PROD-001 scenarios pass (MVP)
-2. Add US2 → PROD-002 scenarios pass
-3. Add US3 → PROD-003 scenarios pass
-4. Polish (T018, T019)
+1. Foundational (T001 – T003)
+2. US1 (T004 – T009), then US2 (T010 – T011), then US3 (T012 – T017)
+3. Polish (T018, T019)
+4. **Validate**: every scenario of spec.md passes (TEST harness), `pnpm ci:local` prints `CI PASSED`
 
 ---
 
