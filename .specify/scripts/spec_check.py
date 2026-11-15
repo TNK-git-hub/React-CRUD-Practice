@@ -7,12 +7,21 @@
   1. every open change (specs/changes/*/spec.md) has the structure of the rich delta template:
      frontmatter, all sections in order, requirement headings, nested scenarios `<ID>` (type, Pn) with
      Given / When / Then, NFR table with Change Applies / ADDED / MODIFIED
-  2. IDs are unique: requirement IDs in specs/capabilities/, removed IDs never reused, ADDED requirement and
-     NFR IDs not already in use (nor added by two open changes), scenario IDs unique, NFR IDs in nfr.md unique
+  2. IDs are unique: requirement IDs in the whole domain (every specs/capabilities/<domain>/<feature>/spec.md),
+     removed IDs never reused, ADDED requirement and NFR IDs not already in use (nor added by two open changes),
+     scenario IDs unique, NFR IDs in nfr.md unique
+  2b. feature layout: no spec.md at domain level (specs/capabilities/<domain>/spec.md); an open change lists
+     features as "<domain>/<feature>", each one exists (folder with spec.md) or is new (its section holds only
+     ADDED / MOVED) and, when domain-model.md has a Features table for its domain, is listed there;
+     MODIFIED / RENAMED / REMOVED IDs are in the feature of their section; MOVED has From / To, To is its
+     section's feature, From is another declared feature of the same domain that holds the ID
   3. no "(unassigned)" left in an open change; each plan placeholder line, while still there, appears exactly
      once in the file (the planner replaces it by Edit, which needs a unique match)
+  3b. spec.md and plan.md of an open change are self-contained: no pointer instead of content
+     ("as for change 001", "as in change 001", "same as change 001", "see research R2", "research.md") and no
+     reference into specs/archive/ (an archived change is history, not a source)
   4. every scenario of an open change, and every NFR row, is listed in its "## Traceability"
-  5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED) in specs/capabilities/ or specs/_system/nfr.md
+  5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED, MOVED) in specs/capabilities/ or specs/_system/nfr.md
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
   6. for a change branch (`NNN-<name>`): specs/changes/<change>/ is gone and specs/archive/<change>/ exists
   7. every scenario ID in specs/capabilities/ is mentioned by some file under tests/
@@ -33,8 +42,23 @@ REQ_ID = r"[A-Z]{2,5}-\d{3}"
 REQ_HEAD_RE = re.compile(rf"^###\s+({REQ_ID}):")
 SCENARIO_RE = re.compile(rf"`({REQ_ID}-S\d+)`")
 REMOVED_ROW_RE = re.compile(rf"^\|\s*`?({REQ_ID})`?\s*\|")
-DELTA_WORD_RE = re.compile(r"\b(ADDED|MODIFIED|REMOVED|RENAMED)\b")
-DELTA_HEAD_RE = re.compile(rf"^####\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+({REQ_ID})\b")
+DELTA_WORD_RE = re.compile(r"\b(ADDED|MODIFIED|REMOVED|RENAMED|MOVED)\b")
+DELTA_HEAD_RE = re.compile(rf"^####\s+(ADDED|MODIFIED|REMOVED|RENAMED|MOVED)\s+({REQ_ID})\b")
+NAME = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+FEATURE_KEY_RE = re.compile(rf"^({NAME})/({NAME})$")
+MOVE_FIELD_RE = re.compile(r"^\s*-\s+\*\*(From|To):\*\*\s*(.*?)\s*$")
+FEATURES_HEAD_RE = re.compile(rf"^##\s+Features\s+[—–-]+\s+domain\s+`?({NAME})`?\s*$")
+# A spec / plan states its content; it never points to another change or to research instead (archive merges only
+# the requirement blocks, and a change has no research.md). A source in parentheses ("change 001-x") is fine.
+POINTER_RE = re.compile(
+    r"\b(?:as|like)\s+(?:for|in|of|with|per)\s+(?:[\w-]+\s+){0,5}?(?:in\s+)?change\s+\d{3}\b"
+    r"|\b(?:same\s+as|as)\s+(?:in\s+)?change\s+\d{3}\b"
+    r"|\bresearch\s+(?:note\s+)?R\d+\b|\bR\d+\s+(?:of|in)\s+(?:the\s+)?research\b|\bresearch\.md\b",
+    re.I,
+)
+# An archived change is history, not a source: valid sources are an ID in a capability, a file of specs/_system/, a
+# code path or docs/requirements/. A rule found only in the archive means the capability is missing it.
+ARCHIVE_RE = re.compile(r"specs[/\\]+archive(?:[/\\]|\b)", re.I)
 SCENARIO_HEAD_RE = re.compile(rf"^- `({REQ_ID})-S(\d+)` \(([a-z]+), (P[123])\)\s*$")
 NFR_ID_RE = re.compile(r"^NFR-\d{3}$")
 TRACE_TOKEN_RE = re.compile(rf"(?<![A-Za-z0-9])(?:({REQ_ID})-)?S(\d+)(?:\s*[–-]\s*(?:{REQ_ID}-)?S(\d+))?")
@@ -131,18 +155,71 @@ def check_delta_words(root: Path, files: list[Path]) -> list[str]:
     return errors
 
 
-def collect(root: Path) -> tuple[dict[str, list[str]], dict[str, str], dict[str, str]]:
-    """(requirement id -> locations, removed id -> history file, scenario id -> location)."""
-    req_locs: dict[str, list[str]] = {}
-    removed: dict[str, str] = {}
-    scenarios: dict[str, str] = {}
+class Capabilities:
+    """What specs/capabilities/ and the Features tables of domain-model.md hold today."""
+
+    def __init__(self) -> None:
+        self.req_locs: dict[str, list[str]] = {}  # requirement id -> locations
+        self.req_feature: dict[str, str] = {}  # requirement id -> "<domain>/<feature>" (first location)
+        self.removed: dict[str, str] = {}  # removed id -> history file
+        self.scenarios: dict[str, str] = {}  # scenario id -> location
+        self.features: set[str] = set()  # existing "<domain>/<feature>" (folder with spec.md)
+        self.domains: set[str] = set()  # existing domain folders
+        self.features_table: dict[str, set[str]] = {}  # domain -> features listed in domain-model.md
+
+
+def check_layout(root: Path) -> list[str]:
+    """Requirements live in <domain>/<feature>/spec.md; a domain has no spec.md of its own."""
+    return [f"{rel(root, spec)}: a domain has no spec.md of its own; move its requirements into "
+            f"{rel(root, spec.parent)}/<feature>/spec.md"
+            for spec in sorted((root / "specs/capabilities").glob("*/spec.md"))]
+
+
+def features_table(root: Path) -> dict[str, set[str]]:
+    """domain -> features of its '## Features — domain <domain>' table in specs/_system/domain-model.md."""
+    path = root / "specs/_system/domain-model.md"
+    out: dict[str, set[str]] = {}
+    if not path.is_file():
+        return out
+    domain: str | None = None
+    header = False
+    for line in strip_fences(strip_comments(path.read_text(encoding="utf-8")).split("\n")):
+        m = FEATURES_HEAD_RE.match(line)
+        if m:
+            domain, header = m.group(1), False
+            out.setdefault(domain, set())
+            continue
+        if line.startswith("#"):
+            domain = None
+            continue
+        if domain is None or not line.lstrip().startswith("|"):
+            continue
+        if not header:
+            header = True
+            continue
+        if re.fullmatch(r"[\s|:-]+", line):
+            continue
+        name = split_row(line)[0].strip("`")
+        if re.fullmatch(NAME, name):
+            out[domain].add(name)
+    return out
+
+
+def collect(root: Path) -> Capabilities:
+    caps = Capabilities()
+    req_locs, removed, scenarios = caps.req_locs, caps.removed, caps.scenarios
     cap_root = root / "specs/capabilities"
-    for spec in sorted(cap_root.glob("*/spec.md")):
+    caps.domains = {d.name for d in cap_root.iterdir() if d.is_dir()} if cap_root.is_dir() else set()
+    caps.features_table = features_table(root)
+    for spec in sorted(cap_root.glob("*/*/spec.md")):
+        key = f"{spec.parent.parent.name}/{spec.parent.name}"
+        caps.features.add(key)
         text = strip_comments(spec.read_text(encoding="utf-8"))
         for n, line in enumerate(text.split("\n"), 1):
             m = REQ_HEAD_RE.match(line)
             if m:
                 req_locs.setdefault(m.group(1), []).append(f"{rel(root, spec)}:{n}")
+                caps.req_feature.setdefault(m.group(1), key)
             for sid in SCENARIO_RE.findall(line):
                 scenarios.setdefault(sid, f"{rel(root, spec)}:{n}")
     for history in sorted(cap_root.glob("*/history.md")):
@@ -154,7 +231,7 @@ def collect(root: Path) -> tuple[dict[str, list[str]], dict[str, str], dict[str,
                 m = REMOVED_ROW_RE.match(line.strip())
                 if m:
                     removed[m.group(1)] = rel(root, history)
-    return req_locs, removed, scenarios
+    return caps
 
 
 def collect_nfr(root: Path) -> tuple[dict[str, list[str]], dict[str, str]]:
@@ -252,12 +329,88 @@ class ChangeSpec:
         self.added: list[str] = []  # ADDED requirement IDs
         self.scenarios: dict[str, int] = {}  # scenario ID -> line
         self.nfr_rows: list[tuple[int, dict[str, str]]] = []
+        self.ops: list[dict] = []  # {"op", "id", "section", "line", "fields": {"From", "To"}}
 
     def at(self, i: int) -> str:
         return f"{self.loc}:{i + 1}"
 
 
-def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
+def feature_key(domain: str, value: str | None) -> str | None:
+    """A MOVED From / To value ('filtering' or '`products/filtering`') -> 'products/filtering'."""
+    value = (value or "").strip().strip("`").strip()
+    if FEATURE_KEY_RE.match(value):
+        return value
+    return f"{domain}/{value}" if re.fullmatch(NAME, value) else None
+
+
+def check_features(ch: ChangeSpec, caps: list[str], sections: list[str], cap: Capabilities | None) -> list[str]:
+    """Features in the frontmatter against the sections, the capabilities and the MOVED operations."""
+    errors: list[str] = []
+    bad = [c for c in caps if not FEATURE_KEY_RE.match(c)]
+    if bad:
+        return [f"{ch.loc}: capabilities must list features as '<domain>/<feature>', got {bad}"]
+    cap = cap or Capabilities()
+    moved_in: set[tuple[str, str]] = set()
+    sources: set[str] = set()
+    for op in ch.ops:
+        if op["op"] != "MOVED" or op["section"] is None:
+            continue
+        rid, key, at = op["id"], op["section"], ch.at(op["line"])
+        domain = key.split("/")[0]
+        src, dst = feature_key(domain, op["fields"].get("From")), feature_key(domain, op["fields"].get("To"))
+        if not src or not dst:
+            errors.append(f"{at}: MOVED {rid} needs '- **From:** <feature>' and '- **To:** <feature>'")
+            continue
+        sources.add(src)
+        if dst != key:
+            errors.append(f"{at}: MOVED {rid}: To '{dst}' must be the feature of its section '{key}'")
+        elif src.split("/")[0] != domain:
+            errors.append(f"{at}: MOVED {rid}: From '{src}' is in another domain; IDs never leave their domain")
+        elif src == dst:
+            errors.append(f"{at}: MOVED {rid}: From and To are the same feature")
+        else:
+            if src not in caps:
+                errors.append(f"{at}: MOVED {rid}: From feature '{src}' must be listed in capabilities")
+            where = cap.req_feature.get(rid)
+            if where != src:
+                errors.append(f"{at}: MOVED {rid}: is in {where or 'no feature'}, not in its From feature '{src}'")
+            moved_in.add((rid, key))
+    for key in caps:
+        if key not in sections and key not in sources:
+            errors.append(f"{ch.loc}: feature '{key}' is in capabilities but has no '### {key}' section")
+    for key in sections:
+        if key not in caps:
+            errors.append(f"{ch.loc}: section '### {key}' is not listed in capabilities")
+    for key in caps:
+        domain, feature = key.split("/")
+        if domain not in cap.domains:
+            errors.append(f"{ch.loc}: feature '{key}': domain folder specs/capabilities/{domain}/ does not exist")
+            continue
+        table = cap.features_table.get(domain)
+        if table is not None and feature not in table:
+            errors.append(f"{ch.loc}: feature '{key}' is not in the Features table of specs/_system/domain-model.md")
+        if key not in cap.features:
+            for op in ch.ops:
+                if op["section"] == key and op["op"] not in ("ADDED", "MOVED"):
+                    errors.append(f"{ch.at(op['line'])}: {op['op']} {op['id']}: feature '{key}' does not exist yet; "
+                                  "a new feature may only hold ADDED / MOVED")
+            if key in sources:
+                errors.append(f"{ch.loc}: feature '{key}' does not exist, so nothing can be MOVED from it")
+    for op in ch.ops:
+        if op["op"] not in ("MODIFIED", "RENAMED", "REMOVED") or op["section"] is None:
+            continue
+        rid, key = op["id"], op["section"]
+        if (rid, key) in moved_in or key not in cap.features:
+            continue
+        where = cap.req_feature.get(rid)
+        if where is None:
+            errors.append(f"{ch.at(op['line'])}: {op['op']} {rid} is not in specs/capabilities/")
+        elif where != key:
+            errors.append(f"{ch.at(op['line'])}: {op['op']} {rid} is in {where}, not in its section's feature '{key}'")
+    return errors
+
+
+def check_change(ch: ChangeSpec, types: set[str], cap: Capabilities | None = None) -> list[str]:
     errors: list[str] = []
     meta = ch.meta
     if meta.get("kind", "").strip("\"'") != "delta":
@@ -285,7 +438,8 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
     # requirements
     if "Requirements" in ch.sections:
         start, end = ch.sections["Requirements"]
-        domains: list[str] = []
+        sections_seen: list[str] = []
+        section: str | None = None
         current: tuple[str, str] | None = None  # (op, req id)
         scenario: tuple[str, int, list[str]] | None = None
 
@@ -303,17 +457,24 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
             if line.startswith("### "):
                 close_scenario()
                 scenario, current = None, None
-                domains.append(line[4:].strip())
+                title = line[4:].strip()
+                section = title if FEATURE_KEY_RE.match(title) else None
+                if section is None:
+                    errors.append(f"{ch.at(i)}: section must be '### <domain>/<feature>', got '### {title}'")
+                elif section in sections_seen:
+                    errors.append(f"{ch.at(i)}: feature section '### {section}' appears twice")
+                sections_seen.append(title)
                 continue
             if line.startswith("#### "):
                 close_scenario()
                 scenario = None
                 m = DELTA_HEAD_RE.match(line)
                 if not m:
-                    errors.append(f"{ch.at(i)}: heading must be '#### ADDED|MODIFIED|REMOVED|RENAMED <CODE>-<NNN>: <name>'")
+                    errors.append(f"{ch.at(i)}: heading must be '#### ADDED|MODIFIED|REMOVED|RENAMED|MOVED <CODE>-<NNN>: <name>'")
                     current = None
                     continue
                 current = (m.group(1), m.group(2))
+                ch.ops.append({"op": m.group(1), "id": m.group(2), "section": section, "line": i, "fields": {}})
                 if m.group(1) == "ADDED":
                     ch.added.append(m.group(2))
                 if m.group(1) in ("ADDED", "MODIFIED"):
@@ -321,6 +482,9 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
                 continue
             if current is None:
                 continue
+            fm = MOVE_FIELD_RE.match(line)
+            if fm and ch.ops:
+                ch.ops[-1]["fields"].setdefault(fm.group(1), fm.group(2))
             m = SCENARIO_HEAD_RE.match(line)
             if m:
                 close_scenario()
@@ -350,8 +514,7 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
         for rid, ok in has_scenario.items():
             if not ok:
                 errors.append(f"{ch.loc}: {rid} has no scenario")
-        if caps and sorted(domains) != sorted(caps):
-            errors.append(f"{ch.loc}: '### <domain>' sections {domains} do not match capabilities {caps}")
+        errors += check_features(ch, caps, [s for s in sections_seen if FEATURE_KEY_RE.match(s)], cap)
 
     # NFR table
     if "Non-Functional Requirements" in ch.sections:
@@ -417,15 +580,35 @@ def check_change(ch: ChangeSpec, types: set[str]) -> list[str]:
     return errors
 
 
-def check_changes(root: Path, req_locs: dict[str, list[str]], removed: dict[str, str],
-                  nfr_where: dict[str, str]) -> list[str]:
+def check_pointers(root: Path) -> list[str]:
+    """spec.md and plan.md of every open change: no 'as for change NNN' / 'research Rn' instead of content."""
     errors: list[str] = []
+    for change_dir in sorted(p for p in (root / "specs/changes").glob("*") if p.is_dir()):
+        for name in ("spec.md", "plan.md"):
+            path = change_dir / name
+            if not path.is_file():
+                continue
+            text = strip_comments(path.read_text(encoding="utf-8"))
+            for n, line in enumerate(text.split("\n"), 1):
+                for m in POINTER_RE.finditer(line):
+                    errors.append(f"{rel(root, path)}:{n}: '{m.group(0)}' points elsewhere instead of stating the "
+                                  "content; write the behavior / decision itself (a source in parentheses is fine)")
+                if ARCHIVE_RE.search(line):
+                    errors.append(f"{rel(root, path)}:{n}: points into specs/archive/; cite a capability ID, a "
+                                  "specs/_system/ file, a code path or docs/requirements/ instead. A rule that exists "
+                                  "only in the archive means the capability is missing it: stop and report")
+    return errors
+
+
+def check_changes(root: Path, cap: Capabilities, nfr_where: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    req_locs, removed = cap.req_locs, cap.removed
     types = scenario_types(root)
     added_req: dict[str, str] = {}
     added_nfr: dict[str, str] = {}
     for path in sorted((root / "specs/changes").glob("*/spec.md")):
         ch = ChangeSpec(root, path)
-        errors += check_change(ch, types)
+        errors += check_change(ch, types, cap)
         for rid in ch.added:
             if rid in req_locs:
                 errors.append(f"{ch.loc}: ADDED {rid} already exists ({req_locs[rid][0]})")
@@ -463,10 +646,13 @@ def run(root: Path, change: str, stage: str = "spec") -> list[str]:
     if nfr.is_file():
         files.append(nfr)
     errors += check_delta_words(root, files)
-    req_locs, removed, scenarios = collect(root)
+    errors += check_layout(root)
+    cap = collect(root)
+    scenarios = cap.scenarios
     nfr_locs, nfr_where = collect_nfr(root)
-    errors += check_ids(req_locs, removed, nfr_locs)
-    errors += check_changes(root, req_locs, removed, nfr_where)
+    errors += check_ids(cap.req_locs, cap.removed, nfr_locs)
+    errors += check_changes(root, cap, nfr_where)
+    errors += check_pointers(root)
     if stage == "archive":
         errors += check_tests(root, scenarios)
     return errors

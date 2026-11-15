@@ -12,6 +12,16 @@ When there is an app: put the requirement documents in `docs/requirements/`, run
 - Harness setup: branch `harness/<task>` (e.g. `harness/day1-init`).
 - Feature change: branch `NNN-<name>`, created automatically by `/speckit-specify`. Never name a branch `NNN-...` for anything else.
 
+## Domains, features, changes
+
+- **Domain** = a group of entities the user recognises (e.g. `products`), with one code (`PROD`).
+- **Feature** = a long-lived area of behavior inside a domain (e.g. `products/filtering`, `products/catalog`),
+  listed in the domain's Features table of `specs/_system/domain-model.md`; its living spec is
+  `specs/capabilities/<domain>/<feature>/spec.md`. Feature names are English kebab-case.
+- **Change** = one round of work (`NNN-<name>`); it may touch one or more features. A feature is NOT a change.
+- Requirement IDs keep the domain code (`PROD-xxx`), are unique in the whole domain, and never change when a
+  requirement moves to another feature.
+
 ## Directory layout
 
 ```
@@ -23,7 +33,8 @@ When there is an app: put the requirement documents in `docs/requirements/`, run
   settings.json             shared permissions
 .specify/
   memory/constitution.md    project principles
-  templates/overrides/      customised templates (spec-template.md = rich delta template, capability-template.md = living spec template,
+  templates/overrides/      customised templates (spec-template.md = rich delta template, capability-template.md = living spec of one feature,
+                            domain-model-template.md = incl. one Features table per domain, checklist-template.md = no implement note,
                             plan-template.md = adds mandatory ## Test Strategy and ## Quickstart,
                             tasks-template.md = no test tasks, every task lists its scenario IDs,
                             nfr-template.md = NFR tables incl. Verification)
@@ -35,20 +46,45 @@ docs/requirements/          source requirement documents (BA, customer), in Engl
 docs/examples/              products-price-range-spec.md = worked example of a delta spec (the target level of detail)
 specs/
   _system/                  edge-case-catalog.md (shared); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (created per app by spec-bootstrap)
-  capabilities/<domain>/    LIVING SPEC: spec.md, states.md, rules.md, history.md
+  capabilities/<domain>/    LIVING SPEC, shared by the domain: states.md, rules.md, history.md (Removed IDs) — no spec.md here
+    <feature>/spec.md       one feature's requirements + its Merged changes (features: Features table of domain-model.md)
   changes/NNN-<name>/       CHANGE IN PROGRESS: spec.md (kind: delta), plan.md, tasks.md, checklists/ — nothing else
   archive/NNN-<name>/       changes already merged into capabilities
 tests/<domain>/             tests (written by the TEST harness); each test name starts with a scenario ID
 ```
 
 Two kinds of `spec.md`, told apart by location:
-- `specs/capabilities/<domain>/spec.md`: what the system DOES now. Never contains the words ADDED/MODIFIED/REMOVED.
+- `specs/capabilities/<domain>/<feature>/spec.md`: what one feature of the system DOES now. Never contains the words
+  ADDED/MODIFIED/REMOVED/RENAMED/MOVED. There is no `spec.md` at domain level.
 - `specs/changes/NNN-<name>/spec.md`: everything this change adds/modifies/removes, at full detail, following
   `.specify/templates/overrides/spec-template.md` (worked example: `docs/examples/products-price-range-spec.md`).
-  Frontmatter `kind: delta`, `capabilities: [...]`, `primary`, `status`; sections Overview, Success Criteria, Scope,
-  Requirements (`### <domain>` → `#### ADDED <ID>` / `MODIFIED <ID>` / `REMOVED <ID>` / `RENAMED <ID>`, each with
-  details, `**Permissions:**`, nested scenarios), Non-Functional Requirements, Edge Cases & Error Handling,
-  Architecture Decisions, Data Model, Clarifications, Assumptions, Open Questions, Traceability.
+  Frontmatter `kind: delta`, `capabilities: ["<domain>/<feature>", …]`, `primary`, `status`; sections Overview,
+  Success Criteria, Scope, Requirements (`### <domain>/<feature>` → `#### ADDED <ID>` / `MODIFIED <ID>` /
+  `REMOVED <ID>` / `RENAMED <ID>` / `MOVED <ID>`, each with details, `**Permissions:**`, nested scenarios),
+  Non-Functional Requirements, Edge Cases & Error Handling, Architecture Decisions, Data Model, Clarifications,
+  Assumptions, Open Questions, Traceability.
+
+### Merge operations (what `/spec-archive` does with each, per feature section)
+
+| Operation | Written in the change as | Archive (`change.py sync`) |
+| --- | --- | --- |
+| `ADDED <ID>` | full block under the feature it goes to | adds the block; the ID must not exist in any feature of the domain nor in its Removed IDs; a declared feature that does not exist yet is created (Overview = its Features-table scope) and only takes ADDED / MOVED |
+| `MODIFIED <ID>` | whole block as after the change, under the feature that holds it | replaces the block; stops if the ID is in another feature (or nowhere) |
+| `REMOVED <ID>` | `**Reason:**`, `**Migration:**`, `**Replaced by:**`, under its feature | deletes the block; row in the domain's `history.md` Removed IDs (never reissued) |
+| `RENAMED <ID>` | `**From:**` / `**To:**` names, under its feature | changes the name only |
+| `MOVED <ID>` | `**From:** <feature>`, `**To:** <feature>`, `**Reason:**`, under the To feature; both features in `capabilities` | moves the block unchanged, ID kept; may go with MODIFIED / RENAMED of the same ID in the same section |
+
+Order: MOVED → RENAMED → MODIFIED → REMOVED → ADDED, all validated before anything is written. Each touched feature
+gets a row in the `## Merged changes` table of its own `spec.md`; ADDED / MODIFIED NFR rows go to `nfr.md`.
+
+### Reading context by feature
+
+Every command reads `specs/_system/*` (incl. the Features tables of `domain-model.md`), then only the features the
+change declares in `capabilities`: their `<domain>/<feature>/spec.md` plus the shared `states.md`, `rules.md`,
+`history.md` of their domains — never the spec.md of an undeclared feature. `/speckit-specify` picks the features
+(new feature → a Features-table row), lists the IDs of the whole domain with a grep of the headings to number a new
+requirement, and declares any other feature it finds the behavior in. `/speckit-clarify`, `/spec-edge-cases` and
+`/speckit-plan` read by the declared features.
 
 ## ID conventions
 
@@ -58,29 +94,35 @@ Two kinds of `spec.md`, told apart by location:
   `Covers: <other requirement ID>` when it also verifies another requirement.
 - NFR: `NFR-<NNN>` from `specs/_system/nfr.md`; ADR: `<NNN>-ADR-<n>` (NNN = change number), kept in the change.
 - Domain codes: none yet. `/spec-bootstrap` fills the table below once requirement documents exist; a new domain must be in the table before it is used.
+  Features need no code: they are listed in the Features table of `specs/_system/domain-model.md`.
 
 | Code | Domain |
 | --- | --- |
 | _(none yet)_ | |
 
-- An ID that was removed (recorded in `history.md`) is never reissued.
+- An ID that was removed (recorded in the domain's `history.md`) is never reissued, in any feature of the domain.
 - The name (or description) of every test starts with its scenario ID, e.g. `ABC-003-S2 ...`, whatever the test framework.
 
 ## Flow of one change
 
 1. `/speckit-specify` → creates `specs/changes/NNN-<name>/spec.md` (every section except Architecture Decisions and
-   Data Model). Before writing: read `specs/_system/*` and the related `capabilities/<domain>/`.
-2. `/speckit-clarify` → always run in the main session (a subagent cannot ask the user). Edge cases it settles become
-   `_(unassigned)_` rows of `## Edge Cases & Error Handling`.
-3. `/spec-edge-cases` → walks `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`, turns every
-   `_(unassigned)_` row into a scenario, updates Traceability; writes `checklists/edge-cases.md`.
-4. **STOP — wait for the user to approve the spec.**
+   Data Model). Before writing: read `specs/_system/*` and the declared features (see "Reading context by feature").
+2. `/speckit-clarify` → always run in the main session (a subagent cannot ask the user). Refuses when the change has
+   no `spec.md` yet. Edge cases it settles become `_(unassigned)_` rows of `## Edge Cases & Error Handling`.
+3. `/spec-edge-cases` → refuses while a `[NEEDS CLARIFICATION]` is left (run clarify first). Walks
+   `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`, turns every `_(unassigned)_` row into a
+   scenario, updates Traceability; writes `checklists/edge-cases.md`.
+4. **STOP — wait for the user to approve the spec.** On approval the main session sets the frontmatter
+   `status: approved`; `/speckit-plan` refuses any other status.
 5. `/speckit-plan` → `plan.md` (from `.specify/templates/overrides/plan-template.md`; MUST fill in `## Test Strategy` —
    runner and commands, environment, naming, test level per scenario type, data safety — and `## Quickstart`) plus
    `## Architecture Decisions` (ADRs) and `## Data Model` in `spec.md`. No research.md, data-model.md, contracts/ or
    quickstart.md.
 6. `/speckit-checklist` → `checklists/quality.md`. The default checklist name is `quality.md`; never write to
-   `checklists/edge-cases.md` (it belongs to `/spec-edge-cases`).
+   `checklists/edge-cases.md` (it belongs to `/spec-edge-cases`). Reviewing `quality.md`: **every decision added to
+   the spec while resolving an item** (a rule in the details, a Clarifications answer) **comes with a scenario** — a
+   new `<ID>-S<n>`, its row in `## Edge Cases & Error Handling` and in Traceability — or names the existing scenario
+   that already tests it. A decision without a scenario has no test.
 7. `/speckit-tasks` → `tasks.md` from `.specify/templates/overrides/tasks-template.md`: no test tasks, every task lists
    `Scenarios: <ID,…>`, every scenario of `spec.md` belongs to at least one task.
 8. `/speckit-analyze` → fix CRITICAL findings in plan / tasks (spec problems: stop and report).
@@ -110,6 +152,18 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 ## Hard rules
 
 - Only `spec-archive` may modify `specs/capabilities/` and `specs/_system/nfr.md` (bootstrap creates nfr.md once).
+- `/speckit-specify` may **append** rows to three files of `specs/_system/`, never change an existing row:
+  `traceability.md` (the items of a requirement document that has none yet, owned by the new change),
+  `glossary.md` (a term the spec introduces, with its source) and the Features table of `domain-model.md`
+  (a feature the change introduces). Every other file of `specs/_system/` is read-only for it.
+- Specs and plans are self-contained: a behavior that stays true after the change lives in a requirement's details
+  (Assumptions are not merged at archive; they hold only what is temporary to the change); an existing rule is
+  written "follows <ID>" with its source; never "as for change NNN" or "research Rn" instead of the content
+  (`spec_check --stage spec` rejects those phrases).
+- Valid sources in a change's spec and plan: an ID in a capability (`PROD-002`, capability `<domain>/<feature>`), a
+  file of `specs/_system/`, a code path, `docs/requirements/`. **Never `specs/archive/`**: an archived change is
+  history, not a source (`spec_check --stage spec` rejects it). If a rule the change needs exists only in the archive,
+  the capability is missing it — stop and report; do not point into the archive.
 - The planner may change the change's `spec.md` only by Edit between `## Architecture Decisions` and `## Clarifications`
   (ADRs, Data Model), never by Write; its hook (`allow_paths.py`, `edit-section:` rule) blocks everything else.
 - Spec wrong or incomplete during plan / tasks: stop and report; never edit the spec to match the plan.

@@ -90,11 +90,17 @@ Execution steps:
    - `FEATURE_SPEC`
    - (Optionally capture `IMPL_PLAN`, `TASKS` for future chained flows.)
    - If JSON parsing fails, abort and instruct user to re-run `/speckit-specify` or verify feature branch environment.
+   - **Precondition:** `FEATURE_DIR` is under `specs/changes/` and `FEATURE_SPEC` exists with frontmatter
+     `kind: delta`. Otherwise **STOP**: tell the user there is no spec to clarify and to run
+     `/speckit-specify` first. Never create the spec here.
    - For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints, and
-   `specs/_system/nfr.md`, `specs/_system/glossary.md` and `specs/capabilities/<domain>/rules.md` of the domains in
-   the spec's `capabilities` frontmatter.
+   `specs/_system/nfr.md`, `specs/_system/glossary.md`. Then read the context **by declared feature**: the spec's
+   `capabilities` frontmatter lists features as `<domain>/<feature>`. For each one read
+   `specs/capabilities/<domain>/<feature>/spec.md` (absent for a new feature), and for each of their domains the
+   shared `specs/capabilities/<domain>/rules.md` and `states.md`. Never read the spec.md of a feature the change does
+   not declare; a question that needs another feature → ask whether that feature belongs in `capabilities`.
 
 3. Load the current spec file. Perform a structured ambiguity & coverage scan using this taxonomy. For each category, mark status: Clear / Partial / Missing. Produce an internal coverage map used for prioritization (do not output raw map unless no questions will be asked).
 

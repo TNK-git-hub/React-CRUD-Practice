@@ -1,8 +1,8 @@
 ---
 kind: delta
 change: "001-products-price-range"
-capabilities: ["products"]
-primary: "products"
+capabilities: ["products/filtering"]
+primary: "products/filtering"
 status: approved
 source: ["docs/requirements/price-range.md", "roadmap 001"]
 ---
@@ -68,7 +68,7 @@ yet, and two of their behaviors change (see Assumptions).
 
 ## Requirements
 
-### products
+### products/filtering
 
 #### ADDED PROD-001: Filter the product list by price range
 
@@ -94,7 +94,8 @@ Search or Enter, together with the keyword.
 
 **UI.** Two text inputs labelled "Giá tối thiểu ($)" and "Giá tối đa ($)" sit in the existing search form. Search or
 Enter applies keyword and range together: the URL gets `minPrice` / `maxPrice` (an empty input drops its key) and
-loses `page`. The inputs always show the range applied in the URL.
+loses `page`. The inputs always show the range applied in the URL. While the results for a new range load, the
+previous list stays visible.
 
 **Permissions:** Every viewer, no login needed; no role is denied. Not checking permissions is a known exception to
 constitution Principle II (NFR-011).
@@ -150,6 +151,7 @@ Fixture unless stated: products priced 5.00, 10.00, 20.00 and 30.00 USD.
 
 The system MUST apply the price range together with the keyword, the sort order and pagination, with the total and the
 page count computed on the filtered result, and MUST keep the range in the URL with the keyword, sort and page.
+Filtering runs on the server over all products, not only on the page shown.
 
 **Empty result.** When the filters return no product, the page shows the title "Không tìm thấy sản phẩm nào" and the
 description "Không có sản phẩm nào khớp bộ lọc hiện tại. Thử nới khoảng giá hoặc xoá bộ lọc." — the same description
@@ -473,14 +475,12 @@ existing `products.price` column (`numeric(10,2)`, USD).
 
 - The price filtered on is the current selling price shown on the product card, in USD (glossary), not a pre-discount
   price. If false, results differ from what the viewer sees.
-- Filtering runs on the server over all products, not on the page shown, so the total and page count are right.
 - "The server rejects" means HTTP 400 (rules BR-PROD-05, BR-PROD-07).
 - Brownfield: search, sort and pagination have no requirements yet; this change assumes they keep their current
   behavior.
 - This change alters two existing behaviors (PROD-002): (1) the empty-state description becomes common to every
   filter, keyword-only included; (2) the clear-filter button also clears the price range. They cannot be `MODIFIED`
-  requirements because the old behavior has no requirement in `specs/capabilities/products/spec.md` yet.
-- Loading keeps the current behavior: the previous list stays visible while new results load.
+  requirements because the old behavior has no requirement in `specs/capabilities/products/filtering/spec.md` yet.
 - Layout: the two inputs use the existing responsive layout of the search bar.
 - SC-004 names Chrome, Firefox and Safari (NFR-042); in the trial only the browsers available on the machine are
   checked by hand.

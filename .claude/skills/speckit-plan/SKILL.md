@@ -79,9 +79,14 @@ verbatim in the product's language, in double quotes. The spec of the change mus
 
 1. **Setup**: Run `.specify/scripts/bash/setup-plan.sh --json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
    FEATURE_DIR not under `specs/changes/` → **STOP** and report.
+   **Precondition:** the frontmatter of FEATURE_SPEC has `status: approved` (the user approved the spec, step 4 of
+   the flow in `.claude/CLAUDE.md`). Any other status → **STOP**: report the status and that the spec must be
+   approved first. Never change the status yourself.
 
 2. **Load context**: Read FEATURE_SPEC (the delta spec), `.specify/memory/constitution.md`, every file in
-   `specs/_system/`, and `specs/capabilities/<domain>/` for each domain in the spec's `capabilities`. Load the
+   `specs/_system/`, and, by declared feature (`capabilities` lists `<domain>/<feature>`):
+   `specs/capabilities/<domain>/<feature>/spec.md` of each declared feature plus the shared `states.md`, `rules.md`,
+   `history.md` of their domains. Never the spec.md of an undeclared feature. Load the
    IMPL_PLAN template (already copied by the script). The worked example `docs/examples/products-price-range-spec.md`
    shows the expected Architecture Decisions and Data Model.
 
@@ -216,6 +221,10 @@ next steps per `.claude/CLAUDE.md`: `/speckit-checklist` (`checklists/quality.md
 
 ## Key rules
 
+- plan.md is self-contained: state every decision, number and command in it. Never point instead of stating
+  ("as for change 001", "as in change 001", "see research R2", "research.md"); a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/`.
+  A decision that exists only in an archived change's ADRs → restate it as an ADR of this change.
+  `spec_check.py --stage spec` rejects those phrases and any `specs/archive/` reference in spec.md and plan.md.
 - Use absolute paths for filesystem operations; use project-relative paths for references in documentation
 - ERROR on gate failures or unresolved clarifications
 - Never create research.md, data-model.md, contracts/ or quickstart.md
