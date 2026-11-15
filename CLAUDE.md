@@ -26,10 +26,13 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
 - Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
 
+## Branches
+- Base branch: `refine-test-code-ci-cd`. Change branches (`NNN-<name>`) start from it and their PRs merge into it. The skills and agents of the spec harness read the base branch name from this line; no other file hard-codes it.
+
 ## Spec (đầu vào từ spec harness nhánh `new-project`)
 - Spec harness (viết spec, plan, tasks) đã ghép vào repo: quy tắc trong `.claude/CLAUDE.md`, nguyên tắc trong `.specify/memory/constitution.md`, agent `spec-writer` + `planner`, skill `speckit-*`, `spec-bootstrap`, `spec-edge-cases`, `spec-archive`. Spec viết bằng tiếng Anh. Máy cần Python 3.9+ có PyYAML.
 - Thứ tự: `/spec-bootstrap` (một lần) → mỗi change: `/speckit-specify` → `/speckit-clarify` → `/spec-edge-cases` → duyệt spec → `/speckit-plan` → `/speckit-checklist` → `/speckit-tasks` → `/speckit-analyze` → duyệt plan + tasks → CODE/TEST (bên dưới) → `/spec-archive`.
-- Cấu trúc `specs/`: `_system/`, `capabilities/<domain>/`, `changes/NNN-<feature>/` (spec.md, plan.md, tasks.md, checklists/), `archive/`. Mô tả từng thư mục trong `.gitkeep` của nó.
+- Cấu trúc `specs/`: `_system/`, `capabilities/<domain>/<feature>/` (one living spec per feature; `states.md`, `rules.md`, `history.md` shared at domain level), `changes/NNN-<feature>/` (spec.md, plan.md, tasks.md, checklists/), `archive/`. Mô tả từng thư mục trong `.gitkeep` của nó.
 - Agent CODE đọc `spec.md` (chi tiết requirement, `## Architecture Decisions`, `## Data Model`), `plan.md`, `tasks.md`. Agent TEST đọc scenario, `## Edge Cases & Error Handling`, cột NFR Verification của `spec.md`, `checklists/edge-cases.md`, `## Test Strategy` của `plan.md`.
 - Không agent nào sửa `specs/`. Spec sai/thiếu: ghi `SPEC_PROBLEM: <file> <mục> <lý do>`, quay lại spec harness.
 - Tên mỗi test bắt đầu bằng ID scenario, vd `it('ABC-003-S2 ...')`.

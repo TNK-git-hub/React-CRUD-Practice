@@ -39,12 +39,16 @@ GLOB_CHARS = set("*?[")
 SECTION_PREFIX = "edit-section:"
 
 
+CASE_INSENSITIVE = os.name == "nt" or sys.platform == "darwin"  # default file systems of Windows and macOS
+
+
 def norm(path: str) -> str:
-    """Posix form, without leading './', case-folded on Windows."""
+    """One form for paths and rules on every OS: '/' separators ('\\' accepted), no leading './', no trailing '/',
+    case-folded where the file system ignores case. Never os.path.normcase: on Windows it turns '/' into '\\'."""
     p = PurePosixPath(path.replace("\\", "/")).as_posix()
     while p.startswith("./"):
         p = p[2:]
-    return os.path.normcase(p) if os.name == "nt" else p
+    return p.lower() if CASE_INSENSITIVE else p
 
 
 def matches(rel: str, rule: str) -> bool:
@@ -157,7 +161,7 @@ def relative_target(payload: dict) -> str:
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError("tool_input has no file_path / notebook_path")
     root = project_root(payload)
-    target = Path(raw)
+    target = Path(raw.replace("\\", "/"))  # 'specs\\changes\\x.md' is the same path on every OS
     if not target.is_absolute():
         target = Path(payload.get("cwd") or root) / target
     # resolve() follows symlinks and removes '..', so 'specs/changes/../capabilities' cannot sneak through.
@@ -166,7 +170,7 @@ def relative_target(payload: dict) -> str:
         rel = target.relative_to(root)
     except ValueError:
         raise ValueError(f"'{raw}' is outside the project ({root})") from None
-    return norm(rel.as_posix())
+    return norm(rel.as_posix())  # relative to the repo root, posix form, before any rule is matched
 
 
 def main(argv: list[str]) -> int:

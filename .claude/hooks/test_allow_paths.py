@@ -14,7 +14,8 @@ import unittest
 from pathlib import Path
 
 HOOK = Path(__file__).resolve().parent / "allow_paths.py"
-SPEC_WRITER = ["specs/changes/", ".specify/feature.json"]
+SPEC_WRITER = ["specs/changes/", ".specify/feature.json", "specs/_system/traceability.md",
+               "specs/_system/glossary.md", "specs/_system/domain-model.md"]  # as in .claude/agents/spec-writer.md
 PLANNER = ["specs/changes/", "!specs/changes/*/spec.md"]
 ROOT_FILES = ["*"]
 PLANNER_SECTION = ["specs/changes/", "edit-section:specs/changes/*/spec.md:## Architecture Decisions:## Clarifications"]  # generic rule: a pattern without "/" only matches files in the repo root
@@ -60,6 +61,12 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(SPEC_WRITER, ".specify/feature.json")[0], 0)
         self.assertEqual(self.write(SPEC_WRITER, ".specify/feature.json.bak")[0], 2)
 
+    def test_spec_writer_may_append_to_three_system_files_only(self) -> None:
+        for path in ("specs/_system/traceability.md", "specs/_system/glossary.md", "specs/_system/domain-model.md"):
+            self.assertEqual(self.write(SPEC_WRITER, path)[0], 0, path)
+        for path in ("specs/_system/nfr.md", "specs/_system/roadmap.md", "specs/capabilities/products/history.md"):
+            self.assertEqual(self.write(SPEC_WRITER, path)[0], 2, path)
+
     def test_dir_rule_does_not_match_prefix_sibling(self) -> None:
         self.assertEqual(self.write(["src/"], "src2/a.ts")[0], 2)
         self.assertEqual(self.write(["src/"], "src")[0], 2)
@@ -68,7 +75,7 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(ROOT_FILES, "package.json")[0], 0)
         self.assertEqual(self.write(ROOT_FILES, ".gitignore")[0], 0)
         self.assertEqual(self.write(ROOT_FILES, ".claude/CLAUDE.md")[0], 2)
-        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(ROOT_FILES, "specs/capabilities/products/catalog/spec.md")[0], 2)
 
     def test_notebook_path(self) -> None:
         payload = {"tool_name": "NotebookEdit", "tool_input": {"notebook_path": "src/a.ipynb"}}
@@ -91,9 +98,40 @@ class AllowPathsTest(unittest.TestCase):
         self.assertEqual(self.write(PLANNER, "specs/changes/001-x/checklists/spec.md")[0], 0)
 
     def test_dotdot_cannot_escape(self) -> None:
-        code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/spec.md")
+        code, err = self.write(SPEC_WRITER, "specs/changes/../capabilities/products/catalog/spec.md")
         self.assertEqual(code, 2)
-        self.assertIn("specs/capabilities/products/spec.md", err)
+        self.assertIn("specs/capabilities/products/catalog/spec.md", err)
+
+    # ---- backslash paths: same decision on Windows and macOS / Linux ----------------
+
+    def test_backslash_relative_path_allowed(self) -> None:
+        self.assertEqual(self.write(SPEC_WRITER, "specs\\changes\\001-x\\spec.md")[0], 0)
+        self.assertEqual(self.write(SPEC_WRITER, ".specify\\feature.json")[0], 0)
+
+    def test_backslash_path_blocked_and_reported_with_slashes(self) -> None:
+        code, err = self.write(SPEC_WRITER, "specs\\capabilities\\products\\catalog\\spec.md")
+        self.assertEqual(code, 2)
+        self.assertIn("'specs/capabilities/products/catalog/spec.md' is outside the allowed paths", err)
+        self.assertNotIn("specs\\\\capabilities", err)
+
+    def test_backslash_dotdot_cannot_escape(self) -> None:
+        code, _ = self.write(SPEC_WRITER, "specs\\changes\\..\\capabilities\\products\\catalog\\spec.md")
+        self.assertEqual(code, 2)
+
+    def test_backslash_absolute_path_inside_dir(self) -> None:
+        path = str(self.root / "specs/changes/001-x/spec.md").replace("/", "\\")
+        self.assertEqual(self.write(SPEC_WRITER, path)[0], 0)
+
+    def test_backslash_in_rules(self) -> None:
+        self.assertEqual(self.write(["specs\\changes\\"], "specs/changes/001-x/tasks.md")[0], 0)
+        self.assertEqual(self.write(["specs\\changes\\", "!specs\\changes\\*\\spec.md"],
+                                    "specs/changes/001-x/spec.md")[0], 2)
+
+    def test_norm_is_posix_and_relative(self) -> None:
+        sys.path.insert(0, str(HOOK.parent))
+        import allow_paths
+        self.assertEqual(allow_paths.norm(".\\specs\\changes\\x.md"), "specs/changes/x.md")
+        self.assertEqual(allow_paths.norm("./specs/changes/"), "specs/changes")
 
     def test_outside_project(self) -> None:
         code, err = self.write(["specs/changes/"], "/etc/passwd")
@@ -155,7 +193,7 @@ class AllowPathsTest(unittest.TestCase):
 
     def test_section_rule_leaves_other_files_to_plain_rules(self) -> None:
         self.assertEqual(self.write(PLANNER_SECTION, "specs/changes/001-x/plan.md")[0], 0)
-        self.assertEqual(self.write(PLANNER_SECTION, "specs/capabilities/products/spec.md")[0], 2)
+        self.assertEqual(self.write(PLANNER_SECTION, "specs/capabilities/products/catalog/spec.md")[0], 2)
 
     def test_bad_section_rule_fails_closed(self) -> None:
         self.assertEqual(self.write(["edit-section:specs/changes/*/spec.md:## A"], "specs/changes/001-x/spec.md")[0], 2)

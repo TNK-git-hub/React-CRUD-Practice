@@ -1,8 +1,8 @@
 ---
 kind: delta
 change: "[NNN-change-name]"
-capabilities: ["[domain]"]
-primary: "[domain]"
+capabilities: ["[domain]/[feature]"]   # every feature the change touches, incl. the From of a MOVED
+primary: "[domain]/[feature]"
 status: draft            # draft | approved | implementing | archived
 source: ["[docs/requirements/<file>#<section>]", "roadmap [NNN]"]
 ---
@@ -31,18 +31,31 @@ Who fills which section:
 | Assumptions                     | /speckit-specify, /speckit-clarify                               |
 | Traceability                    | /speckit-specify, updated by /spec-edge-cases                    |
 
-Parsed by scripts — keep EXACTLY (change.py merges Requirements into specs/capabilities/<domain>/spec.md):
-- frontmatter keys kind, change, capabilities, primary, status, source.
-- "## Requirements" → "### <domain>" (one per entry in capabilities) → "#### ADDED|MODIFIED|REMOVED|RENAMED <CODE>-<NNN>: <name>".
+Parsed by scripts — keep EXACTLY (change.py merges Requirements into specs/capabilities/<domain>/<feature>/spec.md):
+- frontmatter keys kind, change, capabilities, primary, status, source. capabilities / primary are features,
+  written "<domain>/<feature>" (names from the Features table of specs/_system/domain-model.md).
+- "## Requirements" → "### <domain>/<feature>" (one per entry in capabilities; the From feature of a MOVED needs no
+  section of its own) → "#### ADDED|MODIFIED|REMOVED|RENAMED|MOVED <CODE>-<NNN>: <name>".
+- A feature that does not exist yet is created by archive: list it in capabilities, give it a row in the
+  Features table of domain-model.md (its scope becomes the feature's Overview), and put only ADDED / MOVED in its section.
 - Scenario IDs in backticks: `<CODE>-<NNN>-S<n>`. Inside a requirement block never put another requirement's
   scenario ID in backticks (write it plain, e.g. "see PROD-003-S10"); use "Covers:" for cross-checks.
 - No "##", "###" or "####" heading inside a requirement: use bold paragraph labels ("**API.**", "**UI.**").
-- REMOVED / RENAMED fields are bullets: "- **Reason:**", "- **Migration:**", "- **Replaced by:**", "- **From:**", "- **To:**".
-- The whole requirement block (statement, details, Permissions, Scenarios) is copied into the capability spec:
-  never write ADDED / MODIFIED / REMOVED / RENAMED inside it.
+- REMOVED / RENAMED / MOVED fields are bullets: "- **Reason:**", "- **Migration:**", "- **Replaced by:**", "- **From:**", "- **To:**".
+- The whole requirement block (statement, details, Permissions, Scenarios) is copied into the feature spec:
+  never write ADDED / MODIFIED / REMOVED / RENAMED / MOVED inside it.
 Kept by name for core Spec Kit commands: Overview, Requirements, Success Criteria, Assumptions, Clarifications, Out of Scope.
 
 Never invent numbers, limits, messages or permissions: write [NEEDS CLARIFICATION: question].
+
+Self-contained: archive merges ONLY the requirement blocks (and NFR rows). So:
+- A behavior that is still true after the change (loading state, layout, "the server filters all products", an
+  existing rule the change relies on) goes into the details of a requirement, never into Assumptions.
+- An existing rule of a capability the change relies on is written where it applies as "follows <ID>" with its source
+  (e.g. "follows PROD-002: a new range returns to page 1 (capability products/filtering)").
+- Never point to another change or to research instead of stating the content: no "as for change 001", "as in
+  change 001", "see research R2". State the behavior itself; a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/` (a rule found only
+  in the archive means the capability is missing it: stop and report).
 -->
 
 # Change [NNN]: [Change name]
@@ -84,8 +97,9 @@ Never invent numbers, limits, messages or permissions: write [NEEDS CLARIFICATIO
 <!--
 /speckit-specify writes each requirement: the "The system MUST …" statement, the details, Permissions and at least
 one happy scenario. /spec-edge-cases adds the other scenarios (walking specs/_system/edge-case-catalog.md).
-Existing requirement in the capability → MODIFIED <old ID>, never a duplicate. New ID = next free number of the domain
-(capability spec.md + history.md; removed IDs are never reused).
+Existing requirement in a feature → MODIFIED <old ID> under that feature's section, never a duplicate. New ID = next
+free number of the DOMAIN (every <domain>/<feature>/spec.md + the domain's history.md + ADDED IDs of open changes;
+removed IDs are never reused). An ID never changes when its requirement moves to another feature (MOVED).
 
 Details: anything the tests need to be exact — tables (parameters, checks in order, messages), JSON bodies, headers,
 status / error codes, URL state. Message text is quoted verbatim.
@@ -99,7 +113,7 @@ Scenario format:
 A shared fixture may be stated once, before the first scenario.
 -->
 
-### [domain]
+### [domain]/[feature]
 
 #### ADDED [CODE]-[NNN]: [Requirement name]
 
@@ -149,6 +163,15 @@ The system MUST [observable behavior, one sentence].
 
 - **From:** [old name]
 - **To:** [new name]
+
+#### MOVED [CODE]-[NNN]: [Existing requirement name]
+
+[Written under the section of the feature it moves TO. The block moves unchanged and keeps its ID; to change its
+content as well, add a MODIFIED of the same ID in the same section. Both features must be in capabilities.]
+
+- **From:** [feature it leaves, e.g. catalog]
+- **To:** [feature of this section, e.g. filtering]
+- **Reason:** [why it belongs to the other feature]
 
 ## Non-Functional Requirements
 
@@ -223,7 +246,10 @@ _(Data Model: filled by /speckit-plan)_
 
 ## Assumptions
 
-<!-- Assumptions in use; say where the spec goes wrong if one is false. -->
+<!-- Only what is TEMPORARY to this change (true while it is in progress, dropped at archive): e.g. "change 001's
+     code is in place", "this change is not in roadmap.md". Say where the spec goes wrong if one is false.
+     A behavior that stays true after the change is NOT an assumption: write it in the requirement details
+     (Assumptions are not merged into the feature spec at archive). -->
 
 - [assumption]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge a change's delta spec into the living capability specs, and archive the change.
+"""Merge a change's delta spec into the living feature specs, and archive the change.
 
 Part of the spec-archive skill. Pure standard library, works on macOS / Linux / Windows.
 
@@ -8,10 +8,22 @@ Part of the spec-archive skill. Pure standard library, works on macOS / Linux / 
     python .claude/skills/spec-archive/scripts/change.py sync    --change 001-x
     python .claude/skills/spec-archive/scripts/change.py archive --change 001-x
 
+Layout: specs/capabilities/<domain>/{states.md, rules.md, history.md} are shared by the domain;
+specs/capabilities/<domain>/<feature>/spec.md holds the requirements of one feature. There is no spec.md at domain
+level. The delta spec lists features in its `capabilities` frontmatter ("<domain>/<feature>") and has one
+"### <domain>/<feature>" section per feature under "## Requirements".
+
 `sync` validates EVERYTHING first and writes nothing when any check fails (exit 1).
-Operations are matched by requirement ID (never by heading text) and applied in the
-order RENAMED -> MODIFIED -> REMOVED -> ADDED, one domain at a time, following the
-`capabilities` frontmatter of the delta spec.
+Operations are matched by requirement ID (never by heading text) and applied one domain at a time in the order
+MOVED -> RENAMED -> MODIFIED -> REMOVED -> ADDED. Requirement IDs are unique in the whole domain:
+- MODIFIED / RENAMED / REMOVED must find the ID in the feature of their section (after MOVED), else stop;
+- MOVED (fields From / To, written under the To feature's section) moves the block between two features of the
+  domain, ID and content unchanged;
+- ADDED must not exist in any feature of the domain nor in its "Removed IDs"; a declared feature that does not exist
+  yet is created (spec.md, Overview = its scope line in the Features table of specs/_system/domain-model.md) and may
+  only receive ADDED / MOVED;
+- REMOVED adds a row to "Removed IDs" of the domain's history.md; every touched feature gets a row in the
+  "## Merged changes" table of its own spec.md.
 
 `sync` also merges the change's "## Non-Functional Requirements" table into
 specs/_system/nfr.md: rows marked ADDED are appended to the table of the nfr.md section named
@@ -41,20 +53,51 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 CHANGE_NAME_RE = re.compile(r"^\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
+NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")  # domain and feature names (kebab-case)
 REQ_ID = r"[A-Z]{2,5}-\d{3}"
-DELTA_HEAD_RE = re.compile(rf"^####\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+({REQ_ID})\b\s*:?\s*(.*?)\s*$")
+DELTA_HEAD_RE = re.compile(rf"^####\s+(ADDED|MODIFIED|REMOVED|RENAMED|MOVED)\s+({REQ_ID})\b\s*:?\s*(.*?)\s*$")
 ANY_H4_RE = re.compile(r"^####\s+")
 CAP_HEAD_RE = re.compile(rf"^###\s+({REQ_ID}):\s*(.*?)\s*$")
 FIELD_RE = re.compile(r"^\s*-\s+\*\*(From|To|Reason|Migration|Replaced by|Source):\*\*\s*(.*?)\s*$")
-DELTA_WORD_RE = re.compile(r"\b(ADDED|MODIFIED|REMOVED|RENAMED)\b")
+FEATURES_HEAD_RE = re.compile(r"^##\s+Features\s+[—–-]+\s+domain\s+`?([a-z0-9]+(?:-[a-z0-9]+)*)`?\s*$")
+HISTORY_CODE_RE = re.compile(r"^#\s+History:.*\(([A-Z]{2,5})\)\s*$")
+DELTA_WORD_RE = re.compile(r"\b(ADDED|MODIFIED|REMOVED|RENAMED|MOVED)\b")
 NONE_YET = "_(none yet)_"
 NFR_ID_RE = re.compile(r"^NFR-\d{3}$")
 NFR_CHANGES = ("Applies", "ADDED", "MODIFIED")
 NFR_KEYS = ("ID", "Change", "Category")  # spec-only columns, never copied into nfr.md
 EMPTY_CELLS = ("", "—", "-")
-OP_ORDER = ("RENAMED", "MODIFIED", "REMOVED", "ADDED")
-# history.md lives in specs/capabilities/ too, so it must not carry the delta keywords either.
-HISTORY_WORD = {"RENAMED": "renamed", "MODIFIED": "updated", "REMOVED": "dropped", "ADDED": "new"}
+OP_ORDER = ("MOVED", "RENAMED", "MODIFIED", "REMOVED", "ADDED")
+# Operations on one ID that may appear together (all in the same feature section).
+ALLOWED_COMBOS = ({"RENAMED", "MODIFIED"}, {"MOVED", "MODIFIED"}, {"MOVED", "RENAMED"}, {"MOVED", "RENAMED", "MODIFIED"})
+# history.md and the feature specs live in specs/capabilities/ too, so they must not carry the delta keywords.
+HISTORY_WORD = {"RENAMED": "renamed", "MODIFIED": "updated", "REMOVED": "dropped", "ADDED": "new", "MOVED": "moved"}
+NEW_FEATURE_SPEC = """\
+---
+kind: capability
+domain: "{domain}"
+feature: "{feature}"
+code: "{code}"
+---
+
+# Feature: {domain}/{feature} ({code})
+
+## Overview
+
+{scope}
+
+Domain files: [states.md](../states.md) · [rules.md](../rules.md) · [history.md](../history.md)
+
+## Requirements
+
+_(none yet)_
+
+## Merged changes
+
+| Change | Date | Change in this feature |
+| --- | --- | --- |
+| _(none yet)_ | | |
+"""
 
 
 class ChangeError(Exception):
@@ -94,6 +137,14 @@ def parse_list(raw: str) -> list[str]:
     if not (raw.startswith("[") and raw.endswith("]")):
         return [raw.strip("\"'")] if raw else []
     return [item.strip().strip("\"'") for item in raw[1:-1].split(",") if item.strip()]
+
+
+def split_feature(key: str) -> tuple[str, str] | None:
+    """'products/filtering' -> ('products', 'filtering'); anything else -> None."""
+    parts = key.strip().strip("`").split("/")
+    if len(parts) == 2 and all(NAME_RE.match(p) for p in parts):
+        return parts[0], parts[1]
+    return None
 
 
 def comment_mask(lines: list[str]) -> list[bool]:
@@ -152,6 +203,10 @@ def is_separator(line: str) -> bool:
     return bool(re.fullmatch(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?", line.strip()))
 
 
+def rel(root: Path, path: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
 # --------------------------------------------------------------------------- delta parsing
 
 
@@ -175,8 +230,8 @@ class DeltaOp:
 class Delta:
     change: str
     meta: dict[str, str]
-    capabilities: list[str]
-    ops: dict[str, list[DeltaOp]]  # domain -> ops in file order
+    capabilities: list[str]  # "<domain>/<feature>", in frontmatter order
+    ops: dict[str, list[DeltaOp]]  # "<domain>/<feature>" -> ops in file order
     open_markers: list[str] = field(default_factory=list)
 
 
@@ -190,11 +245,14 @@ def parse_delta(path: Path, change: str) -> Delta:
     capabilities = parse_list(meta.get("capabilities", ""))
     if not capabilities:
         raise ChangeError(f"{path}: frontmatter 'capabilities' is empty")
+    bad = [c for c in capabilities if split_feature(c) is None]
+    if bad:
+        raise ChangeError(f"{path}: capabilities must list features as '<domain>/<feature>', got {bad}")
 
     start, end = section_bounds(body, "Requirements")
     mask = comment_mask(body)
     ops: dict[str, list[DeltaOp]] = {}
-    domain: str | None = None
+    key: str | None = None
     current: DeltaOp | None = None
     for i in range(start, end):
         line = body[i]
@@ -205,27 +263,31 @@ def parse_delta(path: Path, change: str) -> Delta:
         if line.startswith("### "):
             current = None
             title = line[4:].strip()
-            domain = None if title.lower().startswith("edge cases") else title
-            if domain is not None:
-                if domain in ops:
-                    raise ChangeError(f"{path}:{i + 1}: domain section '### {domain}' appears twice")
-                ops[domain] = []
+            if title.lower().startswith("edge cases"):
+                key = None
+                continue
+            if split_feature(title) is None:
+                raise ChangeError(f"{path}:{i + 1}: section must be '### <domain>/<feature>', got '### {title}'")
+            key = "/".join(split_feature(title) or ())
+            if key in ops:
+                raise ChangeError(f"{path}:{i + 1}: feature section '### {key}' appears twice")
+            ops[key] = []
             continue
         if ANY_H4_RE.match(line):
             m = DELTA_HEAD_RE.match(line)
-            if domain is None:
-                raise ChangeError(f"{path}:{i + 1}: requirement outside a '### <domain>' section")
+            if key is None:
+                raise ChangeError(f"{path}:{i + 1}: requirement outside a '### <domain>/<feature>' section")
             if not m:
                 raise ChangeError(
-                    f"{path}:{i + 1}: heading must be '#### ADDED|MODIFIED|REMOVED|RENAMED <CODE>-<NNN>: <name>'"
+                    f"{path}:{i + 1}: heading must be '#### ADDED|MODIFIED|REMOVED|RENAMED|MOVED <CODE>-<NNN>: <name>'"
                 )
             current = DeltaOp(m.group(1), m.group(2), m.group(3), [], i + 1)
-            ops[domain].append(current)
+            ops[key].append(current)
             continue
         if current is not None:
             current.body.append(line)
-        elif domain is not None and line.strip():
-            raise ChangeError(f"{path}:{i + 1}: text in '### {domain}' outside any requirement")
+        elif key is not None and line.strip():
+            raise ChangeError(f"{path}:{i + 1}: text in '### {key}' outside any requirement")
 
     for op_list in ops.values():
         for op in op_list:
@@ -238,35 +300,58 @@ def parse_delta(path: Path, change: str) -> Delta:
     return delta
 
 
-# --------------------------------------------------------------------------- capability files
+def moved_from(delta: Delta) -> dict[str, list[DeltaOp]]:
+    """'<domain>/<feature>' a MOVED takes its requirement from -> those MOVED ops ('?' when From is unreadable)."""
+    out: dict[str, list[DeltaOp]] = {}
+    for key, op_list in delta.ops.items():
+        domain = key.split("/")[0]
+        for op in op_list:
+            if op.op == "MOVED":
+                out.setdefault(feature_key(domain, op.field("From")) or "?", []).append(op)
+    return out
+
+
+def feature_key(domain: str, value: str | None) -> str | None:
+    """A From / To value ('filtering', '`products/filtering`') -> 'products/filtering' (None if unreadable)."""
+    if not value:
+        return None
+    value = value.strip().strip("`").strip()
+    if "/" in value:
+        parts = split_feature(value)
+        return "/".join(parts) if parts else None
+    return f"{domain}/{value}" if NAME_RE.match(value) else None
+
+
+# --------------------------------------------------------------------------- feature specs
 
 
 @dataclass
-class Capability:
+class FeatureSpec:
     domain: str
+    feature: str
     code: str
     path: Path
     head: list[str]  # everything up to and including the '## Requirements' line
     pre: list[str]  # lines between '## Requirements' and the first requirement
     blocks: dict[str, tuple[str, list[str]]]  # id -> (name, body lines)
     order: list[str]
-    tail: list[str]  # trailing comment / blank lines of the section + following sections
-    removed_ids: set[str]
-    history_path: Path
+    tail: list[str]  # trailing comment / blank lines of the section + following sections (Merged changes)
+    is_new: bool = False
+
+    @property
+    def key(self) -> str:
+        return f"{self.domain}/{self.feature}"
 
 
-def parse_capability(root: Path, domain: str) -> Capability:
-    folder = root / "specs" / "capabilities" / domain
-    spec = folder / "spec.md"
-    history = folder / "history.md"
-    if not spec.is_file():
-        raise ChangeError(f"capability '{domain}' has no {spec.relative_to(root)}")
-    if not history.is_file():
-        raise ChangeError(f"capability '{domain}' has no {history.relative_to(root)}")
-    meta, fm, body = split_frontmatter(read(spec))
+def parse_feature_text(text: str, label: str, domain: str, feature: str, path: Path, is_new: bool = False) -> FeatureSpec:
+    meta, fm, body = split_frontmatter(text)
     code = meta.get("code", "").strip("\"'")
     if not re.fullmatch(r"[A-Z]{2,5}", code):
-        raise ChangeError(f"{spec.relative_to(root)}: frontmatter 'code' is missing or invalid")
+        raise ChangeError(f"{label}: frontmatter 'code' is missing or invalid")
+    for k, want in (("domain", domain), ("feature", feature)):
+        got = meta.get(k, "").strip("\"'")
+        if got and got != want:
+            raise ChangeError(f"{label}: frontmatter {k} '{got}' does not match its folder '{want}'")
 
     start, end = section_bounds(body, "Requirements")
     mask = comment_mask(body)
@@ -285,21 +370,107 @@ def parse_capability(root: Path, domain: str) -> Capability:
         m = CAP_HEAD_RE.match(body[h])
         assert m
         if m.group(1) in blocks:
-            raise ChangeError(f"{spec.relative_to(root)}: requirement {m.group(1)} appears twice")
+            raise ChangeError(f"{label}: requirement {m.group(1)} appears twice")
         blocks[m.group(1)] = (m.group(2), trim_blank(body[h + 1 : stop]))
         order.append(m.group(1))
-    return Capability(
-        domain=domain,
-        code=code,
-        path=spec,
-        head=fm + body[:start],
-        pre=trim_blank(pre),
-        blocks=blocks,
-        order=order,
-        tail=body[tail_start:],
-        removed_ids=parse_removed_ids(read(history)),
-        history_path=history,
-    )
+    return FeatureSpec(domain, feature, code, path, fm + body[:start], trim_blank(pre), blocks, order,
+                       body[tail_start:], is_new)
+
+
+def parse_feature(root: Path, domain: str, feature: str) -> FeatureSpec:
+    path = root / "specs" / "capabilities" / domain / feature / "spec.md"
+    if not path.is_file():
+        raise ChangeError(f"feature '{domain}/{feature}' has no {rel(root, path)}")
+    return parse_feature_text(read(path), rel(root, path), domain, feature, path)
+
+
+@dataclass
+class DomainState:
+    domain: str
+    code: str
+    history_path: Path
+    history_text: str
+    removed_ids: set[str]
+    features: dict[str, FeatureSpec]  # feature name -> spec (existing ones, plus new ones once declared)
+
+    def locate(self, req_id: str) -> str | None:
+        """Feature that currently holds the requirement, or None."""
+        return next((name for name, fs in self.features.items() if req_id in fs.blocks), None)
+
+
+def load_domain(root: Path, domain: str) -> DomainState:
+    folder = root / "specs" / "capabilities" / domain
+    if not folder.is_dir():
+        raise ChangeError(f"domain '{domain}' has no folder {rel(root, folder)}/")
+    if (folder / "spec.md").exists():
+        raise ChangeError(f"{rel(root, folder / 'spec.md')}: a domain has no spec.md of its own; "
+                          f"requirements live in {rel(root, folder)}/<feature>/spec.md")
+    history = folder / "history.md"
+    if not history.is_file():
+        raise ChangeError(f"domain '{domain}' has no {rel(root, history)}")
+    history_text = read(history)
+    features: dict[str, FeatureSpec] = {}
+    seen: dict[str, str] = {}
+    for spec in sorted(folder.glob("*/spec.md")):
+        fs = parse_feature(root, domain, spec.parent.name)
+        for req_id in fs.order:
+            if req_id in seen:
+                raise ChangeError(f"requirement {req_id} is in both {domain}/{seen[req_id]} and {fs.key}: "
+                                  "IDs are unique in the domain")
+            seen[req_id] = fs.feature
+        features[fs.feature] = fs
+    codes = sorted({fs.code for fs in features.values()})
+    if len(codes) > 1:
+        raise ChangeError(f"domain '{domain}': its feature specs use different codes {codes}")
+    code = codes[0] if codes else ""
+    if not code:
+        first = history_text.split("\n", 1)[0].strip()
+        m = HISTORY_CODE_RE.match(first)
+        if not m:
+            raise ChangeError(f"domain '{domain}': no feature spec yet and no '(CODE)' in the title of history.md")
+        code = m.group(1)
+    return DomainState(domain, code, history, history_text, parse_removed_ids(history_text), features)
+
+
+def parse_features_table(root: Path) -> dict[str, dict[str, str]]:
+    """domain -> {feature -> scope} from the '## Features — domain <domain>' tables of domain-model.md."""
+    path = root / "specs" / "_system" / "domain-model.md"
+    if not path.is_file():
+        return {}
+    lines = read(path).split("\n")
+    mask = comment_mask(lines)
+    out: dict[str, dict[str, str]] = {}
+    domain: str | None = None
+    header: list[str] | None = None
+    for i, line in enumerate(lines):
+        if mask[i]:
+            continue
+        m = FEATURES_HEAD_RE.match(line)
+        if m:
+            domain, header = m.group(1), None
+            out.setdefault(domain, {})
+            continue
+        if line.startswith("#"):
+            domain = None
+            continue
+        if domain is None or not line.lstrip().startswith("|"):
+            continue
+        if header is None:
+            header = split_row(line)
+            continue
+        if is_separator(line):
+            continue
+        cells = split_row(line)
+        name = cells[0].strip("`")
+        if NAME_RE.match(name):
+            out[domain][name] = cells[1] if len(cells) > 1 else ""
+    return out
+
+
+def new_feature(root: Path, dom: DomainState, feature: str, scope: str) -> FeatureSpec:
+    path = root / "specs" / "capabilities" / dom.domain / feature / "spec.md"
+    text = NEW_FEATURE_SPEC.format(domain=dom.domain, feature=feature, code=dom.code, scope=scope)
+    return parse_feature_text(text, rel(root, path), dom.domain, feature, path, is_new=True)
 
 
 def table_rows(text: str, heading: str) -> tuple[list[str], int, int]:
@@ -307,7 +478,7 @@ def table_rows(text: str, heading: str) -> tuple[list[str], int, int]:
     start, end = section_bounds(lines, heading)
     rows = [i for i in range(start, end) if lines[i].lstrip().startswith("|")]
     if len(rows) < 2:
-        raise ChangeError(f"history.md: table under '## {heading}' not found")
+        raise ChangeError(f"table under '## {heading}' not found")
     return lines, rows[1] + 1, rows[-1] + 1  # first data row index, index after last row
 
 
@@ -321,25 +492,25 @@ def parse_removed_ids(history_text: str) -> set[str]:
     return ids
 
 
-def append_rows(history_text: str, heading: str, rows: list[str]) -> str:
+def append_rows(text: str, heading: str, rows: list[str]) -> str:
     if not rows:
-        return history_text
-    lines, first, after = table_rows(history_text, heading)
+        return text
+    lines, first, after = table_rows(text, heading)
     data = [l for l in lines[first:after] if NONE_YET not in l]
     return "\n".join(lines[:first] + data + rows + lines[after:])
 
 
-def render_capability(cap: Capability) -> str:
-    out = list(cap.head)
+def render_feature(fs: FeatureSpec) -> str:
+    out = list(fs.head)
     out.append("")
-    if cap.pre:
-        out += cap.pre + [""]
-    if not cap.order:
+    if fs.pre:
+        out += fs.pre + [""]
+    if not fs.order:
         out += [NONE_YET, ""]
-    for req_id in sorted(cap.order, key=id_num):
-        name, body = cap.blocks[req_id]
+    for req_id in sorted(fs.order, key=id_num):
+        name, body = fs.blocks[req_id]
         out += [f"### {req_id}: {name}", ""] + body + [""]
-    tail = trim_blank(cap.tail)
+    tail = trim_blank(fs.tail)
     if tail:
         out += tail + [""]
     text = "\n".join(out)
@@ -500,7 +671,7 @@ def build_nfr(root: Path, change: str, rows: list[NfrRow], problems: list[str]) 
     if not todo:
         return path, None, []
     if not path.is_file():
-        problems.append(f"{path.relative_to(root)} not found (needed for {', '.join(r.nfr_id for r in todo)})")
+        problems.append(f"{rel(root, path)} not found (needed for {', '.join(r.nfr_id for r in todo)})")
         return path, None, []
     lines, tables, where = parse_nfr_doc(read(path))
     inserts: dict[int, list[str]] = {}
@@ -541,114 +712,203 @@ def build_nfr(root: Path, change: str, rows: list[NfrRow], problems: list[str]) 
 @dataclass
 class Plan:
     writes: dict[Path, str]
-    summary: dict[str, list[str]]  # domain -> ["ADDED PROD-004", ...]
+    summary: dict[str, list[str]]  # "<domain>/<feature>" -> ["ADDED PROD-004", ...]
+
+
+def check_delta_shape(delta: Delta) -> list[str]:
+    """Frontmatter capabilities against the '### <domain>/<feature>' sections (MOVED sources need no section)."""
+    problems: list[str] = []
+    declared, sections = set(delta.capabilities), set(delta.ops)
+    sources = moved_from(delta)
+    for key in sorted(declared - sections - set(sources)):
+        problems.append(f"feature '{key}' is in 'capabilities' but has no '### {key}' section")
+    for key in sorted(sections - declared):
+        problems.append(f"section '### {key}' is not listed in frontmatter 'capabilities'")
+    for key, ops in sorted(sources.items()):
+        if key not in declared:
+            for op in ops:
+                problems.append(f"MOVED {op.req_id}: From feature '{key}' must be listed in frontmatter 'capabilities'")
+    if not any(delta.ops.values()):
+        problems.append("the delta has no ADDED / MODIFIED / REMOVED / RENAMED / MOVED requirement")
+    for rid in delta.open_markers:
+        problems.append(f"{rid}: [NEEDS CLARIFICATION] is still open")
+    return problems
+
+
+def sync_domain(root: Path, change: str, today: str, delta: Delta, domain: str,
+                features_table: dict[str, dict[str, str]], problems: list[str],
+                writes: dict[Path, str], summary: dict[str, list[str]]) -> None:
+    try:
+        dom = load_domain(root, domain)
+    except ChangeError as exc:
+        problems.append(str(exc))
+        return
+    keys = [k for k in delta.capabilities if k.split("/")[0] == domain]
+
+    # declared features that do not exist yet: created from their Features-table row; ADDED / MOVED only
+    for key in keys:
+        feature = key.split("/")[1]
+        if feature in dom.features:
+            continue
+        for op in delta.ops.get(key, []):
+            if op.op not in ("ADDED", "MOVED"):
+                problems.append(f"{op.op} {op.req_id}: feature '{key}' does not exist yet; a new feature may only "
+                                "hold ADDED / MOVED")
+        if key in moved_from(delta):
+            problems.append(f"feature '{key}' does not exist, so nothing can be MOVED from it")
+        scope = features_table.get(domain, {}).get(feature)
+        if not scope:
+            problems.append(f"new feature '{key}' is not in the Features table of specs/_system/domain-model.md "
+                            f"('## Features — domain {domain}'); its scope line becomes the feature's Overview")
+        dom.features[feature] = new_feature(root, dom, feature, scope or "")
+
+    ops = [(key.split("/")[1], op) for key in keys for op in delta.ops.get(key, [])]
+    by_id: dict[str, list[tuple[str, DeltaOp]]] = {}
+    for feature, op in ops:
+        if not op.req_id.startswith(dom.code + "-"):
+            problems.append(f"{op.op} {op.req_id}: domain '{domain}' uses code {dom.code}")
+        by_id.setdefault(op.req_id, []).append((feature, op))
+    for req_id, uses in by_id.items():
+        kinds = [o.op for _, o in uses]
+        if len(kinds) > 1 and (len(set(kinds)) != len(kinds) or set(kinds) not in ALLOWED_COMBOS):
+            problems.append(f"{req_id} appears in {' and '.join(kinds)}; only RENAMED / MOVED may go with MODIFIED, "
+                            "MOVED with RENAMED")
+        if len({f for f, _ in uses}) > 1:
+            problems.append(f"{req_id}: all its operations must be in one feature section, found "
+                            f"{', '.join(sorted({f'{domain}/{f}' for f, _ in uses}))}")
+
+    words: dict[str, list[str]] = {}
+    done: dict[str, list[str]] = {}
+    removed_rows: list[str] = []
+
+    def in_place(op: DeltaOp, feature: str) -> bool:
+        where = dom.locate(op.req_id)
+        if where is None:
+            problems.append(f"{op.op} {op.req_id}: not found in domain '{domain}'")
+            return False
+        if where != feature:
+            problems.append(f"{op.op} {op.req_id}: is in {domain}/{where}, not {domain}/{feature} "
+                            "(write it under its own feature, or MOVED it first)")
+            return False
+        return True
+
+    for kind in OP_ORDER:
+        for feature, op in ops:
+            if op.op != kind:
+                continue
+            fs = dom.features[feature]
+            key = fs.key
+            if kind == "MOVED":
+                src, dst = feature_key(domain, op.field("From")), feature_key(domain, op.field("To"))
+                if not src or not dst:
+                    problems.append(f"MOVED {op.req_id}: needs '- **From:** <feature>' and '- **To:** <feature>'")
+                    continue
+                if dst != key:
+                    problems.append(f"MOVED {op.req_id}: To '{dst}' must be the feature of its section '{key}'")
+                    continue
+                if src.split("/")[0] != domain:
+                    problems.append(f"MOVED {op.req_id}: From '{src}' is in another domain; IDs never leave their domain")
+                    continue
+                if src == key:
+                    problems.append(f"MOVED {op.req_id}: From and To are the same feature '{key}'")
+                    continue
+                src_name = src.split("/")[1]
+                if src_name not in dom.features or dom.features[src_name].is_new:
+                    problems.append(f"MOVED {op.req_id}: From feature '{src}' does not exist")
+                    continue
+                if not in_place(op, src_name):
+                    continue
+                source = dom.features[src_name]
+                fs.blocks[op.req_id] = source.blocks.pop(op.req_id)
+                source.order.remove(op.req_id)
+                fs.order.append(op.req_id)
+                words.setdefault(src_name, []).append(f"moved {op.req_id} to {feature}")
+                words.setdefault(feature, []).append(f"moved {op.req_id} from {src_name}")
+                done.setdefault(src, []).append(f"MOVED {op.req_id} -> {key}")
+                done.setdefault(key, []).append(f"MOVED {op.req_id} <- {src}")
+                continue
+            if kind == "ADDED":
+                where = dom.locate(op.req_id)
+                if where is not None:
+                    problems.append(f"ADDED {op.req_id}: already exists in {domain}/{where}")
+                    continue
+                if op.req_id in dom.removed_ids:
+                    problems.append(f"ADDED {op.req_id}: ID was removed earlier and is never reissued")
+                    continue
+                if not op.name:
+                    problems.append(f"ADDED {op.req_id}: heading has no name")
+                check_scenarios(op, problems)
+                fs.blocks[op.req_id] = (op.name, with_source(op.body, change))
+                fs.order.append(op.req_id)
+            elif not in_place(op, feature):
+                continue
+            elif kind == "RENAMED":
+                old, new = op.field("From"), op.field("To")
+                if not old or not new:
+                    problems.append(f"RENAMED {op.req_id}: needs '- **From:**' and '- **To:**'")
+                    continue
+                if old != fs.blocks[op.req_id][0]:
+                    problems.append(
+                        f"RENAMED {op.req_id}: From '{old}' does not match current name '{fs.blocks[op.req_id][0]}'"
+                    )
+                    continue
+                fs.blocks[op.req_id] = (new, fs.blocks[op.req_id][1])
+            elif kind == "MODIFIED":
+                check_scenarios(op, problems)
+                fs.blocks[op.req_id] = (op.name or fs.blocks[op.req_id][0], with_source(op.body, change))
+            elif kind == "REMOVED":
+                reason = op.field("Reason")
+                if not reason:
+                    problems.append(f"REMOVED {op.req_id}: needs '- **Reason:**'")
+                del fs.blocks[op.req_id]
+                fs.order.remove(op.req_id)
+                dom.removed_ids.add(op.req_id)
+                removed_rows.append(
+                    f"| {op.req_id} | {feature} | {change} | {reason or ''} | {op.field('Replaced by') or '—'} |")
+            words.setdefault(feature, []).append(f"{HISTORY_WORD[kind]} {op.req_id}")
+            done.setdefault(key, []).append(f"{kind} {op.req_id}")
+
+    for feature, feature_words in words.items():
+        fs = dom.features[feature]
+        text = render_feature(fs)
+        try:
+            text = append_rows(text, "Merged changes", [f"| {change} | {today} | {'; '.join(feature_words)} |"])
+        except ChangeError as exc:
+            problems.append(f"{rel(root, fs.path)}: {exc}")
+        leaked = sorted(set(DELTA_WORD_RE.findall(text)))
+        if leaked:
+            problems.append(f"{fs.key}/spec.md would contain delta keywords: {', '.join(leaked)}")
+        writes[fs.path] = text
+        summary[fs.key] = done.get(fs.key, [])
+    if removed_rows:
+        try:
+            history = append_rows(dom.history_text, "Removed IDs", removed_rows)
+        except ChangeError as exc:
+            problems.append(f"{domain}/history.md: {exc}")
+            return
+        leaked = sorted(set(DELTA_WORD_RE.findall(history)))
+        if leaked:
+            problems.append(f"{domain}/history.md would contain delta keywords: {', '.join(leaked)}")
+        writes[dom.history_path] = history
 
 
 def build_sync(root: Path, change: str, today: str) -> Plan:
     change_dir = root / "specs" / "changes" / change
     spec = change_dir / "spec.md"
     if not spec.is_file():
-        raise ChangeError(f"{spec.relative_to(root)} not found")
+        raise ChangeError(f"{rel(root, spec)} not found")
     delta = parse_delta(spec, change)
 
-    problems: list[str] = []
-    declared, sections = set(delta.capabilities), set(delta.ops)
-    for d in sorted(declared - sections):
-        problems.append(f"domain '{d}' is in 'capabilities' but has no '### {d}' section")
-    for d in sorted(sections - declared):
-        problems.append(f"section '### {d}' is not listed in frontmatter 'capabilities'")
-    if not any(delta.ops.values()):
-        problems.append("the delta has no ADDED / MODIFIED / REMOVED / RENAMED requirement")
-    for rid in delta.open_markers:
-        problems.append(f"{rid}: [NEEDS CLARIFICATION] is still open")
+    problems = check_delta_shape(delta)
     if problems:
         raise ChangeError("; ".join(problems))
 
     writes: dict[Path, str] = {}
     summary: dict[str, list[str]] = {}
-    seen_ids: dict[str, str] = {}
-    for domain in delta.capabilities:
-        cap = parse_capability(root, domain)
-        ops = delta.ops[domain]
-        by_op = {k: [o for o in ops if o.op == k] for k in OP_ORDER}
-
-        for op in ops:
-            if not op.req_id.startswith(cap.code + "-"):
-                problems.append(f"{op.op} {op.req_id}: domain '{domain}' uses code {cap.code}")
-            key = op.req_id
-            other = seen_ids.get(key)
-            if other and not {other, op.op} == {"RENAMED", "MODIFIED"}:
-                problems.append(f"{op.req_id} appears in both {other} and {op.op}")
-            seen_ids.setdefault(key, op.op)
-
-        # RENAMED
-        for op in by_op["RENAMED"]:
-            if op.req_id not in cap.blocks:
-                problems.append(f"RENAMED {op.req_id}: not found in {domain}/spec.md")
-                continue
-            old, new = op.field("From"), op.field("To")
-            if not old or not new:
-                problems.append(f"RENAMED {op.req_id}: needs '- **From:**' and '- **To:**'")
-                continue
-            if old != cap.blocks[op.req_id][0]:
-                problems.append(
-                    f"RENAMED {op.req_id}: From '{old}' does not match current name '{cap.blocks[op.req_id][0]}'"
-                )
-                continue
-            cap.blocks[op.req_id] = (new, cap.blocks[op.req_id][1])
-        # MODIFIED
-        for op in by_op["MODIFIED"]:
-            if op.req_id not in cap.blocks:
-                problems.append(f"MODIFIED {op.req_id}: not found in {domain}/spec.md")
-                continue
-            check_scenarios(op, problems)
-            cap.blocks[op.req_id] = (op.name or cap.blocks[op.req_id][0], with_source(op.body, change))
-        # REMOVED
-        removed_rows = []
-        for op in by_op["REMOVED"]:
-            if op.req_id not in cap.blocks:
-                problems.append(f"REMOVED {op.req_id}: not found in {domain}/spec.md")
-                continue
-            reason = op.field("Reason")
-            if not reason:
-                problems.append(f"REMOVED {op.req_id}: needs '- **Reason:**'")
-            del cap.blocks[op.req_id]
-            cap.order.remove(op.req_id)
-            cap.removed_ids.add(op.req_id)
-            removed_rows.append(f"| {op.req_id} | {change} | {reason or ''} | {op.field('Replaced by') or '—'} |")
-        # ADDED
-        for op in by_op["ADDED"]:
-            if op.req_id in cap.blocks:
-                problems.append(f"ADDED {op.req_id}: already exists in {domain}/spec.md")
-                continue
-            if op.req_id in cap.removed_ids:
-                problems.append(f"ADDED {op.req_id}: ID was removed earlier and is never reissued")
-                continue
-            if not op.name:
-                problems.append(f"ADDED {op.req_id}: heading has no name")
-            check_scenarios(op, problems)
-            cap.blocks[op.req_id] = (op.name, with_source(op.body, change))
-            cap.order.append(op.req_id)
-
-        new_spec = render_capability(cap)
-        leaked = sorted(set(DELTA_WORD_RE.findall(new_spec)))
-        if leaked:
-            problems.append(f"{domain}/spec.md would contain delta keywords: {', '.join(leaked)}")
-
-        done = [f"{o.op} {o.req_id}" for k in OP_ORDER for o in by_op[k]]
-        words = [f"{HISTORY_WORD[o.op]} {o.req_id}" for k in OP_ORDER for o in by_op[k]]
-        history = read(cap.history_path)
-        try:
-            history = append_rows(history, "Removed IDs", removed_rows)
-            history = append_rows(history, "Merged changes", [f"| {change} | {today} | {'; '.join(words)} |"])
-        except ChangeError as exc:
-            problems.append(f"{domain}/{exc}")
-        leaked = sorted(set(DELTA_WORD_RE.findall(history)))
-        if leaked:
-            problems.append(f"{domain}/history.md would contain delta keywords: {', '.join(leaked)}")
-        writes[cap.path] = new_spec
-        writes[cap.history_path] = history
-        summary[domain] = done
+    features_table = parse_features_table(root)
+    domains = list(dict.fromkeys(k.split("/")[0] for k in delta.capabilities))
+    for domain in domains:
+        sync_domain(root, change, today, delta, domain, features_table, problems, writes, summary)
 
     try:
         nfr_rows = parse_delta_nfrs(spec)
@@ -672,6 +932,8 @@ def write_lf(path: Path, content: str) -> None:
 
 
 def write_all(writes: dict[Path, str]) -> None:
+    for p in writes:
+        p.parent.mkdir(parents=True, exist_ok=True)  # a new feature folder
     tmp = {p: p.with_name(p.name + ".spec-archive.tmp") for p in writes}
     try:
         for p, content in writes.items():
@@ -697,24 +959,35 @@ def open_tasks(change_dir: Path) -> list[str]:
 def verify_synced(root: Path, change: str) -> None:
     delta = parse_delta(root / "specs" / "changes" / change / "spec.md", change)
     problems = []
-    for domain in delta.capabilities:
-        cap = parse_capability(root, domain)
-        for op in delta.ops.get(domain, []):
-            present = op.req_id in cap.blocks
-            if op.op == "REMOVED" and present:
-                problems.append(f"{op.req_id} is still in {domain}/spec.md")
-            if op.op != "REMOVED" and not present:
-                problems.append(f"{op.req_id} is not in {domain}/spec.md")
-            if op.op in ("ADDED", "MODIFIED") and present:
-                if f"- **Source:** change {change}" not in cap.blocks[op.req_id][1]:
-                    problems.append(f"{op.req_id} in {domain}/spec.md is not from change {change}")
+    domains: dict[str, DomainState] = {}
+    for key, ops in delta.ops.items():
+        domain, feature = key.split("/")
+        if domain not in domains:
+            try:
+                domains[domain] = load_domain(root, domain)
+            except ChangeError as exc:
+                problems.append(str(exc))
+                continue
+        dom = domains[domain]
+        for op in ops:
+            where = dom.locate(op.req_id)
+            if op.op == "REMOVED":
+                if where is not None:
+                    problems.append(f"{op.req_id} is still in {domain}/{where}/spec.md")
+                continue
+            if where != feature:
+                problems.append(f"{op.req_id} is not in {key}/spec.md")
+                continue
+            if op.op in ("ADDED", "MODIFIED"):
+                if f"- **Source:** change {change}" not in dom.features[feature].blocks[op.req_id][1]:
+                    problems.append(f"{op.req_id} in {key}/spec.md is not from change {change}")
     rows = [r for r in parse_delta_nfrs(root / "specs" / "changes" / change / "spec.md") if r.change in ("ADDED", "MODIFIED")]
     if rows:
         nfr = root / "specs" / "_system" / "nfr.md"
-        lines, tables, where = parse_nfr_doc(read(nfr)) if nfr.is_file() else ([], {}, {})
+        lines, tables, where_nfr = parse_nfr_doc(read(nfr)) if nfr.is_file() else ([], {}, {})
         for row in rows:
             table = tables.get(row.category)
-            if row.nfr_id not in where or table is None or row.nfr_id not in table.rows:
+            if row.nfr_id not in where_nfr or table is None or row.nfr_id not in table.rows:
                 problems.append(f"{row.nfr_id} is not in nfr.md section '{row.category}'")
                 continue
             current = dict(zip(table.header, split_row(lines[table.rows[row.nfr_id]])))
@@ -728,9 +1001,9 @@ def archive(root: Path, change: str) -> Path:
     src = root / "specs" / "changes" / change
     dst = root / "specs" / "archive" / change
     if not src.is_dir():
-        raise ChangeError(f"{src.relative_to(root)} not found")
+        raise ChangeError(f"{rel(root, src)} not found")
     if dst.exists():
-        raise ChangeError(f"target {dst.relative_to(root)} already exists; refusing to overwrite")
+        raise ChangeError(f"target {rel(root, dst)} already exists; refusing to overwrite")
     verify_synced(root, change)
     spec = src / "spec.md"
     text = read(spec)
@@ -749,7 +1022,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("status", "sync", "archive"))
     parser.add_argument("--change", required=True, help="change folder name, e.g. 001-product-bulk-delete")
     parser.add_argument("--dry-run", action="store_true", help="sync: validate and show the plan, write nothing")
-    parser.add_argument("--date", default=None, help="sync: date for history.md (default: today, YYYY-MM-DD)")
+    parser.add_argument("--date", default=None, help="sync: date for the Merged changes rows (default: today, YYYY-MM-DD)")
     parser.add_argument("--root", type=Path, default=None, help="repo root (default: auto)")
     args = parser.parse_args(argv)
     root = (args.root or default_root()).resolve()
@@ -760,7 +1033,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "status":
             change_dir = root / "specs" / "changes" / args.change
             if not change_dir.is_dir():
-                raise ChangeError(f"{change_dir.relative_to(root)} not found")
+                raise ChangeError(f"{rel(root, change_dir)} not found")
             print(json.dumps({"change": args.change, "open_tasks": open_tasks(change_dir)}, ensure_ascii=False))
         elif args.command == "sync":
             plan = build_sync(root, args.change, args.date or dt.date.today().isoformat())
@@ -770,11 +1043,11 @@ def main(argv: list[str] | None = None) -> int:
                 "change": args.change,
                 "dry_run": args.dry_run,
                 "applied": plan.summary,
-                "files": sorted(str(p.relative_to(root)) for p in plan.writes),
+                "files": sorted(rel(root, p) for p in plan.writes),
             }, ensure_ascii=False))
         else:
             dst = archive(root, args.change)
-            print(json.dumps({"change": args.change, "archived_to": str(dst.relative_to(root))}))
+            print(json.dumps({"change": args.change, "archived_to": rel(root, dst)}))
     except ChangeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

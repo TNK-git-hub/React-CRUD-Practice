@@ -24,13 +24,18 @@ $ARGUMENTS
 1. Change folder = the argument above if given; otherwise read `feature_directory` in `.specify/feature.json`.
    Folder not inside `specs/changes/`, or without `spec.md` → **STOP**, tell the user to run
    `/speckit-specify` first.
+   **Precondition:** no `[NEEDS CLARIFICATION` marker is left in the change's `spec.md` (outside HTML comments).
+   Any left → **STOP**: list them with their line and tell the user to run `/speckit-clarify` first (main
+   session). Edge cases are only added to a spec whose open questions are settled.
 2. The change's `spec.md` (format: `.specify/templates/overrides/spec-template.md`, worked example
    `docs/examples/products-price-range-spec.md`): frontmatter `kind: delta` (missing → STOP), `capabilities`, every
-   requirement marked `ADDED` / `MODIFIED` (skip `REMOVED`, `RENAMED`), the table under
+   requirement marked `ADDED` / `MODIFIED` (skip `REMOVED`, `RENAMED`, `MOVED`), the table under
    `## Edge Cases & Error Handling` (rows whose Scenario is `_(unassigned)_` are waiting for you), `## Traceability`.
 3. `specs/_system/edge-case-catalog.md`: dimensions 1–13, priorities, scenario types, coverage table template.
-4. For each domain in `capabilities`: `specs/capabilities/<domain>/states.md` and `rules.md`
-   (file missing → note it, and use N/A for the dimensions that need it, with the reason "no states.md yet").
+4. By declared feature: `capabilities` lists features as `<domain>/<feature>`. For each one read
+   `specs/capabilities/<domain>/<feature>/spec.md` (absent for a new feature), and for each of their domains the
+   shared `specs/capabilities/<domain>/states.md` and `rules.md` (file missing → note it, and use N/A for the
+   dimensions that need it, with the reason "no states.md yet"). Never read the spec.md of an undeclared feature.
 5. `specs/_system/nfr.md` (permission matrix, deletion policy) and `glossary.md` if present.
 
 ## Method

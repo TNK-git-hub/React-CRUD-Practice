@@ -13,14 +13,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import spec_check  # noqa: E402
 
 CHANGE = "001-product-bulk-delete"
+CAT = "specs/capabilities/products/catalog/spec.md"
 SPEC = """\
 ---
 kind: capability
 domain: "products"
+feature: "catalog"
 code: "PROD"
 ---
 
-# Capability: products (PROD)
+# Feature: products/catalog (PROD)
 
 ## Requirements
 
@@ -38,15 +40,9 @@ The system MUST create products.
 HISTORY = """\
 # History: products (PROD)
 
-## Merged changes
-
-| Change | Date | Change in this domain |
-| --- | --- | --- |
-| 001-product-bulk-delete | 2026-11-16 | new PROD-001 |
-
 ## Removed IDs
 
-| ID | Removed in change | Reason | Replaced by |
+| ID | Feature | Removed in change | Reason | Replaced by |
 | --- | --- | --- | --- |
 {removed}
 """
@@ -57,8 +53,8 @@ DELTA = """\
 ---
 kind: delta
 change: "002-product-search"
-capabilities: ["products"]
-primary: "products"
+capabilities: ["products/catalog"]
+primary: "products/catalog"
 status: draft
 source: ["fixture"]
 ---
@@ -87,7 +83,7 @@ Fixture.
 
 ## Requirements
 
-### products
+### products/catalog
 
 #### ADDED PROD-002: Search products
 
@@ -182,8 +178,8 @@ class SpecCheckTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.write("specs/capabilities/products/spec.md", SPEC)
-        self.write("specs/capabilities/products/history.md", HISTORY.format(removed="| _(none yet)_ | | | |"))
+        self.write(CAT, SPEC)
+        self.write("specs/capabilities/products/history.md", HISTORY.format(removed="| _(none yet)_ | | | | |"))
         self.write(f"specs/archive/{CHANGE}/spec.md", "---\nkind: delta\n---\n#### ADDED PROD-001: x\n")
         self.write("tests/products/create.test.ts", TEST)
 
@@ -235,25 +231,25 @@ class SpecCheckTest(unittest.TestCase):
         self.assertNotIn("PROD-001-S1 (", out)
 
     def test_pr_c_delta_keyword_left(self) -> None:
-        self.write("specs/capabilities/products/spec.md", SPEC.replace("### PROD-001", "### ADDED PROD-001"))
+        self.write(CAT, SPEC.replace("### PROD-001", "### ADDED PROD-001"))
         code, out = self.run_check()
         self.assertEqual(code, 1)
         self.assertIn("delta keyword 'ADDED'", out)
 
     def test_delta_keyword_in_history_too(self) -> None:
         self.write("specs/capabilities/products/history.md",
-                   HISTORY.format(removed="| _(none yet)_ | | | |").replace("new PROD-001", "ADDED PROD-001"))
+                   HISTORY.format(removed="| PROD-009 | catalog | 000-old | ADDED by mistake | — |"))
         self.assertEqual(self.run_check()[0], 1)
 
     def test_duplicate_id(self) -> None:
-        self.write("specs/capabilities/other/spec.md", "## Requirements\n\n### PROD-001: Again\n")
+        self.write("specs/capabilities/products/listing/spec.md", "## Requirements\n\n### PROD-001: Again\n")
         code, out = self.run_check()
         self.assertEqual(code, 1)
         self.assertIn("PROD-001 is defined 2 times", out)
 
     def test_removed_id_reused(self) -> None:
         self.write("specs/capabilities/products/history.md",
-                   HISTORY.format(removed="| PROD-001 | 000-old | gone | — |"))
+                   HISTORY.format(removed="| PROD-001 | catalog | 000-old | gone | — |"))
         code, out = self.run_check()
         self.assertEqual(code, 1)
         self.assertIn("reuses an ID removed", out)
@@ -271,7 +267,7 @@ class SpecCheckTest(unittest.TestCase):
         self.assertNotIn("PROD-009-S1", out)
 
     def test_delta_keyword_in_comment_still_fails(self) -> None:
-        self.write("specs/capabilities/products/spec.md", SPEC.replace("`PROD-009-S1` -->", "`PROD-009-S1` ADDED -->"))
+        self.write(CAT, SPEC.replace("`PROD-009-S1` -->", "`PROD-009-S1` ADDED -->"))
         self.assertEqual(self.run_check()[0], 1)
 
     def test_non_change_branch_skips_archive_checks(self) -> None:
@@ -430,6 +426,200 @@ class SpecCheckTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("specs/_system/nfr.md:", out)
         self.assertIn("delta keyword 'ADDED'", out)
+
+    # ---- self-contained spec and plan ----------------------------------------------
+
+    def test_pointer_in_spec_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("The system MUST search products.",
+                                                  "The system MUST search products, as for change 001."))
+        self.assertEqual(code, 1)
+        self.assertIn("'as for change 001' points elsewhere", out)
+
+    def test_pointer_in_plan_rejected(self) -> None:
+        self.open_change()
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\nCaching: see research R2.\nSame as change 001 for the DTO.\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:3: 'research R2'", out)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:4: 'Same as change 001'", out)
+
+    def test_pointer_with_words_between_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("The system MUST search products.",
+                                                  "The previous list stays visible, as for the price filter in change 001."))
+        self.assertEqual(code, 1)
+        self.assertIn("'as for the price filter in change 001' points elsewhere", out)
+
+    def test_archive_reference_in_spec_rejected(self) -> None:
+        code, out = self.spec_stage(DELTA.replace(
+            "The system MUST search products.",
+            "The previous list stays visible (specs/archive/001-products-price-range/spec.md, Assumptions)."))
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/spec.md:", out)
+        self.assertIn("points into specs/archive/", out)
+        self.assertIn("the capability is missing it", out)
+
+    def test_archive_reference_in_plan_rejected(self) -> None:
+        self.open_change()
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\nDTO: see specs\\archive\\001-x\\spec.md, 001-ADR-1.\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/plan.md:3: points into specs/archive/", out)
+
+    def test_valid_sources_are_fine(self) -> None:
+        delta = DELTA.replace(
+            "The system MUST search products.",
+            "The system MUST search products, following PROD-001 (capability products/catalog; "
+            "specs/_system/nfr.md; backend/src/products/products.service.ts; docs/requirements/search.md).\n\n"
+            "<!-- an archived change lives in specs/archive/<change>/ -->")
+        code, out = self.spec_stage(delta)
+        self.assertEqual(code, 0, out)
+
+    def test_source_in_parentheses_and_comments_are_fine(self) -> None:
+        delta = DELTA.replace("The system MUST search products.",
+                              "The system MUST search products (change 001-products-price-range, clarify).\n\n"
+                              "<!-- as for change 001: guide comment -->")
+        code, out = self.spec_stage(delta)
+        self.assertEqual(code, 0, out)
+
+    # ---- features ----------------------------------------------------------------
+
+    LISTING = "specs/capabilities/products/listing/spec.md"
+    LISTING_SPEC = SPEC.replace('feature: "catalog"', 'feature: "listing"').replace(
+        "### PROD-001: Create product", "### PROD-003: List products").replace("PROD-001-S", "PROD-003-S")
+    MOVED = ("#### MOVED PROD-003: List products\n\n- **From:** listing\n- **To:** catalog\n"
+             "- **Reason:** listing joins the catalog\n\n#### ADDED PROD-002")
+
+    def with_listing(self) -> None:
+        self.write(self.LISTING, self.LISTING_SPEC)
+        self.write("tests/products/list.test.ts", 'test("PROD-003-S1 lists")\ntest("PROD-003-S2 denies")\n')
+
+    def test_domain_level_spec_refused(self) -> None:
+        self.write("specs/capabilities/products/spec.md", SPEC)
+        code, out = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("specs/capabilities/products/spec.md: a domain has no spec.md of its own", out)
+
+    def test_id_unique_across_features_of_domain(self) -> None:
+        self.write(self.LISTING, SPEC.replace('feature: "catalog"', 'feature: "listing"'))
+        code, out = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("requirement PROD-001 is defined 2 times", out)
+        self.assertIn("products/listing/spec.md", out)
+
+    def test_moved_keyword_left_in_capabilities(self) -> None:
+        self.write(CAT, SPEC.replace("### PROD-001", "### MOVED PROD-001"))
+        code, out = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("delta keyword 'MOVED'", out)
+
+    def test_section_must_be_a_feature(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("### products/catalog\n", "### products\n"))
+        self.assertEqual(code, 1)
+        self.assertIn("section must be '### <domain>/<feature>', got '### products'", out)
+
+    def test_capabilities_must_be_features(self) -> None:
+        code, out = self.spec_stage(DELTA.replace('capabilities: ["products/catalog"]\nprimary: "products/catalog"',
+                                                  'capabilities: ["products"]\nprimary: "products"'))
+        self.assertEqual(code, 1)
+        self.assertIn("capabilities must list features as '<domain>/<feature>'", out)
+
+    def test_section_not_in_capabilities(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("### products/catalog\n", "### products/search\n"))
+        self.assertEqual(code, 1)
+        self.assertIn("feature 'products/catalog' is in capabilities but has no '### products/catalog' section", out)
+        self.assertIn("section '### products/search' is not listed in capabilities", out)
+
+    def test_new_feature_with_added_only_passes(self) -> None:
+        new = DELTA.replace('"products/catalog"', '"products/search"').replace("### products/catalog\n",
+                                                                               "### products/search\n")
+        code, out = self.spec_stage(new)
+        self.assertEqual(code, 0, out)
+
+    def test_new_feature_cannot_modify(self) -> None:
+        new = DELTA.replace('"products/catalog"', '"products/search"').replace(
+            "### products/catalog\n", "### products/search\n").replace("#### ADDED PROD-002", "#### MODIFIED PROD-002")
+        code, out = self.spec_stage(new)
+        self.assertEqual(code, 1)
+        self.assertIn("MODIFIED PROD-002: feature 'products/search' does not exist yet", out)
+
+    def test_feature_must_be_in_features_table(self) -> None:
+        self.write("specs/_system/domain-model.md",
+                   "# Domain model\n\n## Features — domain products\n\n| Feature | Scope |\n| --- | --- |\n"
+                   "| catalog | Create and list products |\n")
+        self.assertEqual(self.spec_stage()[0], 0)
+        new = DELTA.replace('"products/catalog"', '"products/search"').replace("### products/catalog\n",
+                                                                               "### products/search\n")
+        code, out = self.spec_stage(new)
+        self.assertEqual(code, 1)
+        self.assertIn("feature 'products/search' is not in the Features table", out)
+
+    def test_unknown_domain(self) -> None:
+        new = DELTA.replace('"products/catalog"', '"orders/checkout"').replace("### products/catalog\n",
+                                                                              "### orders/checkout\n")
+        code, out = self.spec_stage(new)
+        self.assertEqual(code, 1)
+        self.assertIn("domain folder specs/capabilities/orders/ does not exist", out)
+
+    def test_modified_must_be_in_its_feature(self) -> None:
+        self.with_listing()
+        modified = DELTA.replace("#### ADDED PROD-002: Search products", "#### MODIFIED PROD-003: List products") \
+            .replace("PROD-002", "PROD-003")
+        code, out = self.spec_stage(modified)
+        self.assertEqual(code, 1)
+        self.assertIn("MODIFIED PROD-003 is in products/listing, not in its section's feature 'products/catalog'", out)
+
+    def test_modified_unknown_id(self) -> None:
+        modified = DELTA.replace("#### ADDED PROD-002", "#### MODIFIED PROD-002")
+        code, out = self.spec_stage(modified)
+        self.assertEqual(code, 1)
+        self.assertIn("MODIFIED PROD-002 is not in specs/capabilities/", out)
+
+    def test_moved_valid(self) -> None:
+        self.with_listing()
+        moved = DELTA.replace('["products/catalog"]', '["products/catalog", "products/listing"]') \
+            .replace("#### ADDED PROD-002", self.MOVED)
+        code, out = self.spec_stage(moved)
+        self.assertEqual(code, 0, out)
+
+    def test_moved_then_modified_in_target_feature(self) -> None:
+        self.with_listing()
+        modified = ("#### MODIFIED PROD-003: List products\n\nThe system MUST list.\n\n**Scenarios:**\n\n"
+                    "- `PROD-003-S1` (happy, P1)\n  - **Given** a\n  - **When** b\n  - **Then** c\n\n#### ADDED PROD-002")
+        moved = DELTA.replace('["products/catalog"]', '["products/catalog", "products/listing"]') \
+            .replace("#### ADDED PROD-002", self.MOVED.replace("#### ADDED PROD-002", modified)) \
+            .replace("| PROD-002 | S1–S2 |", "| PROD-002 | S1–S2 |\n| PROD-003 | S1 |")
+        code, out = self.spec_stage(moved)
+        self.assertEqual(code, 0, out)
+
+    def test_moved_from_must_be_declared(self) -> None:
+        self.with_listing()
+        code, out = self.spec_stage(DELTA.replace("#### ADDED PROD-002", self.MOVED))
+        self.assertEqual(code, 1)
+        self.assertIn("MOVED PROD-003: From feature 'products/listing' must be listed in capabilities", out)
+
+    def test_moved_to_must_be_its_section(self) -> None:
+        self.with_listing()
+        moved = DELTA.replace('["products/catalog"]', '["products/catalog", "products/listing"]') \
+            .replace("#### ADDED PROD-002", self.MOVED.replace("- **To:** catalog", "- **To:** search"))
+        code, out = self.spec_stage(moved)
+        self.assertEqual(code, 1)
+        self.assertIn("To 'products/search' must be the feature of its section 'products/catalog'", out)
+
+    def test_moved_id_not_in_from(self) -> None:
+        self.with_listing()
+        moved = DELTA.replace('["products/catalog"]', '["products/catalog", "products/listing"]') \
+            .replace("#### ADDED PROD-002", self.MOVED.replace("MOVED PROD-003", "MOVED PROD-001"))
+        code, out = self.spec_stage(moved)
+        self.assertEqual(code, 1)
+        self.assertIn("MOVED PROD-001: is in products/catalog, not in its From feature 'products/listing'", out)
+
+    def test_moved_needs_from_and_to(self) -> None:
+        self.with_listing()
+        moved = DELTA.replace('["products/catalog"]', '["products/catalog", "products/listing"]') \
+            .replace("#### ADDED PROD-002", self.MOVED.replace("- **From:** listing\n", ""))
+        code, out = self.spec_stage(moved)
+        self.assertEqual(code, 1)
+        self.assertIn("MOVED PROD-003 needs '- **From:** <feature>' and '- **To:** <feature>'", out)
 
 
 if __name__ == "__main__":

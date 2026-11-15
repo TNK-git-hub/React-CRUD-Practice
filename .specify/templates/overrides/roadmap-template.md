@@ -8,13 +8,15 @@ Rules for splitting changes:
 - Each change = one outcome the user can see, small enough to finish in 1–3 days.
 - A change depends only on changes with a SMALLER number.
 - Every requirement item, business rule and NFR must be owned by a change (see traceability.md).
+- "Features" column: every feature the change touches, as `<domain>/<feature>` from the Features tables of
+  domain-model.md (a feature the change creates is marked "(new)").
 - "Status" column: planned → in-progress → archived (updated by people / spec-archive).
 -->
 
-| Change | Goal (what the user sees) | Domain | Source | Depends on | Status |
+| Change | Goal (what the user sees) | Features | Source | Depends on | Status |
 | --- | --- | --- | --- | --- | --- |
-| 001-[walking-skeleton] | [app scaffold + one smallest flow] | [domain] | [requirement item] | — | planned |
-| 002-[...] | [...] | [domain] | [...] | 001 | planned |
+| 001-[walking-skeleton] | [app scaffold + one smallest flow] | [domain]/[feature] | [requirement item] | — | planned |
+| 002-[...] | [...] | [domain]/[feature], [domain]/[feature] | [...] | 001 | planned |
 
 ## Ordering notes
 
