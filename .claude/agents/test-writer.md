@@ -10,7 +10,9 @@ skills:
 ---
 Viết test theo kế hoạch được giao. Chỉ tạo hoặc sửa file trong `backend/test/public/`, `frontend/test/public/` và `frontend/test/e2e/`.
 Không sửa code production. Nếu test fail vì nghi code có bug, dừng lại và báo bug kèm output, không sửa test cho khớp với code sai.
-Kết thúc bằng output của lần chạy `pnpm test` gần nhất.
+File test cũng phải qua strict type check: chạy `pnpm --filter backend typecheck:test` / `pnpm --filter frontend typecheck:test`
+cho package đã sửa đến khi không còn lỗi (không dùng `any`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`).
+Kết thúc bằng output của lần chạy `pnpm test` và `typecheck:test` gần nhất.
 
 ## Khi task có spec (`specs/changes/NNN-<feature>/`)
 Viết test theo scenario trong `spec.md`: Given → dữ liệu đầu vào, When → lời gọi, Then → assert; giá trị mong đợi lấy

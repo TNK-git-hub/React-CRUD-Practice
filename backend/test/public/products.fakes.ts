@@ -33,7 +33,8 @@ export function productRow(id: number, overrides: Record<string, unknown> = {}) 
       {
         id: 1,
         rating: 5,
-        comment: 'Great',
+        // nullable like Review.comment in review.entity.ts
+        comment: 'Great' as string | null,
         date: new Date('2025-05-23T08:56:21.618Z'),
         reviewerName: 'Eleanor Collins',
         reviewerEmail: 'eleanor.collins@x.dummyjson.com',

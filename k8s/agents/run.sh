@@ -56,13 +56,15 @@ ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["
 # Liệt kê lệnh cụ thể, không dùng "pnpm --filter:*" (nó cho cả "pnpm --filter x exec <lệnh bất kỳ>")
 TEST_CMDS=("Bash(pnpm test)" "Bash(pnpm --filter backend test:*)" "Bash(pnpm --filter frontend test:*)")
 GIT_READ=("Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)")
+# strict type check of the test files (constitution Principle IV), also run by ci:local
+TYPECHECK_TEST=("Bash(pnpm --filter backend typecheck:test)" "Bash(pnpm --filter frontend typecheck:test)")
 TOOLS_PLANNER=("Read" "Glob" "Grep")
-TOOLS_TEST_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}"
+TOOLS_TEST_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}" "${TYPECHECK_TEST[@]}"
   "Bash(pnpm lint)" "Bash(pnpm --filter frontend typecheck)")
-TOOLS_CODE_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}"
+TOOLS_CODE_WRITER=("Read" "Edit" "Write" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}" "${TYPECHECK_TEST[@]}"
   "Bash(pnpm ci:local)" "Bash(pnpm lint)" "Bash(pnpm --filter frontend lint)" "Bash(pnpm --filter frontend typecheck)"
   "Bash(pnpm --filter frontend build)" "Bash(pnpm --filter backend build)")
-TOOLS_REVIEWER=("Read" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}" "Bash(pnpm lint)" "Bash(pnpm --filter frontend typecheck)")
+TOOLS_REVIEWER=("Read" "Glob" "Grep" "${TEST_CMDS[@]}" "${GIT_READ[@]}" "${TYPECHECK_TEST[@]}" "Bash(pnpm lint)" "Bash(pnpm --filter frontend typecheck)")
 
 RULES_CODE="Follow CLAUDE.md. Make the smallest change that completes the task; do not touch unrelated files.
 You may only change files in backend/src, frontend/src, frontend/public.
