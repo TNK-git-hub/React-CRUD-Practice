@@ -613,6 +613,7 @@ describe('PROD-002: range with keyword, sort, pages and URL state', () => {
     expect(currentUrl()).toBe('/');
   });
 
+  describe('PROD-002-S14 failure that is not a 400', () => {
   it.each<[string, (s: Server) => void]>([
     ['a 5xx', (s) => s.fail((p) => p.get('minPrice') === '10', 500, { message: 'boom' })],
     ['a network error', (s) => s.networkDown((p) => p.get('minPrice') === '10')],
@@ -634,6 +635,7 @@ describe('PROD-002: range with keyword, sort, pages and URL state', () => {
     expect(server.requests.length).toBeGreaterThan(before);
     expect(lastRequest().get('minPrice')).toBe('10');
     expect(lastRequest().get('maxPrice')).toBe('20');
+  });
   });
 
   it('PROD-002-S15 applying 30-40 from page 3 of 10-20 shows page 1 of 30-40 and the URL has no page', async () => {
@@ -702,6 +704,7 @@ describe('PROD-003: validation messages in the search form', () => {
     expect(titles()).toEqual(prices(10, 20));
   });
 
+  describe('PROD-003-S5 non-numeric minimum', () => {
   it.each([['abc'], ['10,5'], ['1e3'], ['+5'], ['.5'], ['5.'], ['1,000']])(
     'PROD-003-S5 minimum "%s": "Giá phải là số" under the minimum, no request',
     async (value) => {
@@ -715,6 +718,7 @@ describe('PROD-003: validation messages in the search form', () => {
       expect(minInput().value).toBe(value);
     },
   );
+  });
 
   it('PROD-003-S8 "0" and "99999999.99" are accepted: no message, all 4 products, URL minPrice=0&maxPrice=99999999.99', async () => {
     const u = user();

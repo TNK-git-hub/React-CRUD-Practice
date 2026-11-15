@@ -157,15 +157,17 @@ describe('GET /products price parameters: rejected values', () => {
     expect(body.message).toEqual([NEGATIVE]);
   });
 
-  it.each([['10.123'], ['1.000']])(
-    'PROD-003-S3 rejects the maximum %s with "Giá chỉ được có tối đa 2 chữ số thập phân"',
-    async (value) => {
-      const body = await reject({ maxPrice: value });
+  describe('PROD-003-S3 maximum with more than 2 decimals', () => {
+    it.each([['10.123'], ['1.000']])(
+      'rejects the maximum %s with "Giá chỉ được có tối đa 2 chữ số thập phân"',
+      async (value) => {
+        const body = await reject({ maxPrice: value });
 
-      expect(body.statusCode).toBe(400);
-      expect(body.message).toEqual([DECIMALS]);
-    },
-  );
+        expect(body.statusCode).toBe(400);
+        expect(body.message).toEqual([DECIMALS]);
+      },
+    );
+  });
 
   it.each([['abc'], ['10,5'], ['1,000'], ['1e3'], ['+5'], ['.5'], ['5.']])(
     'PROD-003-S6 rejects the minimum "%s" with "Giá phải là số"',
@@ -207,6 +209,40 @@ describe('GET /products price parameters: rejected values', () => {
 
     expect(body.statusCode).toBe(400);
     expect(body.message).toEqual([NOT_A_NUMBER]);
+  });
+
+  it("PROD-003-S12 a repeated key with one value (['10']) is still rejected: an array is not a string, even when it prints as a valid number", async () => {
+    const body = await reject({ minPrice: ['10'] });
+
+    expect(body.message).toEqual([NOT_A_NUMBER]);
+    expect(body.errors).toEqual({ minPrice: NOT_A_NUMBER });
+  });
+
+  it('PROD-003-S14 whole part with leading zeros and 9+ digits is compared by value: 0000099999999 is accepted, 0100000000 is too large', async () => {
+    await expect(parse({ maxPrice: '0000099999999' })).resolves.toMatchObject({ maxPrice: '0000099999999' });
+    await expect(parse({ maxPrice: '000000099999999.99' })).resolves.toMatchObject({
+      maxPrice: '000000099999999.99',
+    });
+    expect((await reject({ maxPrice: '0100000000' })).message).toEqual([TOO_BIG]);
+    expect((await reject({ maxPrice: '000000000100000000' })).message).toEqual([TOO_BIG]);
+  });
+
+  it('PROD-003-S9 exactly 8 whole digits are compared digit by digit: 99999998.99 and 10000000 pass, 99999999.99 passes, 100000000.00 fails', async () => {
+    await expect(parse({ maxPrice: '99999998.99' })).resolves.toMatchObject({ maxPrice: '99999998.99' });
+    await expect(parse({ maxPrice: '10000000' })).resolves.toMatchObject({ maxPrice: '10000000' });
+    await expect(parse({ maxPrice: '99999999.99' })).resolves.toMatchObject({ maxPrice: '99999999.99' });
+    expect((await reject({ maxPrice: '100000000.00' })).message).toEqual([TOO_BIG]);
+  });
+
+  it('PROD-003-S16 the min > max check is not run when one bound is absent: a lone valid bound is accepted', async () => {
+    await expect(parse({ minPrice: '999' })).resolves.toMatchObject({ minPrice: '999' });
+    await expect(parse({ maxPrice: '0' })).resolves.toMatchObject({ maxPrice: '0' });
+  });
+
+  it('PROD-003-S16 compares by number, not text: 9 <= 10 and 010 = 10 are accepted, 10 > 9 is rejected', async () => {
+    await expect(parse({ minPrice: '9', maxPrice: '10' })).resolves.toMatchObject({ minPrice: '9' });
+    await expect(parse({ minPrice: '010', maxPrice: '10' })).resolves.toMatchObject({ minPrice: '010' });
+    expect((await reject({ minPrice: '10', maxPrice: '9' })).message).toEqual([MIN_GT_MAX]);
   });
 
   it('PROD-003-S16 minPrice=30 with maxPrice=10 is rejected with "Giá tối thiểu không được lớn hơn giá tối đa"', async () => {
