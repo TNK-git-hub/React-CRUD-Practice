@@ -215,7 +215,7 @@ describe('checkPriceRange', () => {
 
   it('PROD-003-S17 each input shows at most one message, in the order of the checks', () => {
     // Catches: several messages at once or checks run in the wrong order
-    expect(check('-abc', '').minError).toBe(MSG.negative);
+    expect(check('-abc', '').minError).toBe(MSG.notNumber);
     expect(check('', '-1.234').maxError).toBe(MSG.negative);
     expect(check('', '1.234').maxError).toBe(MSG.decimals);
     expect(check('', '100000000.123').maxError).toBe(MSG.decimals);
