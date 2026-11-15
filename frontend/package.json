@@ -9,6 +9,7 @@
     "start": "next start -p 5173",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
+    "typecheck:test": "next typegen && tsc -p tsconfig.test.json",
     "test": "vitest run test/public",
     "test:private": "vitest run test/private --passWithNoTests"
   },

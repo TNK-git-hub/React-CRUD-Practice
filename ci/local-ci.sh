@@ -44,9 +44,11 @@ fi
 JOB_FAILED=0
 run_step frontend "Lint"      pnpm --filter frontend lint
 run_step frontend "Typecheck" pnpm --filter frontend typecheck
+run_step frontend "Typecheck tests" pnpm --filter frontend typecheck:test
 run_step frontend "Build"     pnpm --filter frontend build
 
 JOB_FAILED=0
+run_step backend "Typecheck tests" pnpm --filter backend typecheck:test
 run_step backend "Build" pnpm --filter backend build
 
 JOB_FAILED=0

@@ -8,6 +8,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Test public (CI chạy, bắt buộc pass): `pnpm test`
 - Test một package: `pnpm --filter backend test`, `pnpm --filter frontend test`
 - Lint: `pnpm lint`. Typecheck frontend: `pnpm --filter frontend typecheck`
+- Typecheck test files (strict, constitution Principle IV; CI runs it): `pnpm --filter backend typecheck:test`, `pnpm --filter frontend typecheck:test` (`tsconfig.test.json`: `src` + `test/public`, never `test/private`)
 - Test giao diện (webapp-testing): chạy Python bằng `.venv/bin/python`. Cần `pnpm db:up` trước để có DB.
 - Script test giao diện đặt trong `frontend/test/e2e/`. CI chưa chạy phần này.
 
