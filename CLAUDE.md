@@ -15,6 +15,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 ## Quy ước test
 - Framework: Vitest cho cả hai package.
 - Test mới đặt trong `<package>/test/public/`, tên file `*.test.ts` (component React: `*.test.tsx`).
+- Test component React: dòng đầu file `// @vitest-environment jsdom`, dùng `@testing-library/react` + `@testing-library/user-event`, `cleanup` sau mỗi test. Chỉ mock thứ bên ngoài (HTTP, `next/navigation`), không mock component của app.
 - Không đọc, sửa hay tạo file trong `test/private/`.
 - Chỉ mock thứ chậm hoặc bên ngoài (HTTP, DB, Redis). Không assert lên mock.
 - Không sửa code production để test pass. Nghi có bug thì báo lại kèm bằng chứng.
