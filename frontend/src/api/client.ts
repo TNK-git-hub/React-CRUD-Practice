@@ -6,9 +6,11 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://dummyjson.com';
 export class ApiError extends Error {
     status: number;
     path: string;
+    errors?: Record<string, string>; // per-field messages of a 400 body
 
-    constructor(message: string, status: number, path: string) {
+    constructor(message: string, status: number, path: string, errors?: Record<string, string>) {
         super(message);
+        if (errors) this.errors = errors;
         this.name = 'ApiError';
         this.status = status;
         this.path = path;
@@ -29,9 +31,10 @@ export function toError(err: unknown): Error {
 export default async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     const res = await fetch(`${BASE_URL}${path}`, options);
     if (!res.ok) {
-        const body: { message?: string | string[] } = await res.json().catch(() => ({})); // nếu ko parse dc json thì trả empty object
+        const body: { message?: string | string[]; errors?: Record<string, string> } = await res.json().catch(() => ({})); // nếu ko parse dc json thì trả empty object
         const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
-        throw new ApiError(message ?? `Call api error: ${res.status}`, res.status, path);
+        const errors = res.status === 400 && body.errors && typeof body.errors === 'object' ? body.errors : undefined;
+        throw new ApiError(message ?? `Call api error: ${res.status}`, res.status, path, errors);
     }
     return res.json();
 }

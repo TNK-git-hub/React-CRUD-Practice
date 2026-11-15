@@ -5,9 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useProducts } from '../hooks/useProducts';
 import { useDeleteProduct } from '../hooks/useProductMutations';
 import { useToast } from '../hooks/useToast';
-import { isSortField, isSortOrder } from '../utils/sortParams';
+import { buildListUrl, readListParams } from '../utils/listUrl';
 import { btn } from '../utils/buttonStyles';
-import type { ProductSummary, SortField, SortOrder } from '../types/product';
+import type { ProductSummary } from '../types/product';
+import type { PriceRange } from '../comopnents/ProductListPageCom/SearchForm';
 import type { SortChange } from '../comopnents/ProductListPageCom/Sorting';
 
 
@@ -22,36 +23,16 @@ function ProductList() {
     const router = useRouter();
 
     // URL là "nơi lưu state": đọc giá trị từ URL, không lưu trong useState nữa ----{cần đọc thêm }
-    const query = searchParams.get('q') ?? '';
-    const page = Number(searchParams.get('page')) || 1;
-    // sortBy / order không hợp lệ (vd ?sortBy=abc) -> dùng mặc định thay vì để backend trả 400
-    const sortByParam = searchParams.get('sortBy');
-    const sortBy: SortField = isSortField(sortByParam) ? sortByParam : 'title';
-    const orderParam = searchParams.get('order');
-    const order: SortOrder = isSortOrder(orderParam) ? orderParam : 'asc';
+    // sortBy / order / khoảng giá không hợp lệ -> dùng mặc định / bỏ qua thay vì để backend trả 400 (001-ADR-4)
+    const { query, page, sortBy, order, minPrice, maxPrice } = readListParams(searchParams);
 
-    // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL ----{cần đọc thêm }
+    // changes: object các key muốn đổi. Giá trị null/'' → xoá key khỏi URL
     const updateParams = (changes: Record<string, string | number | null>) => {
-        const next = new URLSearchParams(searchParams);          // (1) copy params hiện tại
-
-        Object.entries(changes).forEach(([key, value]) => {      // (2) áp từng thay đổi
-            if (value) next.set(key, String(value));
-            else next.delete(key);
-        });
-
-        // (3) sắp xếp lại thứ tự key: q → page → sortBy → order
-        const ordered = new URLSearchParams();
-        ['q', 'page', 'sortBy', 'order'].forEach((key) => {
-            const value = next.get(key);
-            if (value) ordered.set(key, value);
-        });
-
-        const path = ordered.get('q') ? '/products/search' : '/'; // (4) có từ khoá → trang search
-        const qs = ordered.toString();                           // (5) tự encode: "iphone 15" → "iphone+15"
-        router.push(qs ? `${path}?${qs}` : path, { scroll: false }); // (6) đổi URL, giữ vị trí cuộn như cũ
+        const current = { get: (key: string) => key === 'minPrice' ? (minPrice || null) : key === 'maxPrice' ? (maxPrice || null) : searchParams.get(key) };
+        router.push(buildListUrl(current, changes), { scroll: false }); // đổi URL, 1 history entry, giữ vị trí cuộn
     };
     // useProducts values
-    const { products, total, status, error, retry } = useProducts({ page, limit: 10, query, sortBy, order });
+    const { products, total, status, error, retry, shownPage, fieldErrors } = useProducts({ page, limit: 10, query, sortBy, order, minPrice, maxPrice });
 
     const [productToDelete, setProductToDelete] = useState<ProductSummary | null>(null); // null = dialog đóng
     const deleteMutation = useDeleteProduct();
@@ -76,19 +57,20 @@ function ProductList() {
 
     const totalPage = Math.ceil((total ?? 0) / 10); /* tính sô page để truyền vào PageNav */
 
-    const firstProIdx = (page - 1) * 10 + 1;
-    const lastProIdx = Math.min(page * 10, total ?? 0); // so Min để phòng hờ trang cuối không tròn 10
+    const shown = shownPage ?? page; // page of the list on screen (the last good one after a 400)
+    const firstProIdx = (shown - 1) * 10 + 1;
+    const lastProIdx = Math.min(shown * 10, total ?? 0); // so Min để phòng hờ trang cuối không tròn 10
 
     const handleSort = (next: SortChange) => { // -----{cần đọc thêm }
         updateParams({ sortBy: next.sortBy, order: next.order, page: null }); // sort mới → về trang 1
     };
 
-    const handleSearch = (newQuery: string) => {
-        updateParams({ q: newQuery, page: null });   // search mới → về trang 1
+    const handleSearch = (newQuery: string, range: PriceRange) => {
+        updateParams({ q: newQuery, minPrice: range.minPrice, maxPrice: range.maxPrice, page: null });   // search mới → về trang 1
     };
 
     const clearSearch = () => {
-        updateParams({ q: null, page: null });       // xoá q → path tự về "/"
+        updateParams({ q: null, minPrice: null, maxPrice: null, page: null }); // xoá bộ lọc, giữ sort
     };
 
     // thay cho setPage của useState, PageNav vẫn gọi setPage(số) như cũ
@@ -109,7 +91,7 @@ function ProductList() {
         if (products.length === 0) return <StatusMessage // TH: không serch được ra sản phẩm
             icon="magnifier"
             title="Không tìm thấy sản phẩm nào"
-            description={<>Không có kết quả cho từ khoá “<strong>{query}</strong>”.Thử từ khoá ngắn hơn hoặc xoá bộ lọc.</>}
+            description="Không có sản phẩm nào khớp bộ lọc hiện tại. Thử nới khoảng giá hoặc xoá bộ lọc."
             action={clearSearch} />;
         return <ProList products={products} onDelete={setProductToDelete} /> // TH: tìm ra danh sách bình thường;
     };
@@ -135,7 +117,11 @@ function ProductList() {
             <div>
                 <SearchForm
                     key={query}
+                    urlKey={searchParams.toString()} // URL đổi -> ô giá về giá trị đang áp dụng, lỗi cũ biến mất
                     initialValue={query}
+                    initialMinPrice={minPrice}
+                    initialMaxPrice={maxPrice}
+                    fieldErrors={fieldErrors}
                     onSearch={handleSearch}
                     sortBy={sortBy} // thêm sort
                     order={order} // thêm sort
@@ -153,7 +139,7 @@ function ProductList() {
                     {status === 'success' &&
                         <span className="max-xs:hidden">Hiển thị <strong>{firstProIdx}-{lastProIdx}</strong> trong <strong>{total}</strong> sản phẩm</span>
                     }
-                    <PageNav totalPage={totalPage} currentPage={page} setPage={setPage} />
+                    <PageNav totalPage={totalPage} currentPage={shown} setPage={setPage} />
                 </nav>
             </div>
 

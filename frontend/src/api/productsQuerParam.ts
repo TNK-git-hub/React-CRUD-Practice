@@ -7,6 +7,8 @@ export interface ProductQuery {
     skip?: number;
     sortBy?: SortField | ''; // '' = sort theo id
     order?: SortOrder;
+    minPrice?: string;
+    maxPrice?: string;
 }
 
 // dùng cho search
@@ -14,10 +16,12 @@ export interface ProductQuery {
 //     return apiFetch(`/products/search?q=${encodeURIComponent(query)}&limit=${limit}&skip=${skip}`)
 // }
 // ------ merge searhProduct và getProducts: dùng dummyjson sang getProducts với backend
-export function getProducts({ q = '', limit = 10, skip = 0, sortBy = '', order = 'asc' }: ProductQuery = {}) {
+export function getProducts({ q = '', limit = 10, skip = 0, sortBy = '', order = 'asc', minPrice = '', maxPrice = '' }: ProductQuery = {}) {
     const params = new URLSearchParams({ limit: String(limit), skip: String(skip), order }); // URLSearchParams chỉ nhận string
     if (q) params.set('q', q);
     if (sortBy) params.set('sortBy', sortBy);
+    if (minPrice) params.set('minPrice', minPrice); // never send an empty value (001-ADR-2)
+    if (maxPrice) params.set('maxPrice', maxPrice);
     return apiFetch<ProductListResponse>(`/products?${params}`);
 }
 

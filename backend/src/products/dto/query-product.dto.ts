@@ -1,6 +1,14 @@
-import { Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
+import { Transform, Type } from 'class-transformer'; // turn type to teh proper one (number, string) when getting from query string
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger'; // thằng này môt tả
+import { IsMinNotAboveMax, IsPriceBound } from './price-bound.validator';
+
+// trim a string bound; empty -> absent. Arrays (repeated key) stay as they are and fail validation. Never a number (001-ADR-1)
+const trimBound = ({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    const t = value.trim();
+    return t === '' ? undefined : t;
+};
 
 /* 
 @IsString(): query param value must be a string
@@ -50,4 +58,17 @@ export class QueryProductDto {
     @IsOptional()
     @IsIn(['asc', 'desc'])
     order?: 'asc' | 'desc' = 'asc';
+
+    @ApiPropertyOptional({ description: 'Minimum price (inclusive): plain decimal string, max 2 decimals, up to 99999999.99; empty = no bound' })
+    @Transform(trimBound)
+    @IsOptional()
+    @IsPriceBound()
+    @IsMinNotAboveMax()
+    minPrice?: string;
+
+    @ApiPropertyOptional({ description: 'Maximum price (inclusive): plain decimal string, max 2 decimals, up to 99999999.99; empty = no bound' })
+    @Transform(trimBound)
+    @IsOptional()
+    @IsPriceBound()
+    maxPrice?: string;
 }

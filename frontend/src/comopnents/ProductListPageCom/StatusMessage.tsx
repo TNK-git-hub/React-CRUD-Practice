@@ -49,7 +49,7 @@ function returnTextBtn(icon: StatusIcon) {
         return "Thử lại";
     }
     if (icon === "magnifier") {
-        return "Xoá từ khoá";
+        return "Xoá bộ lọc";
     }
     if (icon === "404") {
         return "← Về danh sách";
