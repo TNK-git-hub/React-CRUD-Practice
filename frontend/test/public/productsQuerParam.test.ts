@@ -140,6 +140,125 @@ describe('getProducts: query string', () => {
   });
 });
 
+// minPrice / maxPrice are strings kept as typed (001-ADR-2); built by cast so this file type-checks on its own
+type Price = { minPrice?: string; maxPrice?: string };
+const withPrice = (query: Price & { q?: string }) => query as Parameters<Api['getProducts']>[0];
+
+describe('getProducts: price range', () => {
+  it('PROD-001-S1 sends minPrice=10 and maxPrice=20 exactly once', async () => {
+    const params = parse(await call(api.getProducts(withPrice({ minPrice: '10', maxPrice: '20' })))).searchParams;
+
+    expect(params.getAll('minPrice')).toEqual(['10']);
+    expect(params.getAll('maxPrice')).toEqual(['20']);
+  });
+
+  it('PROD-001-S1 sends the bounds as typed: "010" and "20.00" are not normalised', async () => {
+    const query = queryOf(await call(api.getProducts(withPrice({ minPrice: '010', maxPrice: '20.00' }))));
+
+    expect(query).toMatchObject({ minPrice: '010', maxPrice: '20.00' });
+  });
+
+  it.each<[string, Price, Record<string, string>]>([
+    ['only a minimum', { minPrice: '20' }, { minPrice: '20' }],
+    ['only a maximum', { maxPrice: '10' }, { maxPrice: '10' }],
+    ['a maximum of "0" is a real bound', { maxPrice: '0' }, { maxPrice: '0' }],
+  ])('PROD-001-S1 %s', async (_name, price, expected) => {
+    const query = queryOf(await call(api.getProducts(withPrice(price))));
+
+    expect(query).toEqual({ limit: '10', skip: '0', order: 'asc', ...expected });
+  });
+
+  it.each<[string, Price]>([
+    ['both empty strings', { minPrice: '', maxPrice: '' }],
+    ['both undefined', { minPrice: undefined, maxPrice: undefined }],
+    ['none given', {}],
+  ])('PROD-001-S5 %s: neither key is sent', async (_name, price) => {
+    const params = parse(await call(api.getProducts(withPrice(price)))).searchParams;
+
+    expect(params.has('minPrice')).toBe(false);
+    expect(params.has('maxPrice')).toBe(false);
+  });
+
+  it('PROD-001-S5 an empty minimum is dropped while the maximum is still sent', async () => {
+    const query = queryOf(await call(api.getProducts(withPrice({ minPrice: '', maxPrice: '10' }))));
+
+    expect(query).toEqual({ limit: '10', skip: '0', order: 'asc', maxPrice: '10' });
+  });
+
+  it('PROD-001-S1 the range round-trips next to q through the URL: each key once, no other key (property)', async () => {
+    const price = fc.option(fc.stringMatching(/^[0-9]{1,8}(\.[0-9]{1,2})?$/), { nil: undefined });
+    await fc.assert(
+      fc.asyncProperty(price, price, fc.constantFrom('', 'phone', 'a&b'), async (minPrice, maxPrice, q) => {
+        const params = parse(await call(api.getProducts(withPrice({ minPrice, maxPrice, q })))).searchParams;
+
+        expect(params.get('minPrice')).toBe(minPrice ?? null);
+        expect(params.get('maxPrice')).toBe(maxPrice ?? null);
+        expect(params.get('q')).toBe(q ? q : null);
+        for (const key of new Set(params.keys())) expect(params.getAll(key)).toHaveLength(1);
+      }),
+    );
+  });
+});
+
+describe('ApiError carries the field errors of a 400 (price bounds)', () => {
+  const errorsOf = (err: unknown) => (err as { errors?: Record<string, string> }).errors;
+
+  it('PROD-003-S13 keeps errors.minPrice, and message / status / path as before', async () => {
+    failWith(
+      400,
+      '{"statusCode":400,"message":["Giá không được âm"],"error":"Bad Request","errors":{"minPrice":"Giá không được âm"}}',
+    );
+
+    const err = await api.getProducts(withPrice({ minPrice: '-1' })).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(client.ApiError);
+    expect(err).toMatchObject({ status: 400, path: expect.stringContaining('/products?'), message: 'Giá không được âm' });
+    expect(errorsOf(err)).toEqual({ minPrice: 'Giá không được âm' });
+  });
+
+  it('PROD-003-S21 errors.maxPrice alone has no minPrice key', async () => {
+    failWith(400, '{"message":["Giá phải là số"],"errors":{"maxPrice":"Giá phải là số"}}');
+
+    const err = await api.getProducts(withPrice({ maxPrice: 'abc' })).catch((e: unknown) => e);
+
+    expect(errorsOf(err)).toEqual({ maxPrice: 'Giá phải là số' });
+  });
+
+  it('PROD-003-S21 both bounds: each message under its own key, message joined with ", "', async () => {
+    failWith(
+      400,
+      '{"message":["Giá không được âm","Giá phải là số"],"errors":{"minPrice":"Giá không được âm","maxPrice":"Giá phải là số"}}',
+    );
+
+    const err = await api.getProducts(withPrice({ minPrice: '-1', maxPrice: 'abc' })).catch((e: unknown) => e);
+
+    expect(errorsOf(err)).toEqual({ minPrice: 'Giá không được âm', maxPrice: 'Giá phải là số' });
+    expect(err).toMatchObject({ message: 'Giá không được âm, Giá phải là số' });
+  });
+
+  it.each<[string, number, string]>([
+    ['a 400 without errors', 400, '{"message":["limit must not be less than 1"]}'],
+    ['a 500 with a body', 500, '{"message":"boom"}'],
+    ['a 500 that is not JSON', 500, '<html>'],
+  ])('PROD-003-S13 %s has no errors', async (_name, status, body) => {
+    failWith(status, body);
+
+    const err = await api.getProducts().catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(client.ApiError);
+    expect(errorsOf(err)).toBeUndefined();
+  });
+
+  it('PROD-003-S21 errors is ignored on a non-400 status (a 5xx is not a field error)', async () => {
+    failWith(503, '{"message":"down","errors":{"minPrice":"x"}}');
+
+    const err = await api.getProducts().catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ status: 503 });
+    expect(errorsOf(err)).toBeUndefined();
+  });
+});
+
 describe('createProduct', () => {
   it('POSTs a minimal payload as JSON to /products/add', async () => {
     const echo = await call(api.createProduct({ title: 'A', description: 'B', category: 'c', price: 9 }));
