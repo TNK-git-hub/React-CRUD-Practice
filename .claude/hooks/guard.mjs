@@ -42,8 +42,29 @@ const root = process.env.CLAUDE_PROJECT_DIR || cwd;
 const agent = agent_type || "main";
 const who = agent === "main" ? "Session chính" : agent;
 
-// Đường dẫn tương đối so với gốc project, vd "backend/test/private/a.test.ts"
-const rel = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).join("/");
+// File system không phân biệt hoa thường (mặc định của macOS, Windows): "backend/test/Private" là cùng thư mục với
+// "backend/test/private", và `PNPM` chạy được pnpm. Khi đó mọi so khớp đường dẫn và lệnh Bash làm trên chữ thường (fold).
+// Dò thật trên gốc project (APFS có thể format phân biệt hoa thường); không dò được thì đoán theo platform như allow_paths.py.
+// GUARD_CASE_INSENSITIVE=1 chỉ ÉP BẬT fold (để CI Linux kiểm nhánh này), không tắt được.
+// Mọi regex so với đường dẫn hay lệnh phải viết chữ thường, hoặc có cờ i nếu buộc phải chứa chữ hoa (vd CLAUDE.md).
+const CASE_INSENSITIVE_FS =
+  process.env.GUARD_CASE_INSENSITIVE === "1" ||
+  (() => {
+    const flipped = root.replace(/[a-z]/gi, (c) => (c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase()));
+    if (flipped === root) return process.platform === "darwin" || process.platform === "win32";
+    try {
+      const a = fs.statSync(root);
+      const b = fs.statSync(flipped);
+      return a.dev === b.dev && a.ino === b.ino;
+    } catch {
+      return false; // tên đảo hoa thường không tồn tại -> phân biệt hoa thường
+    }
+  })();
+const fold = (s) => (CASE_INSENSITIVE_FS ? s.toLowerCase() : s);
+
+// Đường dẫn tương đối so với gốc project, vd "backend/test/private/a.test.ts". relRaw: giữ nguyên hoa thường; rel: đã fold.
+const relRaw = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).join("/");
+const rel = (p) => fold(relRaw(p));
 
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 const PRIVATE = /(^|\/)test\/private(\/|$)/;
@@ -54,7 +75,8 @@ const SPEC_WRITABLE = /^(specs\/changes\/|\.specify\/feature\.json$)/;
 // spec-writer (/speckit-specify) may also append rows to these three files; the allow_paths.py rule in its frontmatter allows exactly the same three.
 const SPEC_SYSTEM_APPEND = /^specs\/_system\/(traceability|glossary|domain-model)\.md$/;
 // k8s/agents/tasks/ không phải harness: Claude tổng viết file task ở đó (skill dispatch-agents)
-const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/;
+// Cờ i: có CLAUDE.md (chữ hoa) mà vẫn phải khớp sau fold
+const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/i;
 
 // ---------- private-test-writer: viết hidden test chỉ từ spec ----------
 const PTW = "private-test-writer";
@@ -72,7 +94,7 @@ const lexists = (q) => {
     return false;
   }
 };
-const realRel = (p) => {
+const realRelWith = (p, realpath) => {
   try {
     let cur = path.resolve(cwd, p);
     const rest = [];
@@ -80,16 +102,23 @@ const realRel = (p) => {
       rest.unshift(path.basename(cur));
       cur = path.dirname(cur);
     }
-    const real = path.join(fs.realpathSync(cur), ...rest);
-    return path.relative(fs.realpathSync(root), real).split(path.sep).join("/");
+    const real = path.join(realpath(cur), ...rest);
+    return path.relative(realpath(root), real).split(path.sep).join("/");
   } catch {
     return null;
   }
 };
-// Đúng cả theo đường dẫn chữ lẫn sau khi theo symlink
-const ptwPathOk = (p, re) => {
-  const real = realRel(p);
-  return re.test(rel(p)) && real !== null && re.test(real);
+const realRel = (p) => {
+  const r = realRelWith(p, fs.realpathSync);
+  return r === null ? null : fold(r);
+};
+// Đúng cả theo đường dẫn chữ lẫn sau khi theo symlink.
+// exactCase: so trên đường dẫn CHƯA fold, phần đã tồn tại lấy đúng hoa thường trên đĩa (realpathSync.native):
+// PTW chỉ được ghi đúng "test/private" chữ thường, kể cả khi trên đĩa đã có "test/Private" (vitest / run_private có thể bỏ sót).
+const ptwPathOk = (p, re, { exactCase = false } = {}) => {
+  const lit = exactCase ? relRaw(p) : rel(p);
+  const real = exactCase ? realRelWith(p, fs.realpathSync.native) : realRel(p);
+  return re.test(lit) && real !== null && re.test(real);
 };
 
 if (agent === PTW && !PTW_TOOLS.includes(tool)) {
@@ -100,7 +129,8 @@ if (agent === PTW && !PTW_TOOLS.includes(tool)) {
 if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   const target = input.file_path || input.notebook_path || "";
   if (agent === PTW) {
-    if (target && ptwPathOk(target, PTW_WRITABLE)) allow();
+    // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
+    if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
     block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
   }
   if (!target) allow();
@@ -143,7 +173,7 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
     }
   }
   if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
-  if (PRIVATE.test(String(input.pattern || "")) || PRIVATE.test(String(input.glob || ""))) {
+  if (PRIVATE.test(fold(String(input.pattern || ""))) || PRIVATE.test(fold(String(input.glob || "")))) {
     block("Không được đọc test/private.");
   }
   allow();
@@ -151,7 +181,8 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
 
 // ---------- Bash ----------
 if (tool === "Bash") {
-  const cmd = String(input.command || "");
+  // fold: `cat …/Private/…` và `PNPM test a` không lọt qua các regex chữ thường bên dưới
+  const cmd = fold(String(input.command || ""));
 
   // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
   // Dùng cho mọi kiểm tra bên dưới, trừ kiểm tra đường dẫn test/private (chạy trên lệnh gốc, để `cat "…"` không lọt).
@@ -205,7 +236,8 @@ if (tool === "Bash") {
   if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(cmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
   }
-  if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/.test(cmd)) {
+  // Cờ i: CLAUDE.md phải khớp cả sau fold
+  if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/i.test(cmd)) {
     if (agent === "main") ask("Session chính muốn sửa file harness bằng Bash.");
     block(`${who} không được sửa file harness.`);
   }

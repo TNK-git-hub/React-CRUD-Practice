@@ -3,6 +3,9 @@
 // Builds a throwaway project tree in the OS temp dir (specs/, src/, public and private test folders, symlinks)
 // and points CLAUDE_PROJECT_DIR at it. Never reads or writes the repo's own test folders.
 // Usage: node .claude/hooks/guard-cases.mjs [path/to/guard.mjs]    (CI: job spec-check)
+// Runs every case twice: as is, and with GUARD_CASE_INSENSITIVE=1 (forces the guard's case-folding branch on, so a
+// case-sensitive Linux runner checks it too). The case-change cases run when the temp dir's file system ignores case,
+// and always in the forced run.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -30,9 +33,11 @@ fs.symlinkSync("../backend/src", path.join(FAKE, "specs/dir-link")); // dir syml
 fs.symlinkSync("/nonexistent/nowhere.md", path.join(FAKE, "specs/dangling.md"));
 fs.symlinkSync("../../src", path.join(FAKE, `${PRIV}/escape`)); // dir symlink from private to src
 fs.symlinkSync("/nonexistent/x.test.ts", path.join(FAKE, `${PRIV}/dangle.test.ts`));
+// File system of the temp dir ignores case (default on macOS, Windows)?
+const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
 const PTW = "private-test-writer";
-const A = "ALLOW", B = "BLOCK";
+const A = "ALLOW", B = "BLOCK", Q = "ASK";
 const cases = [
   // ---- private-test-writer: reads (only specs/, also after resolving symlinks) ----
   [PTW, "Read", { file_path: "specs/changes/002-x/spec.md" }, A, "Read specs (relative)"],
@@ -119,6 +124,14 @@ const cases = [
   ["main", "Bash", { command: "pnpm db:up" }, A, "main pnpm db:up"],
   ["main", "Bash", { command: 'bash k8s/agents/dispatch.sh j1 k8s/agents/tasks/j1.md --title "Fix x"' }, A, "main dispatch.sh (run_private runs inside)"],
   ["main", "Bash", { command: 'bash k8s/agents/dispatch.sh j1 k8s/agents/tasks/j1.md --title "Fix x" --no-private --dry-run' }, A, "main dispatch.sh --no-private --dry-run"],
+  // ---- harness files: main session is asked (CLAUDE.md in any case, every file system) ----
+  ["main", "Write", { file_path: "CLAUDE.md" }, Q, "main Write CLAUDE.md"],
+  ["main", "Write", { file_path: "claude.md" }, Q, "main Write claude.md"],
+  ["main", "Write", { file_path: "Claude.MD" }, Q, "main Write Claude.MD"],
+  ["main", "Write", { file_path: ".claude/settings.json" }, Q, "main Write .claude/settings.json"],
+  ["main", "Bash", { command: "echo x > CLAUDE.md" }, Q, "main Bash echo x > CLAUDE.md"],
+  ["main", "Bash", { command: "echo x > claude.md" }, Q, "main Bash echo x > claude.md"],
+  ["test-writer", "Write", { file_path: "CLAUDE.md" }, B, "test-writer Write CLAUDE.md"],
   // ---- other roles: normal work still allowed ----
   ["test-writer", "Write", { file_path: "backend/test/public/a.test.ts" }, A, "test-writer Write public"],
   ["code-writer", "Write", { file_path: "backend/src/x.ts" }, A, "code-writer Write src"],
@@ -128,23 +141,65 @@ const cases = [
   ["spec-writer", "Write", { file_path: "specs/changes/002-x/spec.md" }, A, "spec-writer Write specs/changes"],
 ];
 
-let pass = 0, failN = 0;
-try {
-  for (const [agent, tool, input, want, name] of cases) {
+// ---- case-insensitive file system: changing case must not get around any rule ----
+// Same dir in another case is the same dir, so the allow-lists accept it too (last rows).
+const caseCases = [
+  ["main", "Read", { file_path: "backend/test/Private/existing.test.ts" }, B, "main Read test/Private"],
+  ["main", "Read", { file_path: "Backend/Test/private/existing.test.ts" }, B, "main Read Backend/Test/private"],
+  ["code-writer", "Read", { file_path: "backend/test/Private/existing.test.ts" }, B, "code-writer Read test/Private"],
+  ["code-writer", "Read", { file_path: "Backend/Test/private/existing.test.ts" }, B, "code-writer Read Backend/Test/private"],
+  ["main", "Grep", { pattern: "x", path: "backend/test/PRIVATE" }, B, "main Grep path test/PRIVATE"],
+  ["main", "Glob", { pattern: "backend/test/Private/**" }, B, "main Glob pattern test/Private"],
+  ["main", "Write", { file_path: "backend/Test/public/x.test.ts" }, B, "main Write backend/Test/public"],
+  ["main", "Write", { file_path: "Backend/Src/x.ts" }, B, "main Write Backend/Src"],
+  ["main", "Write", { file_path: "backend/Test/Private/new.test.ts" }, B, "main Write backend/Test/Private"],
+  ["test-writer", "Write", { file_path: "backend/test/Private/new.test.ts" }, B, "test-writer Write test/Private"],
+  ["main", "Write", { file_path: ".Claude/settings.json" }, Q, "main Write .Claude/ (harness -> ask)"],
+  ["main", "Write", { file_path: "Backend/.ENV" }, B, "main Write Backend/.ENV"],
+  [PTW, "Read", { file_path: "Backend/src/app.ts" }, B, "PTW Read Backend/src"],
+  [PTW, "Read", { file_path: "SPECS/../backend/src/app.ts" }, B, "PTW Read SPECS/../backend/src"],
+  ["main", "Bash", { command: "cat backend/test/Private/existing.test.ts" }, B, "main Bash cat test/Private"],
+  ["main", "Bash", { command: "cat Backend/Test/Private/existing.test.ts" }, B, "main Bash cat Backend/Test/Private"],
+  ["main", "Bash", { command: "PNPM test a" }, B, "main Bash PNPM test a"],
+  ["main", "Bash", { command: "Pnpm Test:Private" }, B, "main Bash Pnpm Test:Private"],
+  ["main", "Bash", { command: "echo x > .Claude/settings.json" }, Q, "main Bash echo > .Claude/ (harness -> ask)"],
+  ["code-writer", "Bash", { command: "echo x > Backend/Test/public/a.test.ts" }, B, "code-writer Bash write Backend/Test/public"],
+  ["test-writer", "Write", { file_path: "Backend/Test/Public/x.test.ts" }, A, "test-writer Write Backend/Test/Public (same dir)"],
+  ["code-writer", "Write", { file_path: "Backend/SRC/x.ts" }, A, "code-writer Write Backend/SRC (same dir)"],
+  [PTW, "Read", { file_path: "SPECS/_system/nfr.md" }, A, "PTW Read SPECS/ (same dir)"],
+  [PTW, "Write", { file_path: "Backend/Test/Private/n.test.ts" }, B, "PTW Write Backend/Test/Private (exact lowercase only)"],
+  [PTW, "Write", { file_path: "backend/test/Private/n.test.ts" }, B, "PTW Write backend/test/Private (exact lowercase only)"],
+  ["main", "Bash", { command: "PNPM test" }, A, "main Bash PNPM test"],
+];
+
+const run = (label, extraEnv, withCaseCases) => {
+  const all = withCaseCases ? [...cases, ...caseCases] : cases;
+  let pass = 0, failN = 0;
+  console.log(`\n=== ${label}${withCaseCases ? "" : ` (case-sensitive file system: skipping ${caseCases.length} case-change cases)`}`);
+  for (const [agent, tool, input, want, name] of all) {
     const payload = { tool_name: tool, tool_input: input, cwd: FAKE, ...(agent === "main" ? {} : { agent_type: agent }) };
     const r = spawnSync(process.execPath, [GUARD], {
       input: JSON.stringify(payload),
-      env: { ...process.env, CLAUDE_PROJECT_DIR: FAKE },
+      env: { ...process.env, GUARD_CASE_INSENSITIVE: "", ...extraEnv, CLAUDE_PROJECT_DIR: FAKE },
       encoding: "utf8",
     });
-    const got = r.status === 2 ? B : r.status === 0 && !r.stdout.includes('"ask"') ? A : `OTHER(status=${r.status}, ${r.stdout.trim()})`;
+    const got =
+      r.status === 2 ? B : r.status === 0 && r.stdout.includes('"ask"') ? Q : r.status === 0 ? A : `OTHER(status=${r.status}, ${r.stdout.trim()})`;
     const ok = got === want;
     ok ? pass++ : failN++;
     console.log(`${ok ? "PASS" : "FAIL"}  ${agent.padEnd(19)} ${tool.padEnd(8)} want=${want} got=${got}  ${name}${ok ? "" : "  | " + r.stderr.trim()}`);
   }
+  console.log(`${label}: ${pass} passed, ${failN} failed, ${all.length} cases`);
+  return failN;
+};
+
+let failures = 0;
+try {
+  failures += run("run 1: as is", {}, CASE_INSENSITIVE_FS);
+  failures += run("run 2: GUARD_CASE_INSENSITIVE=1", { GUARD_CASE_INSENSITIVE: "1" }, true);
 } finally {
   fs.rmSync(FAKE, { recursive: true, force: true });
   fs.rmSync(OUTSIDE, { recursive: true, force: true });
 }
-console.log(`\n${pass} passed, ${failN} failed, ${cases.length} cases`);
-process.exit(failN ? 1 : 0);
+console.log(`\n${failures ? `FAILED: ${failures} case(s)` : "ALL PASSED"}`);
+process.exit(failures ? 1 : 0);
