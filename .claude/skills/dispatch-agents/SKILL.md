@@ -41,9 +41,11 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - Chạy thật: bỏ `--dry-run`. Nhiều task thì chạy song song (mỗi task một lệnh Bash chạy nền), rồi đợi tất cả. Mode full mất khoảng 20–60 phút mỗi task.
 - Đọc dòng cuối: `RESULT: SUCCESS pr=<url>` hoặc `RESULT: FAILED reason=...`. Fail thì đọc log trong `k8s/agents/logs/<job-id>-*.log` (dòng `==> ... =====` cho biết đang ở bước nào, dòng `==>` cuối cùng cho biết bước hỏng).
 - `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review (hidden test vẫn chạy trên PR draft). Báo người dùng, không tự dispatch lại.
-- Dòng `PRIVATE:` (hidden test, chạy trên máy local):
-  - `PASS` / `SKIPPED` → tiếp bước 4.
-  - `FAIL` → báo người dùng kèm đường dẫn log. **Không đọc log đó, không đưa nội dung hay tên test vào task sửa**: lộ hidden test cho agent là mất tác dụng chống học tủ.
+- Dòng `PRIVATE:` (hidden test, chạy trên máy local), dạng
+  `PRIVATE: PASS|FAIL (backend: files N, load errors N, tests N fail / N pass, type errors N; frontend: ...)` hoặc `PRIVATE: SKIPPED (<lý do>)`:
+  - `PASS` (mọi package: load errors 0, tests 0 fail, type errors 0) → tiếp bước 4.
+  - `SKIPPED` → **không coi là pass**: báo người dùng lý do trong ngoặc (chưa có hidden test, không đọc được branch PR, pnpm install lỗi...). Vẫn theo dõi bước 4, nhưng không báo task là đạt khi người dùng chưa quyết.
+  - `FAIL`, kể cả khi chỉ có `type errors` > 0 → **không coi là pass**: báo người dùng kèm đường dẫn log. **Không đọc log đó, không đưa nội dung hay tên test vào task sửa**: lộ hidden test cho agent là mất tác dụng chống học tủ.
 
 ## 4. Theo dõi GitHub Actions
 - Với mỗi PR: `bash k8s/agents/watch-pr.sh <pr-url>`.
