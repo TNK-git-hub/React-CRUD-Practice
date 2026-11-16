@@ -33,6 +33,9 @@ fs.symlinkSync("../backend/src", path.join(FAKE, "specs/dir-link")); // dir syml
 fs.symlinkSync("/nonexistent/nowhere.md", path.join(FAKE, "specs/dangling.md"));
 fs.symlinkSync("../../src", path.join(FAKE, `${PRIV}/escape`)); // dir symlink from private to src
 fs.symlinkSync("/nonexistent/x.test.ts", path.join(FAKE, `${PRIV}/dangle.test.ts`));
+mk("notes/readme.md");
+fs.symlinkSync(path.join(FAKE, PRIV), path.join(FAKE, "notes/priv-dir")); // dir symlink elsewhere -> private
+fs.symlinkSync(path.join(FAKE, `${PRIV}/existing.test.ts`), path.join(FAKE, "notes/priv-file.md")); // file symlink -> private
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
@@ -66,7 +69,17 @@ const cases = [
   // ---- private-test-writer: writes (only new .ts/.tsx in the private test folders) ----
   [PTW, "Write", { file_path: `${PRIV}/002-x/a.test.ts` }, A, "Write new .test.ts in backend private"],
   [PTW, "Write", { file_path: `${FE_PRIV}/002-x/b.test.tsx` }, A, "Write new .test.tsx in frontend private"],
-  [PTW, "Write", { file_path: path.join(FAKE, `${PRIV}/abs.test.ts`) }, A, "Write private (absolute path)"],
+  [PTW, "Write", { file_path: path.join(FAKE, `${PRIV}/002-x/abs.test.ts`) }, A, "Write private (absolute path)"],
+  [PTW, "Write", { file_path: `${PRIV}/002-x/a.test.ts` }, A, "Write new file in a change folder that does not exist yet"],
+  [PTW, "Write", { file_path: `${PRIV}/existing.test.ts` }, B, "Write over an existing private file"],
+  [PTW, "Write", { file_path: `${PRIV}/abs.test.ts` }, B, "Write private without <change>/ folder"],
+  [PTW, "Write", { file_path: `${PRIV}/x/a.test.ts` }, B, "Write private, change folder not NNN-<name>"],
+  [PTW, "Write", { file_path: `${PRIV}/002-x/a.ts` }, B, "Write private without .test. in the name"],
+  [PTW, "Write", { file_path: `${PRIV}/002-x/sub/a.test.ts` }, B, "Write private in a nested folder"],
+  [PTW, "MultiEdit", { file_path: `${PRIV}/existing.test.ts` }, B, "MultiEdit private"],
+  [PTW, "NotebookEdit", { notebook_path: `${PRIV}/002-x/n.ipynb` }, B, "NotebookEdit private"],
+  [PTW, "Grep", { pattern: "foo", path: PRIV }, B, "Grep path=private"],
+  [PTW, "Glob", { pattern: "**/*.ts", path: PRIV }, B, "Glob path=private"],
   [PTW, "Write", { file_path: `${PRIV}/../../src/x.ts` }, B, "Write private/../../src/x.ts"],
   [PTW, "Write", { file_path: `${PRIV}/x.test.js` }, B, "Write .js in private"],
   [PTW, "Write", { file_path: `${PRIV}/.env` }, B, "Write .env in private"],
@@ -85,6 +98,29 @@ const cases = [
   ["code-writer", "Write", { file_path: `${PRIV}/a.test.ts` }, B, "code-writer Write private"],
   ["main", "Write", { file_path: `${PRIV}/a.test.ts` }, B, "main Write private"],
   ["test-writer", "Read", { file_path: `${PRIV}/existing.test.ts` }, B, "test-writer Read private"],
+  ["main", "Read", { file_path: `${PRIV}/existing.test.ts` }, B, "main Read private"],
+  ["main", "Write", { file_path: `${PRIV}/002-x/a.test.ts` }, B, "main Write private <change>/ file"],
+  ["test-writer", "Write", { file_path: `${FE_PRIV}/002-x/b.test.tsx` }, B, "test-writer Write frontend private <change>/ file"],
+  ["main", "Edit", { file_path: `${PRIV}/existing.test.ts` }, B, "main Edit private"],
+  ["code-writer", "MultiEdit", { file_path: `${PRIV}/existing.test.ts` }, B, "code-writer MultiEdit private"],
+  ["main", "NotebookEdit", { notebook_path: `${PRIV}/n.ipynb` }, B, "main NotebookEdit private"],
+  ["main", "Read", { file_path: "notes/priv-file.md" }, B, "main Read file symlink -> private"],
+  ["main", "Read", { file_path: "notes/priv-dir/existing.test.ts" }, B, "main Read via dir symlink -> private"],
+  ["main", "Edit", { file_path: "notes/priv-file.md" }, B, "main Edit file symlink -> private"],
+  ["main", "Grep", { pattern: "x", path: "notes/priv-dir" }, B, "main Grep via dir symlink -> private"],
+  ["main", "Grep", { pattern: "x", path: PRIV }, B, "main Grep path=private"],
+  ["main", "Grep", { pattern: "x", path: "backend/test" }, B, "main Grep path=backend/test (parent of private)"],
+  ["test-planner", "Grep", { pattern: "x", path: "backend" }, B, "test-planner Grep path=backend (parent of private)"],
+  ["main", "Glob", { pattern: "**/*.ts", path: "frontend/test" }, B, "main Glob path=frontend/test"],
+  ["main", "Glob", { pattern: "backend/test/**/*.ts" }, B, "main Glob pattern backend/test/**"],
+  ["main", "Glob", { pattern: "**/test/**/*.ts" }, B, "main Glob pattern **/test/**"],
+  ["main", "Grep", { pattern: "x", glob: "backend/test/**" }, B, "main Grep glob backend/test/**"],
+  ["main", "Grep", { pattern: "x", path: "backend/test/public" }, A, "main Grep path=backend/test/public"],
+  ["main", "Grep", { pattern: "x", path: "backend/src" }, A, "main Grep path=backend/src"],
+  ["main", "Glob", { pattern: "backend/test/public/**/*.ts" }, A, "main Glob pattern backend/test/public/**"],
+  ["main", "Grep", { pattern: "x" }, A, "main Grep without path (project root)"],
+  ["main", "Grep", { pattern: "see test/foo" }, A, "main Grep regex mentioning test/ (not a glob)"],
+  ["main", "Read", { file_path: "notes/readme.md" }, A, "main Read normal file"],
   ["main", "Bash", { command: "cat " + `${PRIV}/existing.test.ts` }, B, "main Bash cat private"],
   // ---- Bash: hidden test commands are never run through Claude ----
   ["main", "Bash", { command: "pnpm test:private" }, B, "main pnpm test:private"],

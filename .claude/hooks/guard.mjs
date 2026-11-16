@@ -5,11 +5,14 @@
 //   test-writer  -> chỉ sửa <package>/test/public, frontend/test/e2e
 //   spec-writer, planner -> chỉ sửa specs/changes/, .specify/feature.json (spec harness)
 //   spec-writer additionally: append rows to specs/_system/{traceability,glossary,domain-model}.md
-//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write; chỉ đọc specs/; chỉ tạo file .ts/.tsx trong
-//                          <package>/test/private; không đọc src/, test/public/; không Bash (đường dẫn kiểm cả sau symlink)
+//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write; chỉ đọc specs/; chỉ tạo file MỚI
+//                          <package>/test/private/<NNN-change>/*.test.ts(x); không đọc src/, test/public/; không Bash
+//                          (đường dẫn kiểm cả sau symlink)
 //   agent khác   -> không ghi gì
-// Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
-// Ngoài private-test-writer, không ai được ghi <package>/test/private.
+// Không ai được đọc (Read/Grep/Glob) <package>/test/private và .env, kể cả private-test-writer. Chặn ở hook này, không
+// ở settings.json: rule deny-Read của settings.json chặn luôn cả Write nên private-test-writer không tạo được file.
+// Grep/Glob với path là thư mục cha của test/private (backend, frontend, <package>/test) cũng bị chặn.
+// Ngoài private-test-writer, không ai được ghi <package>/test/private; không ai được Edit / NotebookEdit ở đó.
 // Test private được commit dạng mã hoá (private-tests/tests.tar.age, age). Không ai đọc khoá age (~/.config/age/),
 // log đầy đủ của lần chạy test private (~/.local/state/hidden-tests/) hay chạy `age -d`; chỉ session chính (hỏi người
 // dùng) được ghi private-tests/. Script k8s/agents/private-{seal,unseal,hooks}.sh chạy được: chúng chỉ in số lượng.
@@ -94,7 +97,12 @@ const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.m
 const PTW = "private-test-writer";
 const PTW_TOOLS = ["Read", "Grep", "Glob", "Write"];
 const PTW_READABLE = /^specs(\/|$)/;
-const PTW_WRITABLE = /^(backend|frontend)\/test\/private\/[\w./-]+\.tsx?$/;
+// <package>/test/private/<change>/<tên>.test.ts(x), <change> = NNN-<name>
+const PTW_WRITABLE = /^(backend|frontend)\/test\/private\/\d{3}-[a-z0-9]+(-[a-z0-9]+)*\/[\w.-]+\.test\.tsx?$/;
+// Thư mục cha của test/private: Grep/Glob từ đây quét được vào test/private
+const PRIVATE_PARENT = /^(backend|frontend)(\/test)?\/?$/;
+// Glob (tương đối) đi vào <package>/test/ mà không giới hạn ở public/ hay e2e/
+const GLOB_INTO_TEST = /^(\*\*\/)?((backend|frontend|\*\*?)\/)?test\/(?!(public|e2e)\/)/;
 
 // Như rel() nhưng theo symlink: realpath của tổ tiên gần nhất đang tồn tại + phần chưa tồn tại (file sắp tạo).
 // Symlink hỏng (realpath lỗi) -> null, nơi gọi chặn.
@@ -141,13 +149,20 @@ if (agent === PTW && !PTW_TOOLS.includes(tool)) {
 if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   const target = input.file_path || input.notebook_path || "";
   if (agent === PTW) {
+    if (tool !== "Write") block(`${PTW} chỉ được tạo file mới bằng Write, không được ${tool}.`);
     // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
-    if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
-    block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+    if (!target || !ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) {
+      block(`${PTW} chỉ được tạo <package>/test/private/<NNN-change>/<tên>.test.ts(x) (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+    }
+    // Chỉ tạo mới: lstat thấy cả symlink, và trên FS không phân biệt hoa thường thấy cả tên khác hoa thường
+    if (lexists(path.resolve(cwd, target))) block(`${PTW} chỉ được tạo file mới: ${rel(target)} đã tồn tại, chọn tên khác.`);
+    allow();
   }
   if (!target) allow();
   if (secretPath(target)) block("Không ai được ghi khoá age hay log của test private.");
   const r = rel(target);
+  // Kiểm cả sau symlink (vd file ngoài project hay trong src/ là symlink trỏ vào test/private)
+  if (PRIVATE.test(r) || PRIVATE.test(realRel(target) ?? "")) block("Không ai được sửa test/private.");
   if (r.startsWith("../")) allow(); // ngoài project (vd scratchpad)
 
   if (ENV.test(r)) block("Không ai được sửa file .env.");
@@ -155,7 +170,6 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
     if (agent === "main") ask(`Session chính muốn sửa ${r} (test private đã mã hoá / danh sách public key).`);
     block(`${who} không được sửa ${r}. Chỉ người dùng seal test private (k8s/agents/private-seal.sh).`);
   }
-  if (PRIVATE.test(r)) block("Không ai được sửa test/private.");
   if (TEST_ANY.test(r)) {
     if (agent === "test-writer" && TEST_WRITABLE.test(r)) allow();
     block(`${who} không được sửa ${r}. Chỉ test-writer được ghi vào test/public và frontend/test/e2e.`);
@@ -189,7 +203,19 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
       block(`${PTW}: glob không được chứa "..", đường dẫn tuyệt đối hay "~".`);
     }
   }
-  if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
+  // Kiểm cả sau symlink (symlink ở chỗ khác trỏ vào test/private)
+  if (target && (PRIVATE.test(rel(target)) || PRIVATE.test(realRel(target) ?? ""))) block("Không được đọc test/private.");
+  if (tool !== "Read") {
+    // Grep/Glob từ thư mục cha của test/private quét được vào đó: phải tìm hẹp hơn (vd backend/src, backend/test/public)
+    const roots = target ? [rel(target), realRel(target) ?? ""] : [];
+    if (roots.some((x) => PRIVATE_PARENT.test(x))) {
+      block(`${tool} với path ${rel(target)} quét được vào test/private. Dùng path hẹp hơn, vd <package>/src hoặc <package>/test/public.`);
+    }
+    // pattern của Grep là regex nội dung, không phải glob: chỉ kiểm pattern của Glob và glob của Grep
+    if ([tool === "Glob" ? input.pattern : "", input.glob].some((g) => GLOB_INTO_TEST.test(fold(String(g || ""))))) {
+      block(`${tool}: glob đi vào <package>/test/ phải giới hạn ở test/public/ hoặc test/e2e/.`);
+    }
+  }
   const globs = [input.pattern, input.glob].map((g) => fold(String(g || "")));
   if ((target && secretPath(target)) || globs.some((g) => AGE_KEYS.test(g) || HIDDEN_LOGS.test(g))) {
     block("Không được đọc khoá age hay log của test private (đọc được là lộ test private).");
