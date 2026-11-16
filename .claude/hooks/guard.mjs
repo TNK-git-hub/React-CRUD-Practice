@@ -5,10 +5,14 @@
 //   test-writer  -> chỉ sửa <package>/test/public, frontend/test/e2e
 //   spec-writer, planner -> chỉ sửa specs/changes/, .specify/feature.json (spec harness)
 //   spec-writer additionally: append rows to specs/_system/{traceability,glossary,domain-model}.md
+//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write; chỉ đọc specs/; chỉ tạo file .ts/.tsx trong
+//                          <package>/test/private; không đọc src/, test/public/; không Bash (đường dẫn kiểm cả sau symlink)
 //   agent khác   -> không ghi gì
-// Không ai được đọc <package>/test/private và .env.
+// Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
+// Ngoài private-test-writer, không ai được ghi <package>/test/private.
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
 // exit 2 = chặn, stderr được gửi lại cho agent.
+import fs from "node:fs";
 import path from "node:path";
 
 const block = (msg) => {
@@ -50,9 +54,53 @@ const SPEC_SYSTEM_APPEND = /^specs\/_system\/(traceability|glossary|domain-model
 // k8s/agents/tasks/ không phải harness: Claude tổng viết file task ở đó (skill dispatch-agents)
 const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/;
 
+// ---------- private-test-writer: viết hidden test chỉ từ spec ----------
+const PTW = "private-test-writer";
+const PTW_TOOLS = ["Read", "Grep", "Glob", "Write"];
+const PTW_READABLE = /^specs(\/|$)/;
+const PTW_WRITABLE = /^(backend|frontend)\/test\/private\/[\w./-]+\.tsx?$/;
+
+// Như rel() nhưng theo symlink: realpath của tổ tiên gần nhất đang tồn tại + phần chưa tồn tại (file sắp tạo).
+// Symlink hỏng (realpath lỗi) -> null, nơi gọi chặn.
+const lexists = (q) => {
+  try {
+    fs.lstatSync(q);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const realRel = (p) => {
+  try {
+    let cur = path.resolve(cwd, p);
+    const rest = [];
+    while (!lexists(cur) && path.dirname(cur) !== cur) {
+      rest.unshift(path.basename(cur));
+      cur = path.dirname(cur);
+    }
+    const real = path.join(fs.realpathSync(cur), ...rest);
+    return path.relative(fs.realpathSync(root), real).split(path.sep).join("/");
+  } catch {
+    return null;
+  }
+};
+// Đúng cả theo đường dẫn chữ lẫn sau khi theo symlink
+const ptwPathOk = (p, re) => {
+  const real = realRel(p);
+  return re.test(rel(p)) && real !== null && re.test(real);
+};
+
+if (agent === PTW && !PTW_TOOLS.includes(tool)) {
+  block(`${PTW} chỉ được dùng ${PTW_TOOLS.join(", ")} (không chạy test, không Bash).`);
+}
+
 // ---------- Edit / Write ----------
 if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   const target = input.file_path || input.notebook_path || "";
+  if (agent === PTW) {
+    if (target && ptwPathOk(target, PTW_WRITABLE)) allow();
+    block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+  }
   if (!target) allow();
   const r = rel(target);
   if (r.startsWith("../")) allow(); // ngoài project (vd scratchpad)
@@ -82,6 +130,16 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
 // ---------- Read / Grep / Glob ----------
 if (["Read", "Grep", "Glob"].includes(tool)) {
   const target = input.file_path || input.path || "";
+  if (agent === PTW) {
+    // allow-list: chỉ specs/ => src/, test/public/, test/private/ và mọi chỗ khác đều bị chặn
+    if (!target) block(`${PTW} phải truyền path nằm trong specs/ (vd "specs/changes/NNN-<name>").`);
+    if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} chỉ được đọc specs/ (không được đọc ${rel(target)}).`);
+    // glob không được thoát ra ngoài path đã kiểm tra
+    const globs = [tool === "Glob" ? input.pattern : "", input.glob].map((g) => String(g || ""));
+    if (globs.some((g) => g.includes("..") || path.isAbsolute(g) || g.startsWith("~"))) {
+      block(`${PTW}: glob không được chứa "..", đường dẫn tuyệt đối hay "~".`);
+    }
+  }
   if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
   if (PRIVATE.test(String(input.pattern || "")) || PRIVATE.test(String(input.glob || ""))) {
     block("Không được đọc test/private.");
