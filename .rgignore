@@ -1,0 +1,4 @@
+# ripgrep (the Grep tool of Claude Code) skips the hidden tests when it walks the tree, so an agent grepping backend/
+# or the whole repo does not see their content. A Grep whose path is inside test/private still searches it
+# (private-test-writer); guard.mjs blocks that path for every other agent.
+**/test/private/

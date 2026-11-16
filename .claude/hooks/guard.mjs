@@ -5,11 +5,14 @@
 //   test-writer  -> chỉ sửa <package>/test/public, frontend/test/e2e
 //   spec-writer, planner -> chỉ sửa specs/changes/, .specify/feature.json (spec harness)
 //   spec-writer additionally: append rows to specs/_system/{traceability,glossary,domain-model}.md
-//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write; chỉ đọc specs/; chỉ tạo file .ts/.tsx trong
-//                          <package>/test/private; không đọc src/, test/public/; không Bash (đường dẫn kiểm cả sau symlink)
+//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write/Edit; chỉ đọc specs/ và <package>/test/private;
+//                          chỉ tạo / sửa file .ts/.tsx trong <package>/test/private; không đọc src/, test/public/;
+//                          không Bash (đường dẫn kiểm cả sau symlink)
 //   agent khác   -> không ghi gì
-// Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
-// Ngoài private-test-writer, không ai được ghi <package>/test/private.
+// Test private được commit (máy nào pull về cũng có). Chỉ private-test-writer được đọc và ghi <package>/test/private;
+// mọi agent khác, kể cả session chính, bị chặn ở đây (settings.json không deny Read nữa, vì deny không miễn được cho
+// riêng một agent). .rgignore giấu chúng khỏi Grep quét rộng; .gitattributes (-diff) giấu chúng khỏi git diff / show.
+// Không ai được đọc .env.
 // Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
 // lệnh test / typecheck chỉ được theo allow-list chặt (STRICT_TEST bên dưới).
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
@@ -80,8 +83,8 @@ const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.m
 
 // ---------- private-test-writer: viết hidden test chỉ từ spec ----------
 const PTW = "private-test-writer";
-const PTW_TOOLS = ["Read", "Grep", "Glob", "Write"];
-const PTW_READABLE = /^specs(\/|$)/;
+const PTW_TOOLS = ["Read", "Grep", "Glob", "Write", "Edit"];
+const PTW_READABLE = /^(specs|(backend|frontend)\/test\/private)(\/|$)/;
 const PTW_WRITABLE = /^(backend|frontend)\/test\/private\/[\w./-]+\.tsx?$/;
 
 // Như rel() nhưng theo symlink: realpath của tổ tiên gần nhất đang tồn tại + phần chưa tồn tại (file sắp tạo).
@@ -114,7 +117,7 @@ const realRel = (p) => {
 };
 // Đúng cả theo đường dẫn chữ lẫn sau khi theo symlink.
 // exactCase: so trên đường dẫn CHƯA fold, phần đã tồn tại lấy đúng hoa thường trên đĩa (realpathSync.native):
-// PTW chỉ được ghi đúng "test/private" chữ thường, kể cả khi trên đĩa đã có "test/Private" (vitest / run_private có thể bỏ sót).
+// PTW chỉ được ghi đúng "test/private" chữ thường, kể cả khi trên đĩa đã có "test/Private" (vitest / ci/private-tests.sh có thể bỏ sót).
 const ptwPathOk = (p, re, { exactCase = false } = {}) => {
   const lit = exactCase ? relRaw(p) : rel(p);
   const real = exactCase ? realRelWith(p, fs.realpathSync.native) : realRel(p);
@@ -131,7 +134,7 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   if (agent === PTW) {
     // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
     if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
-    block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+    block(`${PTW} chỉ được tạo / sửa file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
   }
   if (!target) allow();
   const r = rel(target);
@@ -163,14 +166,15 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
 if (["Read", "Grep", "Glob"].includes(tool)) {
   const target = input.file_path || input.path || "";
   if (agent === PTW) {
-    // allow-list: chỉ specs/ => src/, test/public/, test/private/ và mọi chỗ khác đều bị chặn
-    if (!target) block(`${PTW} phải truyền path nằm trong specs/ (vd "specs/changes/NNN-<name>").`);
-    if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} chỉ được đọc specs/ (không được đọc ${rel(target)}).`);
+    // allow-list: chỉ specs/ và test/private của nó => src/, test/public/ và mọi chỗ khác đều bị chặn
+    if (!target) block(`${PTW} phải truyền path nằm trong specs/ hoặc <package>/test/private (vd "specs/changes/NNN-<name>").`);
+    if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} chỉ được đọc specs/ và <package>/test/private (không được đọc ${rel(target)}).`);
     // glob không được thoát ra ngoài path đã kiểm tra
     const globs = [tool === "Glob" ? input.pattern : "", input.glob].map((g) => String(g || ""));
     if (globs.some((g) => g.includes("..") || path.isAbsolute(g) || g.startsWith("~"))) {
       block(`${PTW}: glob không được chứa "..", đường dẫn tuyệt đối hay "~".`);
     }
+    allow();
   }
   if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
   if (PRIVATE.test(fold(String(input.pattern || ""))) || PRIVATE.test(fold(String(input.glob || "")))) {
@@ -193,9 +197,10 @@ if (tool === "Bash") {
     .replace(/[\d&]?>>?\s*\/dev\/null/g, "");
 
   // Test private: output của vitest / tsc in nguyên code test. Không ai chạy qua Claude, kể cả session chính;
-  // người dùng tự chạy trong terminal riêng. Hook chỉ thấy lệnh gốc, nên `bash k8s/agents/dispatch.sh …` vẫn chạy run_private.
-  if (/test:private|typecheck:private|tsconfig\.private/.test(ops)) {
-    block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
+  // người dùng tự chạy trong terminal riêng; CI chạy ci/private-tests.sh (chỉ in tóm tắt, log đầy đủ ra file tạm,
+  // nên Claude cũng không chạy script đó: file log nằm ngoài vùng hook chặn).
+  if (/test:private|typecheck:private|tsconfig\.private|private-tests\.sh/.test(ops)) {
+    block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `bash ci/private-tests.sh` (hoặc `pnpm test:private` / `pnpm typecheck:private`) trong terminal riêng; CI chạy nó trên mọi PR.");
   }
   if (/test\/private/.test(cmd)) block("Không được đọc hay chạy test/private qua Claude.");
 

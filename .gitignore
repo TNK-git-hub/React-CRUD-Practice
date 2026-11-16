@@ -39,8 +39,7 @@ backend/uploads/
 
 crash.log
 
-# Test private: chỉ nằm trên máy, không commit
-**/test/private/
+# Test private (**/test/private/) được commit để máy nào pull về cũng có; agent bị chặn bằng guard.mjs, .rgignore, .gitattributes
 
 # Kết quả mutation testing
 reports/

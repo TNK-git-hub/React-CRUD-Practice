@@ -40,21 +40,20 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - Xem trước: `bash k8s/agents/dispatch.sh <job-id> k8s/agents/tasks/<job-id>.md --title "<PR title>" [--mode code-only] --dry-run`
 - Chạy thật: bỏ `--dry-run`. Nhiều task thì chạy song song (mỗi task một lệnh Bash chạy nền), rồi đợi tất cả. Mode full mất khoảng 20–60 phút mỗi task.
 - Đọc dòng cuối: `RESULT: SUCCESS pr=<url>` hoặc `RESULT: FAILED reason=...`. Fail thì đọc log trong `k8s/agents/logs/<job-id>-*.log` (dòng `==> ... =====` cho biết đang ở bước nào, dòng `==>` cuối cùng cho biết bước hỏng).
-- `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review (hidden test vẫn chạy trên PR draft). Báo người dùng, không tự dispatch lại.
-- Dòng `PRIVATE:` (hidden test, chạy trên máy local), dạng
-  `PRIVATE: PASS|FAIL (backend: files N, load errors N, tests N fail / N pass, type errors N; frontend: ...)` hoặc `PRIVATE: SKIPPED (<lý do>)`:
-  - `PASS` (mọi package: load errors 0, tests 0 fail, type errors 0) → tiếp bước 4.
-  - `SKIPPED` → **không coi là pass**: báo người dùng lý do trong ngoặc (chưa có hidden test, không đọc được branch PR, pnpm install lỗi...). Vẫn theo dõi bước 4, nhưng không báo task là đạt khi người dùng chưa quyết.
-  - `FAIL`, kể cả khi chỉ có `type errors` > 0 → **không coi là pass**: báo người dùng kèm đường dẫn log. **Không đọc log đó, không đưa nội dung hay tên test vào task sửa**: lộ hidden test cho agent là mất tác dụng chống học tủ.
+- `FAILED reason=review not approved ... pr=<url>`: đã mở PR draft kèm báo cáo review (CI vẫn chạy hidden test trên PR draft). Báo người dùng, không tự dispatch lại.
+- Hidden test (`test/private`) không chạy ở bước này: CI chạy chúng (step "Hidden tests" của job `ci`), xem bước 4.
 
 ## 4. Theo dõi GitHub Actions
 - Với mỗi PR: `bash k8s/agents/watch-pr.sh <pr-url>`.
 - `CHECKS: PASS` → xong.
 - `CHECKS: FAIL` → log step lỗi được in phía trên. Viết task sửa mới (`<job-id>-fix1`) gồm task gốc + log lỗi + "fix on top of PR <url>", rồi dispatch lại. Tối đa 2 vòng cho mỗi task.
+- Step "Hidden tests" fail (dòng `PRIVATE: FAIL`, kèm `backend: files N, load errors N, tests N fail / N pass, failing scenarios: <IDs>, type errors N`):
+  - Có `failing scenarios` / `tests N fail` / `type errors` → task sửa chỉ ghi: "hidden tests fail for scenarios <IDs>; re-read these scenarios in the spec and fix the code" (+ số type error nếu có). **Không** đọc log đầy đủ trên Actions, không chạy hidden test, không đưa thêm gì về chúng vào task.
+  - Có `rule violated: <file>:<line>` hoặc `load errors` > 0 → lỗi ở chính hidden test, không phải code: **không dispatch lại**, báo người dùng (người dùng sửa bằng `claude --agent private-test-writer`).
 - `CHECKS: TIMEOUT` → run bị kẹt hoặc xếp hàng lâu trên GitHub Actions (xem tab Actions). Báo người dùng, không dispatch lại.
 
 ## 5. Tổng hợp cho người dùng
-Bảng: task | mode | PR | kết quả dispatch | hidden test | GitHub checks | số vòng sửa | ghi chú. Nêu rõ task nào fail và vì sao.
+Bảng: task | mode | PR | kết quả dispatch | GitHub checks (kể cả hidden test) | số vòng sửa | ghi chú. Nêu rõ task nào fail và vì sao.
 Không merge PR: người dùng tự review và merge.
 
 ## Không được

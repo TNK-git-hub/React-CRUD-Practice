@@ -43,6 +43,12 @@ jobs:
       - name: Local CI (install, lint, typecheck, build, test)
         run: pnpm ci:local
 
+      # Hidden tests (<package>/test/private): committed, but agent pods check out the repo without them, and only
+      # private-test-writer may read / edit them (guard.mjs). The script prints a summary only (counts, failing
+      # scenario IDs, rule violations as file:line), never test code: watch-pr.sh copies failed-step logs into fix tasks.
+      - name: Hidden tests (rules, vitest, typecheck)
+        run: bash ci/private-tests.sh
+
   # Spec harness (ported from branch new-project): no app, no LLM, a few seconds.
   # spec_check.py --stage spec: every open change in specs/changes/ follows the rich delta template,
   # IDs are unique, no "(unassigned)" left, every scenario / NFR row is in Traceability, no delta

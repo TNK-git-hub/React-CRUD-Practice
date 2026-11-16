@@ -38,7 +38,6 @@
     "deny": [
       "Read(./.env)",
       "Read(./**/.env)",
-      "Read(./**/test/private/**)",
       "Bash(cat *test/private*)",
       "Bash(head *test/private*)",
       "Bash(tail *test/private*)",

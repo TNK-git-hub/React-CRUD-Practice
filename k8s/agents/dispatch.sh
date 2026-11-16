@@ -3,7 +3,7 @@
 #
 # Usage (từ gốc repo):
 #   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base level-3]
-#                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--no-private] [--dry-run]
+#                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--dry-run]
 #
 #   <job-id>     chữ thường, số, dấu "-" (vd: search-btn-yellow). Branch sẽ là agent/<job-id>-<timestamp>.
 #   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
@@ -15,20 +15,19 @@
 #                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
 #   --base       branch để clone và mở PR vào (mặc định: level-3). Phải đã push lên origin.
 #   --no-wait    tạo Job rồi thoát ngay, không theo dõi log.
-#   --no-private không chạy hidden test (test/private, chỉ có trên máy này) trên branch của PR.
 #   --dry-run    chỉ kiểm tra đầu vào và in manifest, KHÔNG tạo gì trong cluster.
 #
 # Muốn chạy song song: gọi nhiều lệnh cùng lúc (mỗi task một job-id khác nhau).
-# Khi có PR (SUCCESS, hoặc FAILED kèm PR draft): in thêm "PRIVATE: PASS|FAIL|SKIPPED" (chỉ số lượng, không in nội dung test để không lộ cho agent).
+# Hidden test (test/private) do CI chạy trên PR (step "Hidden tests" của job "ci"), không chạy ở đây.
 # Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
 set -euo pipefail
 
-usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 fail() { echo "RESULT: FAILED reason=$*"; exit 1; }
 
 [[ $# -ge 2 ]] || usage
 JOB_ID="$1"; TASK_FILE="$2"; shift 2
-TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""
+TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; CHANGE=""; SPEC_TASKS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
@@ -36,7 +35,6 @@ while [[ $# -gt 0 ]]; do
     --mode) MODE="${2:-}"; shift 2 ;;
     --change) CHANGE="${2:-}"; shift 2 ;;
     --tasks) SPEC_TASKS="${2:-}"; shift 2 ;;
-    --no-private) PRIVATE=0; shift ;;
     --no-wait) WAIT=0; shift ;;
     --dry-run) DRY=1; shift ;;
     *) usage ;;
@@ -143,76 +141,7 @@ if [[ -z "$line" ]]; then
   status="$(kubectl get job "agent-$JOB_ID" -o jsonpath='{.status.conditions[*].reason}' 2>/dev/null || true)"
   line="RESULT: FAILED reason=pod ended without a result line (job status: ${status:-unknown}); see ${LOG#$ROOT/}"
 fi
-# --- hidden test: test/private chỉ có trên máy này (gitignore), agent trong pod không bao giờ thấy ---
-# Chạy trên branch của PR trong một git worktree tạm, từng package riêng (package này fail không làm package kia bị bỏ qua).
-# Chỉ in số lượng: file không load được / test fail / test pass / lỗi type. Không in tên test hay nội dung;
-# log đầy đủ (vitest + tsc) ở logs/ cho người dùng.
-# private_summary <vitest-json>: in "files N, load errors N, tests N fail / N pass"; exit 1 nếu có load error hoặc test fail.
-# "load error" = file không có kết quả test nào (lỗi cú pháp, import không tìm thấy module, lỗi ở top level).
-private_summary() {
-  node -e '
-    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const files = r.testResults || [];
-    const loadErr = files.filter((f) => f.status === "failed" && (f.assertionResults || []).length === 0).length;
-    console.log(`files ${files.length}, load errors ${loadErr}, tests ${r.numFailedTests} fail / ${r.numPassedTests} pass`);
-    process.exit(loadErr || r.numFailedTests ? 1 : 0);
-  ' "$1"
-}
-run_private() {
-  local pr_url="$1" branch wt plog pkg have=0 json tlog sum nerr ok=1 joined parts=()
-  for pkg in backend frontend; do
-    [[ -n "$(find "$ROOT/$pkg/test/private" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
-  done
-  [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
-  branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
-  plog="$DIR/logs/$JOB_ID-private-$(date +%Y-%m-%dT%H-%M-%S).log"
-  wt="$(mktemp -d)"
-  echo "Running hidden tests on $branch -> ${plog#"$ROOT"/}"
-  git -C "$ROOT" fetch -q origin "$branch"
-  git -C "$ROOT" worktree add -q --detach "$wt" FETCH_HEAD
-  for pkg in backend frontend; do
-    if [[ -d "$ROOT/$pkg/test/private" ]]; then cp -R "$ROOT/$pkg/test/private" "$wt/$pkg/test/"; fi
-  done
-  if ! (cd "$wt" && pnpm install --frozen-lockfile --prefer-offline) > "$plog" 2>&1; then
-    echo "PRIVATE: SKIPPED (pnpm install failed, see ${plog#"$ROOT"/})"
-    git -C "$ROOT" worktree remove --force "$wt"; return 0
-  fi
-  for pkg in backend frontend; do
-    [[ -d "$wt/$pkg/test/private" ]] || continue
-    json="$wt/private-$pkg.json"; tlog="$wt/private-$pkg-tsc.log"
-    echo "## $pkg: vitest" >> "$plog"
-    (cd "$wt/$pkg" && pnpm exec vitest run test/private --passWithNoTests \
-      --reporter=default --reporter=json --outputFile.json="$json") >> "$plog" 2>&1 || true
-    if [[ -s "$json" ]]; then
-      sum="$(private_summary "$json")" || ok=0
-    else
-      sum="no vitest report (vitest crashed)"; ok=0
-    fi
-    # Lỗi type: vitest không typecheck, nên import sai tên hay sai kiểu chỉ lộ ra ở đây
-    echo "## $pkg: typecheck:private" >> "$plog"
-    if (cd "$wt/$pkg" && pnpm typecheck:private) > "$tlog" 2>&1; then
-      sum="$sum, type errors 0"
-    else
-      nerr="$(grep -cE 'error TS[0-9]+' "$tlog" || true)"
-      if [[ "${nerr:-0}" -gt 0 ]]; then sum="$sum, type errors $nerr"; else sum="$sum, typecheck failed (no TS errors parsed)"; fi
-      ok=0
-    fi
-    cat "$tlog" >> "$plog"
-    parts+=("$pkg: $sum")
-  done
-  printf -v joined '%s; ' "${parts[@]}"; joined="${joined%; }"
-  if [[ "$ok" == 1 ]]; then
-    echo "PRIVATE: PASS (${joined})"
-  else
-    echo "PRIVATE: FAIL (${joined}) - full log is for the user only, do not pass it to an agent: ${plog#"$ROOT"/}"
-  fi
-  git -C "$ROOT" worktree remove --force "$wt"
-}
-# Có PR là chạy, kể cả PR draft (FAILED vì review không qua): người dùng cần biết code có đúng không để quyết định
-PR_IN_LINE="$(sed -nE 's/.*[[:space:]]pr=([^[:space:]]+).*/\1/p' <<<"$line")"
-if [[ -n "$PR_IN_LINE" && "$PRIVATE" == 1 ]]; then
-  run_private "$PR_IN_LINE" || echo "PRIVATE: SKIPPED (error while running hidden tests)"
-fi
-
+# Hidden test (test/private) không chạy ở đây nữa: chúng được commit và job "ci" của GitHub Actions chạy chúng
+# (step "Hidden tests", ci/private-tests.sh). Kết quả xem bằng watch-pr.sh.
 echo "$line"
 [[ "$line" == "RESULT: SUCCESS"* ]]

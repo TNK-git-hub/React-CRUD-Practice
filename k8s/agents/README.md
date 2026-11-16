@@ -15,8 +15,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
         5. PR      push → PR vào level-3 (review không qua: PR draft + RESULT FAILED)
       (mode code-only: chỉ bước 3 rồi 5)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
-  → dispatch.sh chạy hidden test (test/private, chỉ có trên máy này) trên branch PR → "PRIVATE: PASS|FAIL|SKIPPED"
-  → watch-pr.sh <pr>                                   (GitHub Actions chạy ci.yml trên runner ARC)
+  → watch-pr.sh <pr>                                   (GitHub Actions chạy ci.yml: ci:local + hidden test test/private)
       → "CHECKS: PASS" | "CHECKS: FAIL" (+ log step lỗi) | "CHECKS: TIMEOUT"
   → fail thì viết task sửa kèm log, giao lại; pass thì tổng hợp cho người dùng
 ```
@@ -32,7 +31,9 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
 | Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
-| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
+| Code học tủ test public | Hidden test `test/private` (commit trong repo) chạy ở CI, step "Hidden tests" (`ci/private-tests.sh`): chỉ in số lượng, ID scenario fail, vi phạm rule dạng `file:line`. Pod không có chúng trên đĩa (sparse-checkout trong `run.sh`); `.gitattributes` (`-diff`) giấu chúng khỏi `git show` / `git diff`; `watch-pr.sh` chỉ giữ dòng tóm tắt của step đó |
+| Code dò hidden test (`test/private` trong stack, `expect.getState().testPath`, `globalThis.expect`) | Gate grep diff `src` (`ENV_SNIFF_RE`) |
+| Hidden test bị làm yếu (`.skip`, `.only`, mock code app, `expect(true).toBe(true)`) | `ci/private-tests.sh` fail kèm `file:line`; chỉ `private-test-writer` sửa được chúng (`guard.mjs`), người dùng review diff trước khi commit |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
@@ -43,7 +44,7 @@ Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/S
 |---|---|
 | `run.sh` | Script chạy trong pod (ConfigMap `agent-script`, `dispatch.sh` tự cập nhật) |
 | `job-template.yaml` | Template một Job; `dispatch.sh` điền `JOB_ID`, `BASE_BRANCH`, `MODE`, deadline. Chỉnh `REVIEW_ROUNDS`, `MUTATION_MIN` ở đây |
-| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, chạy hidden test, in `PRIVATE` và `RESULT` |
+| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, in `RESULT` |
 | `watch-pr.sh` | Đợi check của PR, in log step lỗi nếu fail |
 | `tasks/EXAMPLE.md` | Mẫu file task |
 

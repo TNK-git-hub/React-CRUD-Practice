@@ -18,14 +18,18 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Framework: Vitest cho cả hai package.
 - Test mới đặt trong `<package>/test/public/`, tên file `*.test.ts` (component React: `*.test.tsx`).
 - Test component React: dòng đầu file `// @vitest-environment jsdom`, dùng `@testing-library/react` + `@testing-library/user-event`, `cleanup` sau mỗi test. Chỉ mock thứ bên ngoài (HTTP, `next/navigation`), không mock component của app.
-- Không đọc, sửa hay tạo file trong `test/private/`.
+- Hidden test `<package>/test/private/`: được commit (máy nào pull về cũng có), CI chạy chúng bằng `ci/private-tests.sh`
+  (job `ci`, step "Hidden tests"); `pnpm test` và `ci:local` không chạy chúng, pod không checkout chúng.
+  Chỉ `private-test-writer` (session riêng: `claude --agent private-test-writer`) được đọc, tạo và sửa chúng.
+  Mọi agent khác và session chính: không đọc, sửa, chạy, không đọc log đầy đủ của step "Hidden tests" trên Actions.
+  Tin về hidden test đi tới agent viết code chỉ gồm số lượng và ID scenario fail. Người dùng review diff trước khi commit.
 - Chỉ mock thứ chậm hoặc bên ngoài (HTTP, DB, Redis). Không assert lên mock.
 - Không sửa code production để test pass. Nghi có bug thì báo lại kèm bằng chứng.
 
 ## Quy trình agent
 - Session chính chỉ điều phối: giao việc cho subagent, tổng hợp kết quả. Không tự sửa `src/` hay `test/` (hook `.claude/hooks/guard.mjs` chặn).
 - Thứ tự: `code-planner` + `test-planner` → `test-writer` (test fail trước) → `code-writer` (code cho pass) → `code-reviewer` + `test-critic`. Có vấn đề thì quay lại writer tương ứng.
-- Quyền ghi: `code-writer` chỉ `backend/src`, `frontend/src`, `frontend/public`; `test-writer` chỉ `<package>/test/public`, `frontend/test/e2e`; `spec-writer`, `planner` chỉ `specs/changes/`, `.specify/feature.json`. Không ai đọc/sửa `test/private`.
+- Quyền ghi: `code-writer` chỉ `backend/src`, `frontend/src`, `frontend/public`; `test-writer` chỉ `<package>/test/public`, `frontend/test/e2e`; `spec-writer`, `planner` chỉ `specs/changes/`, `.specify/feature.json`; `private-test-writer` chỉ `<package>/test/private`. Ngoài `private-test-writer`, không ai đọc/sửa `test/private`.
 - Không giao cho writer này sửa phần của writer kia (vd. nhờ `test-writer` sửa test cho khớp code sai).
 - Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
 - Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
@@ -44,7 +48,8 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 
 ## CI
 - `pnpm ci:local`: install → lint, typecheck, build frontend → build backend → `pnpm test`. Phải ra `CI PASSED`.
-- PR chạy cùng pipeline đó qua `.github/workflows/ci.yml` trên runner cloud của GitHub (`ubuntu-latest`).
+- PR chạy cùng pipeline đó qua `.github/workflows/ci.yml` trên runner cloud của GitHub (`ubuntu-latest`), rồi thêm step
+  "Hidden tests" (`ci/private-tests.sh`: rule chống làm yếu test, vitest, typecheck của `test/private`; chỉ in tóm tắt).
 - Job thứ hai `spec-check`: unittest của script spec harness + `python3 .specify/scripts/spec_check.py --stage spec --change <branch>`. Chạy local được bằng chính lệnh đó.
 
 ## Thế nào là xong

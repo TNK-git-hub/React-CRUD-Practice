@@ -36,9 +36,14 @@ if [[ "$failed" == 0 ]]; then
 fi
 
 # Log các step lỗi (link dạng .../actions/runs/<run-id>/job/<job-id>)
+# Step "Hidden tests" (ci/private-tests.sh) chỉ in tóm tắt; ở đây chỉ giữ các dòng tóm tắt đó của nó (lọc thêm một lớp,
+# phòng khi có output khác lọt vào), vì log này được dán vào task sửa cho agent.
+HIDDEN_KEEP='(rule violated: |hidden test rules: |(backend|frontend): (files|no hidden|no vitest)|PRIVATE: )'
 for run in $(grep '^fail' <<<"$lines" | cut -f3 | sed -nE 's#.*/actions/runs/([0-9]+).*#\1#p' | sort -u); do
   echo "----- failed steps of run $run (last 150 lines) -----"
-  gh run view "$run" --log-failed 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | tail -n 150
+  gh run view "$run" --log-failed 2>&1 | sed 's/\x1b\[[0-9;]*m//g' \
+    | awk -F'\t' -v keep="$HIDDEN_KEEP" '$2 ~ /^Hidden tests/ { if ($0 ~ keep) print; next } { print }' \
+    | tail -n 150
 done
 echo "CHECKS: FAIL"
 exit 1

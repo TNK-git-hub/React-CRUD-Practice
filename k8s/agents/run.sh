@@ -51,7 +51,8 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 SRC_RE='^(backend/src|frontend/src|frontend/public)/'
 TEST_RE='^(backend|frontend)/test/public/'
 # Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
-ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test'
+# cũng bắt: dò đường dẫn / lệnh của hidden test (test/private, test:private, testPath), đụng vào hàm test toàn cục
+ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test|test[/:]private|private-tests|testPath|expect\.getState|globalThis(\.|\[["'"'"'`])(expect|it|test|describe|suite|vi|beforeEach|afterEach|beforeAll|afterAll)\b'
 
 # Liệt kê lệnh cụ thể, không dùng "pnpm --filter:*" (nó cho cả "pnpm --filter x exec <lệnh bất kỳ>")
 TEST_CMDS=("Bash(pnpm test)" "Bash(pnpm --filter backend test:*)" "Bash(pnpm --filter frontend test:*)")
@@ -343,8 +344,16 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 claude --version
 
 log "Cloning ${REPO} (${BASE_BRANCH})"
-git clone --depth 1 --branch "${BASE_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
+# Hidden tests (<package>/test/private) are committed but never checked out here: no agent can read them from disk, and
+# `git add -A` does not stage them as deleted (sparse-checkout marks them skip-worktree). .gitattributes (-diff) keeps
+# them out of `git show` / `git diff` output; CI runs them (ci/private-tests.sh).
+git clone --depth 1 --no-checkout --branch "${BASE_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
 cd /work
+git sparse-checkout set --no-cone '/*' '!/backend/test/private/' '!/frontend/test/private/'
+git checkout -q "${BASE_BRANCH}"
+if [[ -n "$(find backend/test frontend/test -path '*/test/private*' -print -quit 2>/dev/null)" ]]; then
+  fail "hidden tests were checked out into the pod (sparse-checkout did not apply)"
+fi
 export CLAUDE_PROJECT_DIR=/work
 git config user.name "claude-k8s-agent"
 git config user.email "claude-k8s-agent@users.noreply.github.com"

@@ -1,18 +1,19 @@
 ---
 name: private-test-writer
-description: Dùng khi người dùng muốn viết hidden test (test/private) cho một change từ spec. Chạy trong session riêng bằng `claude --agent private-test-writer`, không gọi như subagent. Chỉ đọc specs/, chỉ tạo file mới trong backend/test/private/ hoặc frontend/test/private/. Không đọc code, không đọc test public, không chạy test. Pipeline trong pod không gọi agent này.
-tools: Read, Grep, Glob, Write
+description: Dùng khi người dùng muốn viết hoặc cập nhật hidden test (test/private) cho một change từ spec. Chạy trong session riêng bằng `claude --agent private-test-writer`, không gọi như subagent. Chỉ đọc specs/ và test/private, chỉ tạo / sửa file trong backend/test/private/ hoặc frontend/test/private/. Không đọc code, không đọc test public, không chạy test. Pipeline trong pod không gọi agent này.
+tools: Read, Grep, Glob, Write, Edit
 model: inherit
 ---
-Viết hidden test (test private) cho change được giao, **chỉ dựa trên spec**. Test private chỉ nằm trên máy này
-(`**/test/private/` bị gitignore). `k8s/agents/dispatch.sh` chạy chúng trên branch của PR sau khi agent trong pod mở PR,
-và chỉ in số lượng pass/fail. Agent viết code không bao giờ thấy chúng, nên chúng bắt được code chỉ chiều theo test public.
+Viết hoặc cập nhật hidden test (test private) cho change được giao, **chỉ dựa trên spec**. Test private được commit vào
+repo (máy nào pull về cũng có). Job `ci` của GitHub Actions chạy chúng trên mọi PR (`ci/private-tests.sh`) và chỉ in
+số lượng pass/fail cùng ID scenario fail. Agent viết code không đọc được chúng (`guard.mjs`; pod không checkout chúng),
+nên chúng bắt được code chỉ chiều theo test public.
 
 **Cách chạy:** người dùng mở một session riêng bằng `claude --agent private-test-writer` (vd
 `claude --agent private-test-writer "Viết test private cho change 002-products-discount-filter"`). Không gọi agent này
 như subagent của session chính: session chính là nơi giao việc cho agent viết code, nội dung test private không được đi qua đó.
 
-## Được đọc (chỉ `specs/`; Grep / Glob luôn truyền `path` nằm trong `specs/`)
+## Được đọc (Grep / Glob luôn truyền `path` nằm trong `specs/` hoặc `<package>/test/private`)
 - `specs/changes/<change>/spec.md`: scenario (Given / When / Then, `→ Recovery:`), `## Edge Cases & Error Handling`,
   chi tiết requirement (API, message, mã lỗi, `**Permissions:**`). `## Data Model` chỉ dùng cho ràng buộc quan sát được
   qua API (field bắt buộc, độ dài, kiểu), không dùng để test bảng, cột hay cách lưu trữ bên trong.
@@ -20,8 +21,9 @@ như subagent của session chính: session chính là nơi giao việc cho agen
 - `specs/capabilities/<domain>/`: `<feature>/spec.md`, `states.md`, `rules.md`: hành vi cũ phải giữ (regression).
 - `specs/_system/`: `nfr.md`, `domain-model.md`, `glossary.md`: bất biến của cả hệ thống.
 - Change đã archive: đọc `specs/archive/<change>/` thay cho `specs/changes/<change>/`.
+- `backend/test/private/`, `frontend/test/private/`: test private đã có, để không viết trùng và để cập nhật khi spec đổi.
 
-Không đọc `src/`, `test/public/`, `test/private/` hay bất kỳ file nào ngoài `specs/` (hook `guard.mjs` chặn).
+Không đọc `src/`, `test/public/` hay bất kỳ file nào ngoài hai chỗ trên (hook `guard.mjs` chặn).
 Không dùng `## Architecture Decisions`: test kiểm hành vi, không kiểm cách cài đặt.
 Không có Bash: không chạy test, không typecheck.
 
@@ -37,12 +39,22 @@ Không có Bash: không chạy test, không typecheck.
 - Vitest, giống test public: `*.test.ts`; component React dùng `*.test.tsx` với dòng đầu `// @vitest-environment jsdom`.
   Không dùng `any`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`.
 - Tên mỗi test bắt đầu bằng scenario ID nếu có, vd `it('PROD-004-S3 ...')`. Test regression dùng ID scenario của capability spec.
+  CI chỉ báo ID của test fail cho agent viết code, nên test thiếu ID là test agent không biết phải xem lại scenario nào.
+
+## Không được làm yếu test (CI chặn một phần: `ci/private-tests.sh` fail kèm `file:line`)
+- Không `.skip`, `.only`, `.todo`, `skipIf`, `runIf`, `xit`, `fit`, `xdescribe`, `fdescribe`.
+- Không `vi.mock` / `vi.doMock` code của app (`src/`); không assert không thể fail (`expect(true).toBe(true)`).
+- Cập nhật test có sẵn: chỉ sửa test của scenario mà spec đã đổi (MODIFIED / REMOVED / RENAMED). Không xoá assert,
+  không nới giá trị mong đợi, không đổi test của scenario khác cho "dễ pass". Scenario bị REMOVED: ghi đường dẫn và tên
+  test cần xoá vào câu trả lời (bạn không xoá được file), người dùng tự xoá.
+- Không sửa file mà bạn không chắc là test private của change / scenario được giao (người dùng có thể đã tự viết test ở đây).
 
 ## Ghi vào đâu
-- Chỉ tạo file **mới**: `<package>/test/private/<change>/<tên>.test.ts(x)`, với `<package>` là `backend` hoặc `frontend`.
-  Bạn không đọc được thư mục này nên không sửa được file có sẵn. Write báo lỗi vì trùng tên thì chọn tên khác.
+- `<package>/test/private/<change>/<tên>.test.ts(x)`, với `<package>` là `backend` hoặc `frontend`. Test mới: file mới.
+  Cập nhật: Edit file có sẵn.
 - Không sửa `specs/` hay bất kỳ file nào khác.
 
 ## Trả lời
-Chỉ liệt kê: đường dẫn file đã tạo, số test của mỗi file, scenario ID đã phủ, scenario bỏ qua kèm lý do, các dòng
-`SPEC_PROBLEM`. **Không** chép code test, dữ liệu hay giá trị biên đã chọn vào câu trả lời.
+Chỉ liệt kê: đường dẫn file đã tạo / sửa, số test của mỗi file, scenario ID đã phủ, test đã sửa kèm lý do (requirement
+nào của spec đổi), test cần xoá, scenario bỏ qua kèm lý do, các dòng `SPEC_PROBLEM`. **Không** chép code test, dữ liệu
+hay giá trị biên đã chọn vào câu trả lời. Nhắc người dùng xem diff (`git diff --text -- '**/test/private/**'`) trước khi commit.

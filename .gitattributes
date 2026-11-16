@@ -3,3 +3,8 @@
 *.sh   text eol=lf
 *.yaml text eol=lf
 *.yml  text eol=lf
+
+# Hidden tests: git diff / show / log -p print "Binary files differ" instead of their content, so a plain
+# `git show HEAD` in an agent pod (shallow clone: the whole tree) does not reveal them. To see them yourself:
+# `git diff --text`, `git show --text`.
+**/test/private/** -diff
