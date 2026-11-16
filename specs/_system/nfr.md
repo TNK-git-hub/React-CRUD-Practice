@@ -59,7 +59,7 @@ shape although the row is gone; uploaded files under `backend/uploads/` are not 
 | NFR-032 | Uploaded images are stored on the `uploads` volume and survive container rebuilds | — | docker-compose.prod.yml | [to be set by the first change] |
 | NFR-033 | Existing stack (recorded, not chosen): frontend Next.js 16 + React 19 + TanStack Query 5 + Tailwind 4; backend NestJS 12 + TypeORM + PostgreSQL; Redis; TypeScript `strict: true` in both; Vitest in both; pnpm workspace | — | frontend/package.json; backend/package.json; frontend/tsconfig.json; backend/tsconfig.json; pnpm-workspace.yaml | [to be set by the first change] |
 | NFR-034 | Uptime and Postgres backups | [NEEDS CLARIFICATION: on branch 001 you chose "no uptime target; no backups"; keep?] | [NEEDS CLARIFICATION] | [to be set by the first change] |
-| NFR-035 | Every PR runs CI: `pnpm ci:local` (lint, typecheck, build, tests) and `spec-check`, on self-hosted ARC runners in kind | — | .github/workflows/ci.yml; k8s/runner/RUNNER.md | [to be set by the first change] |
+| NFR-035 | Every PR runs CI: `pnpm ci:local` (lint, typecheck, build, tests) and `spec-check`, on GitHub-hosted runners (`ubuntu-latest`) | — | .github/workflows/ci.yml | [to be set by the first change] |
 
 ## User environment
 
