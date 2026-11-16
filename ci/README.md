@@ -1,9 +1,8 @@
 # Local CI for React-CRUD-Practice
 
 CI (Continuous Integration) checks every change automatically, so broken code never reaches a PR.
-The pipeline is [`local-ci.sh`](local-ci.sh). It runs in three places, never on GitHub's cloud machines:
-your machine, the agent pods (before they open a PR), and the self-hosted runner in the local kind
-cluster for every PR (`.github/workflows/ci.yml`, see [`k8s/runner/RUNNER.md`](../k8s/runner/RUNNER.md)).
+The pipeline is [`local-ci.sh`](local-ci.sh). It runs in three places: your machine, the agent pods
+(before they open a PR), and GitHub-hosted runners (`ubuntu-latest`) for every PR (`.github/workflows/ci.yml`).
 
 ```bash
 pnpm ci:local        # from the repo root (or: bash ci/local-ci.sh)

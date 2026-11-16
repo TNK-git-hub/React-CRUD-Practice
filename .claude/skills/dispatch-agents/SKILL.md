@@ -49,7 +49,7 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - Với mỗi PR: `bash k8s/agents/watch-pr.sh <pr-url>`.
 - `CHECKS: PASS` → xong.
 - `CHECKS: FAIL` → log step lỗi được in phía trên. Viết task sửa mới (`<job-id>-fix1`) gồm task gốc + log lỗi + "fix on top of PR <url>", rồi dispatch lại. Tối đa 2 vòng cho mỗi task.
-- `CHECKS: TIMEOUT` → thường do runner ARC tắt (`k8s/runner/RUNNER.md`). Báo người dùng, không dispatch lại.
+- `CHECKS: TIMEOUT` → run bị kẹt hoặc xếp hàng lâu trên GitHub Actions (xem tab Actions). Báo người dùng, không dispatch lại.
 
 ## 5. Tổng hợp cho người dùng
 Bảng: task | mode | PR | kết quả dispatch | hidden test | GitHub checks | số vòng sửa | ghi chú. Nêu rõ task nào fail và vì sao.

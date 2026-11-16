@@ -1,5 +1,4 @@
-# CI for pull requests. GitHub only schedules the job; it RUNS on the self-hosted runner
-# in the local kind cluster (ARC scale set "arc-runner-set", see k8s/runner/arc-runner-values.yaml).
+# CI for pull requests. Runs on GitHub-hosted runners (ubuntu-latest); free for this public repo.
 #
 # Security:
 # - "pull_request" (never "pull_request_target"): fork PRs get no secrets and a read-only token.
@@ -23,7 +22,7 @@ jobs:
   ci:
     name: ci
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout code
@@ -51,7 +50,7 @@ jobs:
   spec-check:
     name: spec-check
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout code

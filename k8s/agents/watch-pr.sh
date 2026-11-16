@@ -22,7 +22,7 @@ while true; do
   if [[ "$total" -gt 0 && "$pending" == 0 ]]; then break; fi
   if (( waited >= MAX_WAIT )); then
     [[ "$total" -gt 0 ]] && sed 's/^/  /' <<<"$lines" || echo "  (no checks reported yet)"
-    echo "CHECKS: TIMEOUT after ${MAX_WAIT}s (is the ARC runner in kind running? see k8s/runner/RUNNER.md)"
+    echo "CHECKS: TIMEOUT after ${MAX_WAIT}s (check the run in the Actions tab: queued or stuck?)"
     exit 1
   fi
   sleep "$INTERVAL"; waited=$((waited + INTERVAL))

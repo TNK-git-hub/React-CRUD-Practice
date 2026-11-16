@@ -64,7 +64,7 @@ kubectl create secret generic agent-secrets \
 security find-certificate -c MWG -p /Library/Keychains/System.keychain > mwg-ca.pem
 kubectl create configmap mwg-ca --from-file=mwg-ca.crt=mwg-ca.pem
 ```
-Runner cho GitHub Actions (ARC): xem [`../runner/RUNNER.md`](../runner/RUNNER.md).
+CI của PR chạy trên runner cloud của GitHub (`.github/workflows/ci.yml`), không cần cài runner trong kind.
 
 ## Dùng
 ```bash
