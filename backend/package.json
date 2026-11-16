@@ -9,6 +9,7 @@
     "start:prod": "node dist/main",
     "seed": "nest build && node --use-system-ca dist/seed",
     "typecheck:test": "tsc -p tsconfig.test.json",
+    "typecheck:private": "tsc -p tsconfig.private.json",
     "test": "vitest run test/public",
     "test:private": "vitest run test/private --passWithNoTests"
   },

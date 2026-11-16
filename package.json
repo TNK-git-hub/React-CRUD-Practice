@@ -12,6 +12,7 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "test:private": "pnpm -r test:private",
+    "typecheck:private": "pnpm -r --no-bail typecheck:private",
     "ci:local": "bash ci/local-ci.sh"
   }
 }
