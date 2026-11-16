@@ -19,6 +19,9 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Test mới đặt trong `<package>/test/public/`, tên file `*.test.ts` (component React: `*.test.tsx`).
 - Test component React: dòng đầu file `// @vitest-environment jsdom`, dùng `@testing-library/react` + `@testing-library/user-event`, `cleanup` sau mỗi test. Chỉ mock thứ bên ngoài (HTTP, `next/navigation`), không mock component của app.
 - Không đọc, sửa hay tạo file trong `test/private/`.
+- Test private được commit dạng mã hoá: `private-tests/tests.tar.age` (age). Không đọc khoá `~/.config/age/`, log
+  `~/.local/state/hidden-tests/`, không chạy `age -d`. Seal / unseal: `k8s/agents/private-{seal,unseal}.sh`, người dùng tự chạy
+  (`k8s/agents/README.md`, mục "Test private mã hoá").
 - Chỉ mock thứ chậm hoặc bên ngoài (HTTP, DB, Redis). Không assert lên mock.
 - Không sửa code production để test pass. Nghi có bug thì báo lại kèm bằng chứng.
 

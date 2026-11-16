@@ -25,7 +25,8 @@ test:      pnpm test  (public tests of both packages, <package>/test/public)
 - Inside a job the steps run in order, and the job stops at its first failing step (later steps are skipped).
 - Every job still runs, so one run shows all the jobs that are broken.
 - At the end it prints a ✅ / ❌ / ⏭ summary of every step.
-- Private tests (`pnpm test:private`) are not part of this pipeline yet.
+- Private tests (`pnpm test:private`) are not part of this pipeline. On GitHub they run in their own workflow,
+  `.github/workflows/private-tests.yml` (encrypted tests from the base branch, counts only; see `k8s/agents/README.md`).
 
 ## Leftover build folders
 

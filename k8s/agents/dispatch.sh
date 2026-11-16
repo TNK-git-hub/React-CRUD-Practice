@@ -146,7 +146,7 @@ fi
 # --- hidden test: test/private chỉ có trên máy này (gitignore), agent trong pod không bao giờ thấy ---
 # Chạy trên branch của PR trong một git worktree tạm, từng package riêng (package này fail không làm package kia bị bỏ qua).
 # Chỉ in số lượng: file không load được / test fail / test pass / lỗi type. Không in tên test hay nội dung;
-# log đầy đủ (vitest + tsc) ở logs/ cho người dùng.
+# log đầy đủ (vitest + tsc) ở ~/.local/state/hidden-tests/<repo>/logs/ (ngoài repo) cho người dùng.
 # private_summary <vitest-json>: in "files N, load errors N, tests N fail / N pass"; exit 1 nếu có load error hoặc test fail.
 # "load error" = file không có kết quả test nào (lỗi cú pháp, import không tìm thấy module, lỗi ở top level).
 private_summary() {
@@ -159,13 +159,18 @@ private_summary() {
   ' "$1"
 }
 run_private() {
-  local pr_url="$1" branch wt plog pkg have=0 json tlog sum nerr ok=1 joined parts=()
+  local pr_url="$1" branch wt plog logdir pkg have=0 json tlog sum nerr ok=1 joined parts=()
+  # Bản đã seal mới hơn (pull từ máy khác) thì giải mã trước; có test chưa seal thì chỉ cảnh báo, không ghi đè
+  bash "$DIR/private-unseal.sh" --auto || true
   for pkg in backend frontend; do
     [[ -n "$(find "$ROOT/$pkg/test/private" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
   done
   [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
   branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
-  plog="$DIR/logs/$JOB_ID-private-$(date +%Y-%m-%dT%H-%M-%S).log"
+  # Log đầy đủ có code test: để ngoài repo (guard.mjs chặn mọi đường dẫn hidden-tests/), chỉ người dùng đọc
+  logdir="${XDG_STATE_HOME:-$HOME/.local/state}/hidden-tests/$(basename "$ROOT")/logs"
+  mkdir -p "$logdir" && chmod 700 "$logdir"
+  plog="$logdir/$JOB_ID-private-$(date +%Y-%m-%dT%H-%M-%S).log"
   wt="$(mktemp -d)"
   echo "Running hidden tests on $branch -> ${plog#"$ROOT"/}"
   git -C "$ROOT" fetch -q origin "$branch"

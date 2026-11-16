@@ -1,0 +1,132 @@
+# Hidden tests (test/private) on every same-repo PR. The tests are committed encrypted (private-tests/tests.tar.age, age);
+# the decryption key is the secret AGE_KEY of the Environment "private-tests". The log shows one line only:
+# "PRIVATE: PASS|FAIL|SKIPPED (counts)". Agents read failed CI logs (watch-pr.sh), so nothing else may be printed.
+#
+# Security:
+# - "pull_request_target": this file and the sealed tests come from the BASE branch, never from the PR. A PR cannot
+#   change this job, and cannot swap in its own tests (anyone can encrypt with the public keys in recipients.txt).
+#   Consequence: hidden tests for a change must be sealed and merged into the base branch before its agent PR.
+#   This workflow runs only once it is on the base branch.
+# - Order matters: the key is used and deleted BEFORE any PR code is checked out or installed, so nothing the PR runs
+#   (install scripts, background processes, the tests) can read it. AGE_KEY is passed to that one step only.
+# - The PR's code does run next to the decrypted tests: it could read them. Known, accepted gap; the agent gates
+#   (run.sh ENV_SNIFF_RE) reject src that mentions test/private, private-tests, .config/age or hidden-tests.
+# - Read-only token, no credentials kept, no cache (no cache poisoning from PR code), fork PRs skipped.
+name: Private tests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  private-tests:
+    name: private-tests
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: private-tests
+    steps:
+      # ---------- trusted: base branch only, no PR code on the runner yet ----------
+      - name: Checkout sealed tests (base branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+          sparse-checkout: private-tests
+
+      - name: Decrypt hidden tests, then delete the key
+        id: decrypt
+        env:
+          AGE_KEY: ${{ secrets.AGE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ ! -f base/private-tests/tests.tar.age ]; then
+            echo "PRIVATE: SKIPPED (no sealed hidden tests on the base branch)"
+            echo "have=0" >> "$GITHUB_OUTPUT"; rm -rf base; exit 0
+          fi
+          [ -n "$AGE_KEY" ] || { echo "PRIVATE: FAIL (secret AGE_KEY missing in Environment private-tests)"; exit 1; }
+          sudo apt-get install -y -qq age > /dev/null 2>&1
+          umask 077
+          mkdir -p "$RUNNER_TEMP/hidden"
+          printf '%s\n' "$AGE_KEY" > "$RUNNER_TEMP/age.key"
+          age -d -i "$RUNNER_TEMP/age.key" base/private-tests/tests.tar.age | tar -xf - -C "$RUNNER_TEMP/hidden"
+          rm -f "$RUNNER_TEMP/age.key"
+          rm -rf base
+          echo "have=1" >> "$GITHUB_OUTPUT"
+
+      # ---------- untrusted from here: the PR's code ----------
+      - name: Checkout PR code
+        if: steps.decrypt.outputs.have == '1'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: No plaintext hidden tests in git
+        if: steps.decrypt.outputs.have == '1'
+        working-directory: pr
+        run: |
+          if git ls-files | grep -qE '(^|/)test/private/'; then
+            echo "PRIVATE: FAIL (plaintext files under test/private are committed)"; exit 1
+          fi
+
+      - name: Set up Node 22
+        if: steps.decrypt.outputs.have == '1'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install
+        if: steps.decrypt.outputs.have == '1'
+        working-directory: pr
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile > "$RUNNER_TEMP/install.log" 2>&1 || { echo "PRIVATE: FAIL (pnpm install failed)"; exit 1; }
+
+      # Same counting as k8s/agents/dispatch.sh run_private. All vitest / tsc output goes to files that are never printed
+      # or uploaded.
+      - name: Run hidden tests (counts only)
+        if: steps.decrypt.outputs.have == '1'
+        working-directory: pr
+        run: |
+          set -uo pipefail
+          ok=1; parts=()
+          for pkg in backend frontend; do
+            [ -d "$RUNNER_TEMP/hidden/$pkg/test/private" ] || continue
+            mkdir -p "$pkg/test" && cp -R "$RUNNER_TEMP/hidden/$pkg/test/private" "$pkg/test/"
+            json="$RUNNER_TEMP/private-$pkg.json"
+            (cd "$pkg" && pnpm exec vitest run test/private --passWithNoTests \
+              --reporter=json --outputFile.json="$json") > "$RUNNER_TEMP/vitest-$pkg.log" 2>&1 || true
+            if [ -s "$json" ]; then
+              sum="$(node -e '
+                const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+                const files = r.testResults || [];
+                const loadErr = files.filter((f) => f.status === "failed" && (f.assertionResults || []).length === 0).length;
+                console.log(`files ${files.length}, load errors ${loadErr}, tests ${r.numFailedTests} fail / ${r.numPassedTests} pass`);
+                process.exit(loadErr || r.numFailedTests ? 1 : 0);
+              ' "$json")" || ok=0
+            else
+              sum="no vitest report (vitest crashed)"; ok=0
+            fi
+            tlog="$RUNNER_TEMP/tsc-$pkg.log"
+            if (cd "$pkg" && pnpm typecheck:private) > "$tlog" 2>&1; then
+              sum="$sum, type errors 0"
+            else
+              nerr="$(grep -cE 'error TS[0-9]+' "$tlog" || true)"
+              sum="$sum, type errors ${nerr:-0}"; ok=0
+            fi
+            parts+=("$pkg: $sum")
+          done
+          joined="$(printf '%s; ' "${parts[@]}")"; joined="${joined%; }"
+          if [ "$ok" = 1 ]; then echo "PRIVATE: PASS ($joined)"; else echo "PRIVATE: FAIL ($joined)"; exit 1; fi

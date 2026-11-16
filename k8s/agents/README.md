@@ -32,7 +32,11 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
 | Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
-| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
+| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR (và job CI `private-tests`); chỉ in số lượng, không đưa nội dung cho agent |
+| Đọc test private qua bản commit | Test private chỉ được commit dạng mã hoá (`private-tests/tests.tar.age`, age). Pod không có khoá; xem "Test private mã hoá" bên dưới |
+| Đọc test private qua log / khoá | Log đầy đủ của `run_private` nằm ngoài repo (`~/.local/state/hidden-tests/`); `guard.mjs` chặn đọc log đó, khoá `~/.config/age/` và lệnh `age -d` với mọi vai |
+| Thay bộ test private bằng bộ dễ hơn | Ai cũng mã hoá được bằng public key, nên: gate `run.sh` chỉ cho đổi `src` / `test/public`; guard chặn agent ghi `private-tests/`; CI giải mã bản của **base branch**, không phải của PR |
+| Code đi tìm test private / khoá | `ENV_SNIFF_RE` trong `run.sh` chặn diff `src` có `test/private`, `private-tests`, `.config/age`, `hidden-tests` |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
@@ -92,6 +96,24 @@ bash k8s/agents/dispatch.sh price-range-be k8s/agents/tasks/price-range-be.md --
   đọc (`spec.md` requirement + ADR + Data Model, `plan.md`, `tasks.md`) và vai TEST đọc (scenario, Edge Cases, NFR
   Verification, `checklists/edge-cases.md`, `## Test Strategy`). Mọi agent, cả trọng tài, đều nhận mục này.
 - Agent gặp spec sai/thiếu ghi `SPEC_PROBLEM: ...`; các dòng này được gom vào mục "Spec" của PR để quay lại spec harness.
+
+## Test private mã hoá (age)
+Plaintext chỉ nằm ở `<package>/test/private/` (gitignore). Repo giữ `private-tests/tests.tar.age`, mã hoá cho mọi public
+key trong `private-tests/recipients.txt` (mỗi máy một key, cộng key `github-ci`). Private key: `~/.config/age/react-crud-private-tests.key`
+(chmod 600) trên từng máy, và secret `AGE_KEY` của Environment `private-tests` cho CI. Các script chỉ in số lượng và đường dẫn.
+Viết test private và mọi lệnh dưới đây: **terminal riêng**, không qua session Claude chính.
+
+| Việc | Lệnh |
+|---|---|
+| Máy mới | `brew install age` (Windows: `winget install FiloSottile.age`); `age-keygen -o ~/.config/age/react-crud-private-tests.key`; gửi public key cho một máy cũ; `bash k8s/agents/private-hooks.sh install` |
+| Thêm / bỏ máy (trên máy đã giải mã được) | sửa `recipients.txt` → `bash k8s/agents/private-seal.sh --force` → commit. Bỏ máy không thu hồi được các commit cũ: key lộ thật thì viết bộ test mới |
+| Viết xong test private | `bash k8s/agents/private-seal.sh` → `git add private-tests/tests.tar.age` → commit, **merge vào base branch trước khi dispatch** (CI dùng bản của base) |
+| Pull về | hook `post-merge` tự unseal (`private-unseal.sh --auto`); có test chưa seal thì chỉ cảnh báo, không ghi đè |
+| Có test chưa seal + bản seal mới hơn, hoặc conflict nhị phân trên `tests.tar.age` | `bash k8s/agents/private-unseal.sh --merge` (gộp theo file; trùng đường dẫn khác nội dung thì dừng) → `private-seal.sh --force` → `git add` |
+| Bỏ thay đổi local, lấy bản đã seal | `bash k8s/agents/private-unseal.sh --force` |
+
+`private-seal.sh` từ chối khi `tests.tar.age` đã bị máy khác đổi mà máy này chưa unseal (tránh xoá mất test của máy kia).
+Trạng thái của từng clone nằm ở `.git/private-tests-state` (không commit). Job CI: `.github/workflows/private-tests.yml`.
 
 ## Ghi chú
 - Mỗi lần chạy (và mỗi vòng sửa CI) tính vào giới hạn gói Claude subscription.

@@ -51,7 +51,8 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 SRC_RE='^(backend/src|frontend/src|frontend/public)/'
 TEST_RE='^(backend|frontend)/test/public/'
 # Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
-ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test'
+# (kể cả code đi tìm test private hay khoá giải mã nó: test/private, private-tests/, .config/age, hidden-tests)
+ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test|test/private|private-tests|\.config/age|hidden-tests'
 
 # Liệt kê lệnh cụ thể, không dùng "pnpm --filter:*" (nó cho cả "pnpm --filter x exec <lệnh bất kỳ>")
 TEST_CMDS=("Bash(pnpm test)" "Bash(pnpm --filter backend test:*)" "Bash(pnpm --filter frontend test:*)")

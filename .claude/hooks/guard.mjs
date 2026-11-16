@@ -10,6 +10,9 @@
 //   agent khác   -> không ghi gì
 // Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
 // Ngoài private-test-writer, không ai được ghi <package>/test/private.
+// Test private được commit dạng mã hoá (private-tests/tests.tar.age, age). Không ai đọc khoá age (~/.config/age/),
+// log đầy đủ của lần chạy test private (~/.local/state/hidden-tests/) hay chạy `age -d`; chỉ session chính (hỏi người
+// dùng) được ghi private-tests/. Script k8s/agents/private-{seal,unseal,hooks}.sh chạy được: chúng chỉ in số lượng.
 // Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
 // lệnh test / typecheck chỉ được theo allow-list chặt (STRICT_TEST bên dưới).
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
@@ -68,6 +71,15 @@ const rel = (p) => fold(relRaw(p));
 
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 const PRIVATE = /(^|\/)test\/private(\/|$)/;
+// Đọc được một trong hai thứ này là đọc được test private: khoá age của máy, log đầy đủ của dispatch.sh run_private.
+// So trên đường dẫn tuyệt đối (cả hai nằm ngoài project) và trên lệnh Bash gốc (chuỗi trong nháy không lọt).
+const AGE_KEYS = /(^|\/)\.config\/age(\/|$)/;
+const HIDDEN_LOGS = /(^|\/)hidden-tests(\/|$)/;
+const AGE_DECRYPT = /(^|[\s;&|(`])r?age(\.exe)?(\s[^;&|\n]*)?\s(-d\b|--decrypt\b)/;
+// File đã seal + danh sách public key: agent đổi được là thay được bộ test (mã hoá bằng public key ai cũng làm được)
+const SEALED = /^private-tests\//;
+const absFold = (p) => fold(path.resolve(cwd, p).split(path.sep).join("/"));
+const secretPath = (p) => AGE_KEYS.test(absFold(p)) || HIDDEN_LOGS.test(absFold(p));
 const TEST_ANY = /(^|\/)test(\/|$)/;
 const TEST_WRITABLE = /^((backend|frontend)\/test\/public|frontend\/test\/e2e)(\/|$)/;
 const SRC = /^(backend\/src|frontend\/src|frontend\/public)(\/|$)/;
@@ -134,10 +146,15 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
     block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
   }
   if (!target) allow();
+  if (secretPath(target)) block("Không ai được ghi khoá age hay log của test private.");
   const r = rel(target);
   if (r.startsWith("../")) allow(); // ngoài project (vd scratchpad)
 
   if (ENV.test(r)) block("Không ai được sửa file .env.");
+  if (SEALED.test(r)) {
+    if (agent === "main") ask(`Session chính muốn sửa ${r} (test private đã mã hoá / danh sách public key).`);
+    block(`${who} không được sửa ${r}. Chỉ người dùng seal test private (k8s/agents/private-seal.sh).`);
+  }
   if (PRIVATE.test(r)) block("Không ai được sửa test/private.");
   if (TEST_ANY.test(r)) {
     if (agent === "test-writer" && TEST_WRITABLE.test(r)) allow();
@@ -173,6 +190,10 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
     }
   }
   if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
+  const globs = [input.pattern, input.glob].map((g) => fold(String(g || "")));
+  if ((target && secretPath(target)) || globs.some((g) => AGE_KEYS.test(g) || HIDDEN_LOGS.test(g))) {
+    block("Không được đọc khoá age hay log của test private (đọc được là lộ test private).");
+  }
   if (PRIVATE.test(fold(String(input.pattern || ""))) || PRIVATE.test(fold(String(input.glob || "")))) {
     block("Không được đọc test/private.");
   }
@@ -198,6 +219,12 @@ if (tool === "Bash") {
     block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
   }
   if (/test\/private/.test(cmd)) block("Không được đọc hay chạy test/private qua Claude.");
+  if (AGE_KEYS.test(cmd) || HIDDEN_LOGS.test(cmd)) {
+    block("Không được đụng tới khoá age (~/.config/age) hay log của test private (~/.local/state/hidden-tests) qua Claude.");
+  }
+  if (AGE_DECRYPT.test(cmd)) {
+    block("Không giải mã test private qua Claude. Người dùng chạy `bash k8s/agents/private-unseal.sh` (chỉ in số lượng).");
+  }
 
   // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
   // vitest lọc file theo chuỗi con của đường dẫn (`pnpm test a` chạy cả test private có chữ "a"), nên tham số chỉ được là
@@ -233,6 +260,10 @@ if (tool === "Bash") {
   if (agent === "test-writer" && TEST_RM.test(cmd) && !cmd.includes("..")) allow();
 
   if (/(^|[\s/'"=])test\//.test(cmd)) block("Không được sửa/tạo/xoá file trong test/ bằng Bash.");
+  if (/(^|[\s'"=])private-tests\//.test(cmd)) {
+    if (agent === "main") ask("Session chính muốn sửa private-tests/ (test private đã mã hoá) bằng Bash.");
+    block(`${who} không được sửa private-tests/.`);
+  }
   if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(cmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
   }

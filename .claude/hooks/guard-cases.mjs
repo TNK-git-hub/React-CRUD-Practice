@@ -36,6 +36,11 @@ fs.symlinkSync("/nonexistent/x.test.ts", path.join(FAKE, `${PRIV}/dangle.test.ts
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
+// Paths outside the fake project (never created): the guard matches them by name
+const HOME = os.homedir();
+const AGE_KEY = path.join(HOME, ".config/age/react-crud-private-tests.key");
+const HIDDEN_LOG = path.join(HOME, ".local/state/hidden-tests/repo/logs/j1-private.log");
+
 const PTW = "private-test-writer";
 const A = "ALLOW", B = "BLOCK", Q = "ASK";
 const cases = [
@@ -124,6 +129,29 @@ const cases = [
   ["main", "Bash", { command: "pnpm db:up" }, A, "main pnpm db:up"],
   ["main", "Bash", { command: 'bash k8s/agents/dispatch.sh j1 k8s/agents/tasks/j1.md --title "Fix x"' }, A, "main dispatch.sh (run_private runs inside)"],
   ["main", "Bash", { command: 'bash k8s/agents/dispatch.sh j1 k8s/agents/tasks/j1.md --title "Fix x" --no-private --dry-run' }, A, "main dispatch.sh --no-private --dry-run"],
+  // ---- encrypted hidden tests: keys, full logs and decryption stay closed; seal scripts run ----
+  ["main", "Read", { file_path: AGE_KEY }, B, "main Read age key"],
+  ["code-writer", "Read", { file_path: AGE_KEY }, B, "code-writer Read age key"],
+  ["main", "Glob", { pattern: "**/*.key", path: path.join(HOME, ".config/age") }, B, "main Glob in ~/.config/age"],
+  ["main", "Grep", { pattern: "AGE-SECRET", path: HOME, glob: ".config/age/*" }, B, "main Grep glob .config/age"],
+  ["main", "Read", { file_path: HIDDEN_LOG }, B, "main Read hidden-test log"],
+  ["main", "Write", { file_path: AGE_KEY }, B, "main Write age key"],
+  ["main", "Bash", { command: "cat ~/.config/age/react-crud-private-tests.key" }, B, "main Bash cat age key"],
+  ["main", "Bash", { command: 'cat "$HOME/.config/age/x.key"' }, B, "main Bash cat quoted age key"],
+  ["main", "Bash", { command: "tail -50 ~/.local/state/hidden-tests/repo/logs/j1-private.log" }, B, "main Bash tail hidden-test log"],
+  ["main", "Bash", { command: "age -d -i k private-tests/tests.tar.age | tar -xO" }, B, "main Bash age -d"],
+  ["main", "Bash", { command: "cd private-tests && age --decrypt -i /tmp/k tests.tar.age" }, B, "main Bash age --decrypt"],
+  ["code-writer", "Bash", { command: "rage -d -i k private-tests/tests.tar.age" }, B, "code-writer Bash rage -d"],
+  ["main", "Bash", { command: "age -R private-tests/recipients.txt -o /tmp/x.age /tmp/x" }, A, "main Bash age encrypt (public key only)"],
+  ["main", "Bash", { command: "bash k8s/agents/private-seal.sh" }, A, "main private-seal.sh"],
+  ["main", "Bash", { command: "bash k8s/agents/private-unseal.sh --merge" }, A, "main private-unseal.sh --merge"],
+  ["main", "Bash", { command: "git add private-tests/tests.tar.age" }, A, "main git add sealed file"],
+  ["main", "Read", { file_path: "private-tests/recipients.txt" }, A, "main Read recipients"],
+  ["main", "Write", { file_path: "private-tests/recipients.txt" }, Q, "main Write recipients (asked)"],
+  ["code-writer", "Write", { file_path: "private-tests/tests.tar.age" }, B, "code-writer Write sealed file"],
+  ["test-writer", "Write", { file_path: "private-tests/recipients.txt" }, B, "test-writer Write recipients"],
+  ["code-writer", "Bash", { command: "cp /tmp/x.age private-tests/tests.tar.age" }, B, "code-writer Bash cp over sealed file"],
+  ["main", "Bash", { command: "cp /tmp/x.age private-tests/tests.tar.age" }, Q, "main Bash cp over sealed file (asked)"],
   // ---- harness files: main session is asked (CLAUDE.md in any case, every file system) ----
   ["main", "Write", { file_path: "CLAUDE.md" }, Q, "main Write CLAUDE.md"],
   ["main", "Write", { file_path: "claude.md" }, Q, "main Write claude.md"],

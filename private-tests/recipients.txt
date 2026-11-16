@@ -1,0 +1,11 @@
+# Public keys that can decrypt private-tests/tests.tar.age (one machine or CI per key, "# <name>" above each).
+# Add a machine: put its public key here, then run `bash k8s/agents/private-seal.sh --force` on a machine
+# that can already decrypt, and commit. Remove one: delete its lines, seal again with --force.
+# Private keys never go into the repo: ~/.config/age/react-crud-private-tests.key (chmod 600) on each machine,
+# and the secret AGE_KEY of the GitHub Environment "private-tests" for CI.
+
+# laptop-mac
+age13ayf9ryqldwxnje64p42l75tctj3p65ur75sj7wvhk8p73ge6s6s3sy7u8
+
+# github-ci
+age1dh3puuy8mhh4qfdsnm7hmmhach0mk8ysp9apdprszhrn7esyq9nse3xkjt

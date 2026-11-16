@@ -39,6 +39,8 @@
       "Read(./.env)",
       "Read(./**/.env)",
       "Read(./**/test/private/**)",
+      "Read(~/.config/age/**)",
+      "Read(~/.local/state/hidden-tests/**)",
       "Bash(cat *test/private*)",
       "Bash(head *test/private*)",
       "Bash(tail *test/private*)",
