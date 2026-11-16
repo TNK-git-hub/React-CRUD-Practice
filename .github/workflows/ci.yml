@@ -48,6 +48,7 @@ jobs:
   # spec_check.py --stage spec: every open change in specs/changes/ follows the rich delta template,
   # IDs are unique, no "(unassigned)" left, every scenario / NFR row is in Traceability, no delta
   # keywords in specs/capabilities/ or nfr.md. Empty specs/changes/ passes. Scripts use the stdlib only.
+  # Also runs .claude/hooks/guard-cases.mjs (allow / block cases of the guard.mjs hook).
   spec-check:
     name: spec-check
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
@@ -69,6 +70,15 @@ jobs:
           python -m unittest discover -s .specify/scripts -v
           python -m unittest discover -s .claude/hooks -v
           python -m unittest discover -s .claude/skills/spec-archive/scripts -v
+
+      # guard.mjs (PreToolUse hook): fake hook inputs against the real hook, no dependencies (node stdlib only)
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Guard hook cases
+        run: node .claude/hooks/guard-cases.mjs
 
       - name: spec_check.py --stage spec
         env:
