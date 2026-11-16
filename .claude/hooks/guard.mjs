@@ -10,6 +10,8 @@
 //   agent khác   -> không ghi gì
 // Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
 // Ngoài private-test-writer, không ai được ghi <package>/test/private.
+// Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
+// lệnh test / typecheck chỉ được theo allow-list chặt (STRICT_TEST bên dưới).
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
 // exit 2 = chặn, stderr được gửi lại cho agent.
 import fs from "node:fs";
@@ -151,19 +153,46 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
 if (tool === "Bash") {
   const cmd = String(input.command || "");
 
-  // Lệnh chạy test hợp lệ: pnpm [--filter <pkg>] test|test:private [đường dẫn test/...] [--flag], không nối lệnh
-  const isRunTest =
-    /^\s*pnpm\s+(--filter[\s=](backend|frontend)\s+)?(run\s+)?test(:private)?(\s+([\w./-]*\/)?test\/(public|private)[^\s;&|<>`$()]*|\s+--?[\w-]+(=[^\s;&|<>`$()]+)?)*\s*$/.test(cmd);
-  if (isRunTest) allow();
-
-  if (/test\/private/.test(cmd)) block("test/private chỉ được chạy bằng `pnpm test:private`, không được đọc.");
-
-  // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại trước khi tìm dấu hiệu ghi file
+  // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
+  // Dùng cho mọi kiểm tra bên dưới, trừ kiểm tra đường dẫn test/private (chạy trên lệnh gốc, để `cat "…"` không lọt).
   const ops = cmd
     .replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2(?=\n|$)/g, "")
     .replace(/'[^']*'|"[^"]*"/g, "''")
     .replace(/\d?>&\d/g, "")
     .replace(/[\d&]?>>?\s*\/dev\/null/g, "");
+
+  // Test private: output của vitest / tsc in nguyên code test. Không ai chạy qua Claude, kể cả session chính;
+  // người dùng tự chạy trong terminal riêng. Hook chỉ thấy lệnh gốc, nên `bash k8s/agents/dispatch.sh …` vẫn chạy run_private.
+  if (/test:private|typecheck:private|tsconfig\.private/.test(ops)) {
+    block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
+  }
+  if (/test\/private/.test(cmd)) block("Không được đọc hay chạy test/private qua Claude.");
+
+  // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
+  // vitest lọc file theo chuỗi con của đường dẫn (`pnpm test a` chạy cả test private có chữ "a"), nên tham số chỉ được là
+  // đường dẫn bắt đầu bằng test/public/ (có thể có tiền tố backend/ frontend/) hoặc flag (giá trị không có "/", "..").
+  // Đoạn lệnh của pnpm/npx/… có chuỗi trong nháy hay "$" cũng phải khớp mẫu (chặn `pnpm "test:pri"vate`, `pnpm $X`).
+  const JS_TOOL = /^(pnpm|pnpx|npx|npm|yarn|bunx?|vitest|tsc)$/;
+  const ARG = String.raw`(--|--?[\w.-]+(=(?![^\s]*\.\.)[\w.:,@+*-]+)?|((backend|frontend)\/)?test\/public\/[\w./-]*)`;
+  const STRICT_TEST = new RegExp(
+    String.raw`^pnpm(\s+--filter[\s=](backend|frontend))?(\s+run)?\s+(test|typecheck|typecheck:test|ci:local)(\s+${ARG})*$`,
+  );
+  const segments = ops.split(/&&|\|\||\$\(|[;&|\n()`]/).map((s) => s.trim()).filter(Boolean);
+  let testSegments = 0;
+  for (const seg of segments) {
+    const words = seg.replace(/^((\w+=\S*|time|command|exec|nice|nohup|sudo)\s+)+/, "").split(/\s+/);
+    const prog = path.basename(words[0] || "");
+    const testLike =
+      (JS_TOOL.test(prog) && (/\b(test|typecheck|vitest|tsc)\b/.test(seg) || /''|\$/.test(seg) || prog === "vitest" || prog === "tsc")) ||
+      (prog === "node" && /\b(vitest|tsc)\b/.test(seg));
+    if (!testLike) continue;
+    if (!STRICT_TEST.test(seg)) {
+      block(`Lệnh test / typecheck không đúng mẫu: \`${seg}\`. Chỉ dùng \`pnpm [--filter backend|frontend] test|typecheck|typecheck:test|ci:local [test/public/…] [--flag]\`.`);
+    }
+    testSegments++;
+  }
+  if (segments.length === 1 && testSegments === 1) allow();
+
   const writes = /(\bsed\s+-i|>|\brm\b|\brmdir\b|\bmv\b|\bcp\b|\btee\b|\btouch\b|\bmkdir\b|\bchmod\b|\btruncate\b|\bgit\s+(checkout|restore|rm|mv|clean)\b)/;
   if (!writes.test(ops)) allow();
 
