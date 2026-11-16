@@ -7,6 +7,8 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 ## Lệnh
 - Test public (CI chạy, bắt buộc pass): `pnpm test`
 - Test một package: `pnpm --filter backend test`, `pnpm --filter frontend test`
+- Lọc theo tên test: `pnpm --filter backend test -t=<scenario ID>` (dấu `=`, không cách; tham số đường dẫn chỉ được bắt đầu bằng
+  `test/public/`). Hook `guard.mjs` chặn mọi dạng khác của lệnh test, và chặn `test:private` / `typecheck:private` với mọi vai.
 - Lint: `pnpm lint`. Typecheck frontend: `pnpm --filter frontend typecheck`
 - Typecheck test files (strict, constitution Principle IV; CI runs it): `pnpm --filter backend typecheck:test`, `pnpm --filter frontend typecheck:test` (`tsconfig.test.json`: `src` + `test/public`, never `test/private`)
 - Test giao diện (webapp-testing): chạy Python bằng `.venv/bin/python`. Cần `pnpm db:up` trước để có DB.
