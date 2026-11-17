@@ -4,7 +4,7 @@
 # thư mục này; sau đó chỉ /spec-archive được sửa. Không bao giờ chứa chữ ADDED/MODIFIED/REMOVED/RENAMED.
 #
 # specs/capabilities/
-# └── <domain>/                  vd. products/
+# └── <domain>/                  vd. <domain>/
 #     ├── spec.md                 các requirement <CODE>-<NNN> hiện hành kèm scenario <CODE>-<NNN>-S<n>
 #     │                           (lúc bootstrap chỉ có Overview, Requirements = "_(none yet)_")
 #     ├── states.md               vòng đời / trạng thái của từng entity trong domain

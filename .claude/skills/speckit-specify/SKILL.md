@@ -25,7 +25,7 @@ Differs from the core command in 5 places:
      table of domain-model.md.
   5. Fills the frontmatter kind/change/capabilities/primary/status/source.
   6. Writes the rich delta spec of .specify/templates/overrides/spec-template.md (worked example:
-     docs/examples/products-price-range-spec.md): detailed requirements with nested scenarios, NFR table,
+     `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_): detailed requirements with nested scenarios, NFR table,
      Edge Cases & Error Handling table, Traceability; Architecture Decisions and Data Model are left to the plan.
   Also: never invents numbers, limits, permissions or deletion policy (drops the core command's
   3-question limit for these) and never asks the user mid-way — questions are left for /speckit-clarify.
@@ -160,7 +160,7 @@ Good input covers 5 points: **who** (role), **what**, **why**, **constraints** (
 ### Step 4 — Write the delta spec
 
 Write into `<FEATURE_DIR>/spec.md` following the template exactly: same headings, in the same order, same labels.
-Read the worked example `docs/examples/products-price-range-spec.md` first: it is the target level of detail.
+Read the worked example `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_ first: it is the target level of detail.
 Delete the template's HTML guide block and every per-section guide comment once the section is filled.
 
 **Frontmatter** (all keys required):
@@ -378,7 +378,7 @@ Tell the user:
 ## Done When
 
 - [ ] Branch `<CHANGE_NAME>` created; `.specify/feature.json` points to `specs/changes/<CHANGE_NAME>`
-- [ ] `spec.md` follows the delta template (worked example: `docs/examples/products-price-range-spec.md`), frontmatter complete, IDs follow the conventions, no invented numbers / permissions
+- [ ] `spec.md` follows the delta template (worked example: `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_), frontmatter complete, IDs follow the conventions, no invented numbers / permissions
 - [ ] `checklists/requirements.md` reviewed
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Reported as described in Completion Report

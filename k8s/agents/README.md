@@ -69,10 +69,10 @@ CI của PR chạy trên runner cloud của GitHub (`.github/workflows/ci.yml`),
 ## Dùng
 ```bash
 # xem trước manifest, không tạo gì trong cluster
-bash k8s/agents/dispatch.sh search-btn-yellow k8s/agents/tasks/EXAMPLE.md --title "Make the Search button yellow" --dry-run
+bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>" --dry-run
 
 # chạy thật — base branch phải đã push: pod clone từ origin
-bash k8s/agents/dispatch.sh search-btn-yellow k8s/agents/tasks/EXAMPLE.md --title "Make the Search button yellow"
+bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>"
 bash k8s/agents/watch-pr.sh <pr-number>
 ```
 
@@ -80,10 +80,10 @@ bash k8s/agents/watch-pr.sh <pr-number>
 Spec do spec harness (`.claude/CLAUDE.md`) viết, đặt ở `specs/changes/NNN-<feature>/` (cấu trúc: `specs/changes/.gitkeep`).
 ```bash
 # task sinh từ spec ("-"), chỉ làm T002 và T003 của tasks.md
-bash k8s/agents/dispatch.sh price-range-be - --title "Add price range filter" \
-  --change 001-products-price-range --tasks T002,T003 --dry-run
+bash k8s/agents/dispatch.sh example-be - --title "<PR title>" \
+  --change 001-example-feature --tasks T002,T003 --dry-run
 # hoặc file task viết tay + mục "## Spec" do run.sh nối thêm
-bash k8s/agents/dispatch.sh price-range-be k8s/agents/tasks/price-range-be.md --title "..." --change 001-products-price-range
+bash k8s/agents/dispatch.sh example-be k8s/agents/tasks/example-be.md --title "..." --change 001-example-feature
 ```
 - `dispatch.sh` nén cả `specs/` ở máy này (trừ `archive/`) vào ConfigMap `task-<id>`: spec **chưa commit vẫn dùng được**.
   Trong pod, file nào đã có trên base branch thì giữ bản trên branch; file chưa commit được thêm vào `.git/info/exclude`

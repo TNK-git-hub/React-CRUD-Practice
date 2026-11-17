@@ -1,6 +1,6 @@
 # specs/changes/ — CHANGE ĐANG LÀM
 #
-# Mỗi change là một thư mục NNN-<feature> (vd. 001-products-price-range), trùng tên nhánh git NNN-<feature>.
+# Mỗi change là một thư mục NNN-<feature> (vd. 001-example-feature), trùng tên nhánh git NNN-<feature>.
 # Chỉ có đúng các file dưới đây, không thêm file nào khác:
 #
 # specs/changes/

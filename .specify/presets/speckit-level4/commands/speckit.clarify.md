@@ -33,7 +33,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 This repo is a level-4 spec harness (read `.claude/CLAUDE.md`). The spec is a delta spec in
 `specs/changes/<change>/spec.md` following `.specify/templates/overrides/spec-template.md`; worked example:
-`docs/examples/products-price-range-spec.md`. Write in English; quote user-facing product text (UI labels, messages,
+`docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_. Write in English; quote user-facing product text (UI labels, messages,
 emails) verbatim in the product's language, in double quotes. Ask the questions in the language the user writes in.
 This command runs in the main session only (it asks the user).
 

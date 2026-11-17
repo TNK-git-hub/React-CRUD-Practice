@@ -17,12 +17,12 @@ Where this file and the root `CLAUDE.md` disagree on code, tests, CI or git, the
 
 ## Domains, features, changes
 
-- **Domain** = a group of entities the user recognises (e.g. `products`), with one code (`PROD`).
-- **Feature** = a long-lived area of behavior inside a domain (e.g. `products/filtering`, `products/catalog`),
+- **Domain** = a group of entities the user recognises (e.g. `<domain>`), with one code (`ABC`).
+- **Feature** = a long-lived area of behavior inside a domain (e.g. `<domain>/<feature>`),
   listed in the domain's Features table of `specs/_system/domain-model.md`; its living spec is
   `specs/capabilities/<domain>/<feature>/spec.md`. Feature names are English kebab-case.
 - **Change** = one round of work (`NNN-<name>`); it may touch one or more features. A feature is NOT a change.
-- Requirement IDs keep the domain code (`PROD-xxx`), are unique in the whole domain, and never change when a
+- Requirement IDs keep the domain code (`ABC-xxx`), are unique in the whole domain, and never change when a
   requirement moves to another feature.
 
 ## Directory layout
@@ -48,7 +48,7 @@ Where this file and the root `CLAUDE.md` disagree on code, tests, CI or git, the
 tools/speckit-level4/       local preset replacing the speckit.specify, speckit.clarify and speckit.plan commands
 .github/                    workflows/ci.yml (jobs: ci = pnpm ci:local, spec-check)
 docs/requirements/          source requirement documents (BA, customer), in English
-docs/examples/              products-price-range-spec.md = worked example of a delta spec (the target level of detail)
+docs/examples/              worked example of a delta spec (the target level of detail): _(none yet: điền khi bootstrap hệ thống mới)_
 specs/
   _system/                  edge-case-catalog.md (shared); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (created per app by spec-bootstrap)
   capabilities/<domain>/    LIVING SPEC, shared by the domain: states.md, rules.md, history.md (Removed IDs) — no spec.md here
@@ -63,7 +63,7 @@ Two kinds of `spec.md`, told apart by location:
 - `specs/capabilities/<domain>/<feature>/spec.md`: what one feature of the system DOES now. Never contains the words
   ADDED/MODIFIED/REMOVED/RENAMED/MOVED. There is no `spec.md` at domain level.
 - `specs/changes/NNN-<name>/spec.md`: everything this change adds/modifies/removes, at full detail, following
-  `.specify/templates/overrides/spec-template.md` (worked example: `docs/examples/products-price-range-spec.md`).
+  `.specify/templates/overrides/spec-template.md` (worked example: `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_).
   Frontmatter `kind: delta`, `capabilities: ["<domain>/<feature>", …]`, `primary`, `status`; sections Overview,
   Success Criteria, Scope, Requirements (`### <domain>/<feature>` → `#### ADDED <ID>` / `MODIFIED <ID>` /
   `REMOVED <ID>` / `RENAMED <ID>` / `MOVED <ID>`, each with details, `**Permissions:**`, nested scenarios),
@@ -104,7 +104,7 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 
 | Code | Domain |
 | --- | --- |
-| PROD | products |
+| _(none yet)_ | điền khi bootstrap hệ thống mới (`/spec-bootstrap` replaces this row) |
 
 - An ID that was removed (recorded in the domain's `history.md`) is never reissued, in any feature of the domain.
 - The name (or description) of every test starts with its scenario ID, e.g. `ABC-003-S2 ...`, whatever the test framework.
@@ -167,7 +167,7 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
   (Assumptions are not merged at archive; they hold only what is temporary to the change); an existing rule is
   written "follows <ID>" with its source; never "as for change NNN" or "research Rn" instead of the content
   (`spec_check --stage spec` rejects those phrases).
-- Valid sources in a change's spec and plan: an ID in a capability (`PROD-002`, capability `<domain>/<feature>`), a
+- Valid sources in a change's spec and plan: an ID in a capability (`ABC-002`, capability `<domain>/<feature>`), a
   file of `specs/_system/`, a code path, `docs/requirements/`. **Never `specs/archive/`**: an archived change is
   history, not a source (`spec_check --stage spec` rejects it). If a rule the change needs exists only in the archive,
   the capability is missing it — stop and report; do not point into the archive.

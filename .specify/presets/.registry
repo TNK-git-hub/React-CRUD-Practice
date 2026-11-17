@@ -4,7 +4,7 @@
     "speckit-level4": {
       "version": "0.3.0",
       "source": "local",
-      "manifest_hash": "sha256:f40deb8375d7185dd2cfc2f8b8a7b2476d383aa38ab85c9a930673248b809371",
+      "manifest_hash": "sha256:6e2993c76da09752e9300d37469c595e733cab1d35095a9923ef1d8f0ba71080",
       "enabled": true,
       "priority": 10,
       "registered_commands": {
@@ -21,7 +21,7 @@
           "speckit-plan"
         ]
       },
-      "installed_at": "2026-11-14T16:43:18.970474+00:00"
+      "installed_at": "2026-11-17T04:26:39.614686+00:00"
     }
   }
 }

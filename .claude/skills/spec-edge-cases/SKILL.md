@@ -28,7 +28,7 @@ $ARGUMENTS
    Any left → **STOP**: list them with their line and tell the user to run `/speckit-clarify` first (main
    session). Edge cases are only added to a spec whose open questions are settled.
 2. The change's `spec.md` (format: `.specify/templates/overrides/spec-template.md`, worked example
-   `docs/examples/products-price-range-spec.md`): frontmatter `kind: delta` (missing → STOP), `capabilities`, every
+   `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_): frontmatter `kind: delta` (missing → STOP), `capabilities`, every
    requirement marked `ADDED` / `MODIFIED` (skip `REMOVED`, `RENAMED`, `MOVED`), the table under
    `## Edge Cases & Error Handling` (rows whose Scenario is `_(unassigned)_` are waiting for you), `## Traceability`.
 3. `specs/_system/edge-case-catalog.md`: dimensions 1–13, priorities, scenario types, coverage table template.
