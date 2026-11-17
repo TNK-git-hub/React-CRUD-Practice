@@ -39,7 +39,7 @@ Parsed by scripts — keep EXACTLY (change.py merges Requirements into specs/cap
 - A feature that does not exist yet is created by archive: list it in capabilities, give it a row in the
   Features table of domain-model.md (its scope becomes the feature's Overview), and put only ADDED / MOVED in its section.
 - Scenario IDs in backticks: `<CODE>-<NNN>-S<n>`. Inside a requirement block never put another requirement's
-  scenario ID in backticks (write it plain, e.g. "see PROD-003-S10"); use "Covers:" for cross-checks.
+  scenario ID in backticks (write it plain, e.g. "see ABC-003-S10"); use "Covers:" for cross-checks.
 - No "##", "###" or "####" heading inside a requirement: use bold paragraph labels ("**API.**", "**UI.**").
 - REMOVED / RENAMED / MOVED fields are bullets: "- **Reason:**", "- **Migration:**", "- **Replaced by:**", "- **From:**", "- **To:**".
 - The whole requirement block (statement, details, Permissions, Scenarios) is copied into the feature spec:
@@ -49,10 +49,10 @@ Kept by name for core Spec Kit commands: Overview, Requirements, Success Criteri
 Never invent numbers, limits, messages or permissions: write [NEEDS CLARIFICATION: question].
 
 Self-contained: archive merges ONLY the requirement blocks (and NFR rows). So:
-- A behavior that is still true after the change (loading state, layout, "the server filters all products", an
+- A behavior that is still true after the change (loading state, layout, "the server filters all <domain> records", an
   existing rule the change relies on) goes into the details of a requirement, never into Assumptions.
 - An existing rule of a capability the change relies on is written where it applies as "follows <ID>" with its source
-  (e.g. "follows PROD-002: a new range returns to page 1 (capability products/filtering)").
+  (e.g. "follows ABC-002: a new range returns to page 1 (capability <domain>/<feature>)").
 - Never point to another change or to research instead of stating the content: no "as for change 001", "as in
   change 001", "see research R2". State the behavior itself; a source in parentheses is fine when it is a capability ID, a `specs/_system/` file, a code path or `docs/requirements/`; never `specs/archive/` (a rule found only
   in the archive means the capability is missing it: stop and report).

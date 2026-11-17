@@ -96,7 +96,7 @@ empty), and one row per **new** term in `glossary.md`. It never changes an exist
 2. Read every file present in `specs/_system/`: `glossary.md`, `domain-model.md`, `nfr.md`, `roadmap.md`,
    `traceability.md`, `edge-case-catalog.md`. A missing file is noted, never created.
 3. Determine the **features** the change touches (a feature is a long-lived area of behavior of a domain, e.g.
-   `products/filtering`; it is not the change), using the glossary, the domain code table and the
+   `<domain>/<feature>`; it is not the change), using the glossary, the domain code table and the
    `## Features — domain <domain>` tables of `domain-model.md`:
    - Each domain must be in the domain code table of `CLAUDE.md` **and** have a folder
      `specs/capabilities/<domain>/`. Either one missing → **STOP**, tell the user that the new domain must
@@ -128,7 +128,7 @@ Good input covers 5 points: **who** (role), **what**, **why**, **constraints** (
 
 ### Step 3 — Number, branch and folder
 
-1. Make a 2–4 word English kebab-case short name, action-noun style (e.g. `product-bulk-delete`).
+1. Make a 2–4 word English kebab-case short name, action-noun style (e.g. `<domain>-bulk-delete`).
    Matching roadmap row → use that row's name.
 2. Run from the repo root:
 
@@ -232,7 +232,7 @@ feature of a MOVED needs no section when nothing else in it changes):
      Error scenarios add `  - → Recovery: <what the user does next; is entered data kept; is a retry safe>` —
      mandatory for every error scenario at P1 or P2. A scenario that also verifies another requirement adds
      `  - Covers: <other requirement ID>`. Inside a requirement block, never put another requirement's scenario
-     ID in backticks (write it plain: "see PROD-003-S10").
+     ID in backticks (write it plain: "see ABC-003-S10").
   Edge-case scenarios are added by `/spec-edge-cases`; edge cases you think of now go into the
   `## Edge Cases & Error Handling` table with Scenario `_(unassigned)_`.
 - Rules in `rules.md` and transitions in `states.md` are the reference: a requirement must not contradict them;
@@ -240,7 +240,7 @@ feature of a MOVED needs no section when nothing else in it changes):
 - A behavior or rule that **already exists** in a capability (a requirement of a declared feature, a rule of
   `rules.md`) and that the change relies on is written in the details where it applies, as
   "follows <ID>: <the rule, stated in full> (<source: capability <domain>/<feature> or rules.md>)" — e.g.
-  "drops `page` — follows PROD-002: a new range returns to page 1 (capability products/filtering)". Never as an
+  "drops `page` — follows ABC-002: a new range returns to page 1 (capability <domain>/<feature>)". Never as an
   Assumption.
 - **Self-contained.** Archive merges only the requirement blocks, so every behavior that stays true after the change
   (loading state, layout, which side filters, an existing rule) is written in a requirement's details, never in

@@ -9,7 +9,7 @@ Viết hidden test (test private) cho change được giao, **chỉ dựa trên 
 và chỉ in số lượng pass/fail. Agent viết code không bao giờ thấy chúng, nên chúng bắt được code chỉ chiều theo test public.
 
 **Cách chạy:** người dùng mở một session riêng bằng `claude --agent private-test-writer` (vd
-`claude --agent private-test-writer "Viết test private cho change 002-products-discount-filter"`). Không gọi agent này
+`claude --agent private-test-writer "Viết test private cho change 002-example-feature"`). Không gọi agent này
 như subagent của session chính: session chính là nơi giao việc cho agent viết code, nội dung test private không được đi qua đó.
 
 ## Được đọc (chỉ `specs/`; Grep / Glob luôn truyền `path` nằm trong `specs/`)
@@ -36,7 +36,7 @@ Không có Bash: không chạy test, không typecheck.
   (HTTP, DB, Redis) theo `## Test Strategy` của `plan.md`.
 - Vitest, giống test public: `*.test.ts`; component React dùng `*.test.tsx` với dòng đầu `// @vitest-environment jsdom`.
   Không dùng `any`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`.
-- Tên mỗi test bắt đầu bằng scenario ID nếu có, vd `it('PROD-004-S3 ...')`. Test regression dùng ID scenario của capability spec.
+- Tên mỗi test bắt đầu bằng scenario ID nếu có, vd `it('ABC-004-S3 ...')`. Test regression dùng ID scenario của capability spec.
 
 ## Ghi vào đâu
 - Chỉ tạo file **mới**: `<package>/test/private/<change>/<tên>.test.ts(x)`, với `<package>` là `backend` hoặc `frontend`.

@@ -1,7 +1,7 @@
 ---
 name: spec-archive
 description: Merges a finished change's delta spec into the living specs (specs/capabilities/<domain>/<feature>/spec.md by requirement ID, the domain's history.md for removed IDs; ADDED / MODIFIED NFR rows into specs/_system/nfr.md), then moves the change from specs/changes/ to specs/archive/. Stops without writing anything when an ID does not match. Run in the main session only after the CODE and TEST harnesses are done and the test suite is green.
-argument-hint: "<change, e.g. 001-product-bulk-delete>"
+argument-hint: "<change, e.g. 001-example-feature>"
 disable-model-invocation: true
 license: MIT
 metadata:

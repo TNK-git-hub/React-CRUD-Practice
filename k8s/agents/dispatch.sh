@@ -5,7 +5,7 @@
 #   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base <branch>]
 #                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--no-private] [--dry-run]
 #
-#   <job-id>     chữ thường, số, dấu "-" (vd: search-btn-yellow). Branch sẽ là agent/<job-id>-<timestamp>.
+#   <job-id>     chữ thường, số, dấu "-" (vd: example-task). Branch sẽ là agent/<job-id>-<timestamp>.
 #   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
 #                "-" (chỉ khi có --change): task sinh tự động từ spec.
 #   --change     làm theo spec của spec harness: specs/changes/NNN-<feature>/ (spec.md, plan.md, tasks.md, checklists/).

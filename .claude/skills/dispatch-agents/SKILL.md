@@ -36,7 +36,7 @@ Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, g
 - **Out of scope**: những gì không được đổi.
 - **Done when**: tiêu chí xong, luôn có "`pnpm ci:local` prints CI PASSED".
 
-`<job-id>`: chữ thường, số, `-`, ngắn và mô tả được việc (vd. `search-btn-yellow`). Tiêu đề PR: tiếng Anh, mệnh lệnh, ngắn.
+`<job-id>`: chữ thường, số, `-`, ngắn và mô tả được việc (vd. `example-task`). Tiêu đề PR: tiếng Anh, mệnh lệnh, ngắn.
 
 ## 3. Dispatch
 - Xem trước: `bash k8s/agents/dispatch.sh <job-id> k8s/agents/tasks/<job-id>.md --title "<PR title>" [--mode code-only] --dry-run`

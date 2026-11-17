@@ -9,7 +9,7 @@ code: "[CODE]"
 LIVING SPEC of one FEATURE of a domain: describes what the system DOES now in this area of behavior.
 Path: specs/capabilities/[domain]/[feature]/spec.md. The domain's states.md, rules.md and history.md are shared by all
 its features and live one level up, in specs/capabilities/[domain]/.
-- A feature is a long-lived area of behavior inside a domain (e.g. products/filtering), listed in the domain's
+- A feature is a long-lived area of behavior inside a domain (e.g. <domain>/<feature>), listed in the domain's
   "Features" table of specs/_system/domain-model.md. It is NOT a change: one change may touch several features.
 - Only /spec-archive may modify this file (merging the delta spec of a finished change).
 - Never contains the delta keywords (add, modify, remove, rename, move) of a delta spec.

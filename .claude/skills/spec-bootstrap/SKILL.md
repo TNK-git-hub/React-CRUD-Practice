@@ -62,7 +62,7 @@ Do not infer requirements that are not in the documents.
 
 ## Step 2b — List the features of each domain
 
-A **feature** is a long-lived area of behavior inside a domain (e.g. `products/catalog`, `products/filtering`); its
+A **feature** is a long-lived area of behavior inside a domain (e.g. `<domain>/<feature>`); its
 living spec will be `specs/capabilities/<domain>/<feature>/spec.md`. A feature is NOT a change: a change may touch
 several features, and many changes touch the same feature over time.
 
