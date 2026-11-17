@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --vm-header: #7a1c2e;
+  --vm-accent: #a3203a;
+  --vm-bg: #f6f6f7;
+  --vm-gold: #d9a33a;
+  --vm-success: #1f8a5b;
+  --vm-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+}
+
+@theme inline {
+  --color-vm-header: var(--vm-header);
+  --color-vm-accent: var(--vm-accent);
+  --color-vm-bg: var(--vm-bg);
+  --color-vm-gold: var(--vm-gold);
+  --color-vm-success: var(--vm-success);
+  --font-sans: var(--vm-font-sans);
+}
+
+body {
+  background-color: var(--vm-bg);
+  font-family: var(--vm-font-sans);
+}

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ops – Application Details</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#A3203A}a:hover{color:#7A1C2E}
+dt{font-size:14px;color:#6B6B76}
+dd{margin:0;font-size:16px;font-weight:600}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #1F1F24; background: #F6F6F7; min-height: 1500px">
+  <header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 28px; background: #7A1C2E; color: #FFFFFF">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="width: 12px; height: 12px; border-radius: 50%; background: #D9A33A"></span>
+      <div style="display: flex; flex-direction: column"><b style="font-size: 18px">ValueMax AutoFinance</b><span style="font-size: 11px; letter-spacing: .1em; opacity: .8">OPERATIONS</span></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; font-size: 15px">VMAF Ops — Priya Nair<span style="width: 34px; height: 34px; border-radius: 50%; background: #D9A33A; color: #5C1424; display: grid; place-items: center; font-weight: 700; font-size: 13px">PN</span></div>
+  </header>
+  <main style="max-width: 1120px; margin: 0 auto; padding: 28px 24px 40px; display: flex; flex-direction: column; gap: 20px">
+    <section style="background: #FCFCFD; border: 1px solid #E2E2E6; border-radius: 14px; padding: 32px; display: flex; flex-direction: column; gap: 22px">
+      <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap"><h1 style="margin: 0; font-size: 28px">Application Details</h1><span style="padding: 4px 12px; border-radius: 999px; background: #FBF1DE; color: #8A5A00; font-weight: 700; font-size: 14px">VMAF-2026-05121</span></div>
+      <dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px">
+        <div><dt>Applicant Name</dt><dd>JASON LIM KAI WEN</dd></div>
+        <div><dt>Applicant NRIC</dt><dd>S8812345Z</dd></div>
+        <div><dt>Applicant Email</dt><dd>jason.lim@example.com</dd></div>
+      </dl>
+      <h2 style="margin: 0; font-size: 24px">Singpass Status</h2>
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px">
+          <div><dt>Hirer — Status</dt><dd style="color: #1F8A5B">Fulfilled · NRIC matched</dd></div>
+          <div><dt>Hirer — Trigger Date</dt><dd>07-10-2026 12:03</dd></div>
+          <div><dt>Hirer — Fulfilled Date</dt><dd>07-10-2026 15:20</dd></div>
+        </dl>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap"><span style="padding: 10px 18px; border: 1px solid #D6D6DB; border-radius: 8px; background: #FFFFFF; font-weight: 600; font-size: 15px">Retrieve MyInfo (Hirer)</span><span style="padding: 10px 18px; border: 1px solid #D6D6DB; border-radius: 8px; background: #FFFFFF; font-weight: 600; font-size: 15px">Resend Email (Hirer)</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px">
+          <div><dt>Guarantor — Status</dt><dd style="color: #8A5A00">Pending · link expires in 52 h</dd></div>
+          <div><dt>Guarantor — Trigger Date</dt><dd>07-10-2026 12:03</dd></div>
+          <div><dt>Guarantor — Fulfilled Date</dt><dd style="color: #8A8A94">—</dd></div>
+        </dl>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap"><span style="padding: 10px 18px; border: 1px solid #D6D6DB; border-radius: 8px; background: #FFFFFF; font-weight: 600; font-size: 15px">Retrieve MyInfo (Guarantor)</span><span style="padding: 10px 18px; border: 1px solid #D6D6DB; border-radius: 8px; background: #FFFFFF; font-weight: 600; font-size: 15px">Resend Email (Guarantor)</span></div>
+      </div>
+      <div style="padding: 12px 16px; border-radius: 10px; background: #FDE7E7; color: #8A1C14; font-size: 14px">Rejected 07-10-2026 14:58: a MyInfo result for the hirer came from an old link (replaced at 12:03) and was not attached.</div>
+      <h2 style="margin: 0; font-size: 24px">MyInfo Data — Hirer</h2>
+      <div style="overflow-x: auto">
+        <table style="width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px">
+          <thead><tr style="text-align: left; color: #55555F; font-size: 12px; letter-spacing: .06em"><th style="padding: 10px 0; font-weight: 600">FIELD</th><th style="padding: 10px 0; font-weight: 600">DEALER ENTERED</th><th style="padding: 10px 0; font-weight: 600">FROM MYINFO</th></tr></thead>
+          <tbody>
+            <tr style="border-top: 1px solid #E2E2E6"><td style="padding: 12px 0; color: #6B6B76">NRIC</td><td>S8812345Z</td><td style="color: #1F8A5B; font-weight: 600">S8812345Z ✓ match</td></tr>
+            <tr style="border-top: 1px solid #E2E2E6"><td style="padding: 12px 0; color: #6B6B76">Name</td><td>JASON LIM KAI WEN</td><td>JASON LIM KAI WEN</td></tr>
+            <tr style="border-top: 1px solid #E2E2E6"><td style="padding: 12px 0; color: #6B6B76">Registered address</td><td style="color: #8A8A94">—</td><td>Blk 123 Tampines St 11 #05-21</td></tr>
+            <tr style="border-top: 1px solid #E2E2E6"><td style="padding: 12px 0; color: #6B6B76">Annual income (NOA)</td><td style="color: #8A8A94">—</td><td>SGD 84,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h2 style="margin: 0; font-size: 24px">Vehicle Info</h2>
+      <dl style="margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px">
+        <div><dt>Car Plate</dt><dd>SKV2468M</dd></div>
+        <div><dt>Make</dt><dd>TOYOTA</dd></div>
+        <div><dt>Model</dt><dd>COROLLA ALTIS 1.6</dd></div>
+      </dl>
+    </section>
+    <section style="background: #FCFCFD; border: 1px solid #E2E2E6; border-radius: 14px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 12px"><h2 style="margin: 0; font-size: 21px; color: #5C1424">Change Status</h2><span style="padding: 4px 10px; border-radius: 999px; background: #FBF1DE; color: #8A5A00; font-weight: 700; font-size: 12px; letter-spacing: .04em">OPS ONLY</span></div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 600">New Status<span style="padding: 12px 14px; border: 1px solid #D6D6DB; border-radius: 8px; background: #FFFFFF; font-weight: 400">Issue AA ▾</span></label>
+      <div style="padding: 14px 16px; border-radius: 10px; background: #FBE8EC; border: 1px solid #F3CCD4; display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+        <b style="color: #8A1C14">Cannot issue AA yet</b>
+        <span style="color: #17714A">✓ Hirer Singpass fulfilled</span>
+        <span style="color: #8A1C14">✗ Guarantor Singpass pending</span>
+        <span style="color: #17714A">✓ Mandatory documents accepted</span>
+        <span style="color: #17714A">✓ FI Review completed</span>
+      </div>
+      <div style="display: flex; justify-content: flex-end"><button type="button" disabled style="padding: 12px 22px; border-radius: 8px; border: 1px solid #E2E2E6; background: #F0F0F2; color: #8A8A94; font-weight: 600; font-size: 15px; font-family: inherit">Apply Status Change</button></div>
+    </section>
+    <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+      <span style="padding: 12px 22px; border-radius: 8px; border: 1px solid #D6D6DB; background: #FFFFFF; font-weight: 600; font-size: 15px">Cancel</span>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap">
+        <span style="padding: 12px 22px; border-radius: 8px; border: 1px solid #E2E2E6; background: #F0F0F2; color: #8A8A94; font-weight: 600; font-size: 15px">✓ FI Review Completed (locked)</span>
+        <span style="padding: 12px 22px; border-radius: 8px; border: 1px solid #D6D6DB; background: #FFFFFF; color: #B42318; font-weight: 600; font-size: 15px">Decline Application</span>
+        <span style="padding: 12px 22px; border-radius: 8px; background: #A3203A; color: #FFFFFF; font-weight: 600; font-size: 15px">Save Changes</span>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

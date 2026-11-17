@@ -31,7 +31,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
 
 ## Branches
-- Base branch: `harness-base`. Change branches (`NNN-<name>`) start from it and their PRs merge into it. The skills and agents of the spec harness read the base branch name from this line; no other file hard-codes it.
+- Base branch: `singpass-demo`. Change branches (`NNN-<name>`) start from it and their PRs merge into it. The skills and agents of the spec harness read the base branch name from this line; no other file hard-codes it.
 
 ## Spec (spec harness: `.claude/CLAUDE.md`)
 - Spec harness (viết spec, plan, tasks) đã ghép vào repo: quy tắc trong `.claude/CLAUDE.md`, nguyên tắc trong `.specify/memory/constitution.md`, agent `spec-writer` + `planner`, skill `speckit-*`, `spec-bootstrap`, `spec-edge-cases`, `spec-archive`. Spec viết bằng tiếng Anh. Máy cần Python 3.9+ có PyYAML.

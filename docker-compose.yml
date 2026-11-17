@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: singpass-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-singpass_demo}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Redis: pub/sub for realtime status events (and cache if needed)
+  redis:
+    image: redis:8-alpine
+    container_name: singpass-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+  # Mailpit: local SMTP catcher, used when no real SMTP is configured. Web UI: http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: singpass-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
+volumes:
+  pgdata:
