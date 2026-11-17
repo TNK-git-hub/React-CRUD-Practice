@@ -1,0 +1,13 @@
+# specs/_system/ — KIẾN THỨC CHUNG CỦA APP (lấy theo khung spec harness của nhánh new-project)
+#
+# /spec-bootstrap tạo 5 file đầu một lần khi bắt đầu app, từ tài liệu trong docs/requirements/.
+#
+# specs/_system/
+# ├── glossary.md                 thuật ngữ, vai trò, tên dùng trong code
+# ├── domain-model.md             entity, thuộc tính, quan hệ, sơ đồ mermaid
+# ├── nfr.md                      NFR-<NNN> có số đo + cột Verification; bắt buộc có mục "Data and deletion policy".
+# │                               Chỉ /spec-archive được sửa (gộp NFR ADDED/MODIFIED của change vào)
+# ├── roadmap.md                  danh sách change NNN theo thứ tự (001 = walking skeleton), cột Status
+# ├── traceability.md             requirement gốc (REQ/BR/NFR) → change sở hữu → Requirement ID
+# └── edge-case-catalog.md        catalog câu hỏi edge case dùng chung (của harness, không sinh theo app);
+#                                 bootstrap chỉ được thêm vào mục "13. Domain-specific"

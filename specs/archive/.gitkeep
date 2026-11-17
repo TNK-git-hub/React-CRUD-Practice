@@ -1,0 +1,15 @@
+# specs/archive/ — CHANGE ĐÃ XONG VÀ ĐÃ GỘP VÀO capabilities/ (lấy theo khung spec harness của nhánh new-project)
+#
+# Chỉ /spec-archive được ghi vào đây: nó chuyển nguyên specs/changes/NNN-<feature>/ sang, giữ tên cũ (không
+# thêm ngày), và đặt `status: archived` trong frontmatter của spec.md. Không bao giờ ghi đè thư mục đã có.
+#
+# specs/archive/
+# └── NNN-<feature>/
+#     ├── spec.md                 delta spec cuối cùng (status: archived), chỉ để tra cứu lịch sử
+#     ├── plan.md
+#     ├── tasks.md
+#     └── checklists/
+#         ├── quality.md
+#         └── edge-cases.md
+#
+# Sửa tay ở đây là sai: muốn đổi hành vi thì mở change mới trong specs/changes/.

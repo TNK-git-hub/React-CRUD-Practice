@@ -1,0 +1,83 @@
+{
+  "enabledPlugins": {
+    "commit-commands@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm test:*)",
+      "Bash(pnpm --filter backend test:*)",
+      "Bash(pnpm --filter frontend test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm exec stryker:*)",
+      "Bash(pnpm --filter backend exec stryker:*)",
+      "Bash(pnpm --filter frontend exec stryker:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(pnpm ci:local)",
+      "Bash(bash k8s/agents/watch-pr.sh:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(python3 .specify/scripts/next_change.py:*)",
+      "Bash(python3 .specify/scripts/spec_check.py:*)",
+      "Bash(bash .specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(bash .specify/scripts/bash/resolve-template.sh:*)",
+      "Bash(bash .specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(bash .specify/scripts/bash/setup-tasks.sh:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(.specify/scripts/bash/resolve-template.sh:*)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(.specify/scripts/bash/setup-tasks.sh:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/test/private/**)",
+      "Bash(cat *test/private*)",
+      "Bash(head *test/private*)",
+      "Bash(tail *test/private*)",
+      "Bash(less *test/private*)",
+      "Bash(ls *test/private*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write|MultiEdit|NotebookEdit|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-changed.mjs\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

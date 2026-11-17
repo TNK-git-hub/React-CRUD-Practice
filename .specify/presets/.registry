@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "speckit-level4": {
+      "version": "0.3.0",
+      "source": "local",
+      "manifest_hash": "sha256:f40deb8375d7185dd2cfc2f8b8a7b2476d383aa38ab85c9a930673248b809371",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.specify",
+          "speckit.clarify",
+          "speckit.plan"
+        ]
+      },
+      "registered_skills": {
+        "claude": [
+          "speckit-specify",
+          "speckit-clarify",
+          "speckit-plan"
+        ]
+      },
+      "installed_at": "2026-11-14T16:43:18.970474+00:00"
+    }
+  }
+}

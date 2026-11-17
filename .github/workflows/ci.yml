@@ -1,0 +1,85 @@
+# CI for pull requests. Runs on GitHub-hosted runners (ubuntu-latest); free for this public repo.
+#
+# Security:
+# - "pull_request" (never "pull_request_target"): fork PRs get no secrets and a read-only token.
+# - Repo setting "Require approval for all external contributors" is the real guard against
+#   strangers: a fork PR can edit this file, so the `if:` below only stops accidental runs.
+# - Actions are pinned to full commit SHAs; the token can only read; checkout keeps no credentials.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch: # run by hand from the Actions tab or `gh workflow run CI --ref <branch>`
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: ci
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Enable pnpm (version from package.json)
+        run: corepack enable && pnpm --version
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: Local CI (install, lint, typecheck, build, test)
+        run: pnpm ci:local
+
+  # Spec harness (ported from branch new-project): no app, no LLM, a few seconds.
+  # spec_check.py --stage spec: every open change in specs/changes/ follows the rich delta template,
+  # IDs are unique, no "(unassigned)" left, every scenario / NFR row is in Traceability, no delta
+  # keywords in specs/capabilities/ or nfr.md. Empty specs/changes/ passes. Scripts use the stdlib only.
+  # Also runs .claude/hooks/guard-cases.mjs (allow / block cases of the guard.mjs hook).
+  spec-check:
+    name: spec-check
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Harness self-tests
+        run: |
+          python -m unittest discover -s .specify/scripts -v
+          python -m unittest discover -s .claude/hooks -v
+          python -m unittest discover -s .claude/skills/spec-archive/scripts -v
+
+      # guard.mjs (PreToolUse hook): fake hook inputs against the real hook, no dependencies (node stdlib only)
+      - name: Set up Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Guard hook cases
+        run: node .claude/hooks/guard-cases.mjs
+
+      - name: spec_check.py --stage spec
+        env:
+          CHANGE: ${{ github.head_ref || github.ref_name }}
+        run: python .specify/scripts/spec_check.py --stage spec --change "$CHANGE"

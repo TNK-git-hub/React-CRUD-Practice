@@ -1,0 +1,28 @@
+# specs/changes/ — CHANGE ĐANG LÀM (lấy theo bộ khung spec harness của nhánh new-project)
+#
+# Mỗi change là một thư mục NNN-<feature> (vd. 001-products-price-range), trùng tên nhánh git NNN-<feature>.
+# Chỉ có đúng các file dưới đây, không thêm file nào khác:
+#
+# specs/changes/
+# └── NNN-<feature>/
+#     ├── spec.md                 delta spec (frontmatter `kind: delta`, `capabilities`, `primary`, `status`):
+#     │                           Overview, Success Criteria, Scope, Requirements
+#     │                           (### <domain> → #### ADDED/MODIFIED/REMOVED/RENAMED <CODE>-<NNN>, kèm scenario
+#     │                           `<CODE>-<NNN>-S<n>` dạng Given/When/Then), Non-Functional Requirements,
+#     │                           Edge Cases & Error Handling, Architecture Decisions (ADR `<NNN>-ADR-<n>`),
+#     │                           Data Model, Clarifications, Assumptions, Open Questions, Traceability
+#     ├── plan.md                 stack, cấu trúc thư mục, ## Test Strategy (bắt buộc), ## Quickstart
+#     ├── tasks.md                danh sách task, KHÔNG có task viết test; mỗi task ghi `Scenarios: <ID>, ...`
+#     └── checklists/
+#         ├── quality.md          checklist chất lượng spec (/speckit-checklist)
+#         └── edge-cases.md       checklist edge case (/spec-edge-cases)
+#
+# Định dạng "rich spec" KHÔNG có research.md, data-model.md, contracts/, quickstart.md:
+# Data Model và ADR nằm ngay trong spec.md, Quickstart nằm trong plan.md.
+#
+# Agent CODE đọc: spec.md (chi tiết requirement, Architecture Decisions, Data Model), plan.md, tasks.md.
+# Agent TEST đọc: spec.md (scenario, Edge Cases & Error Handling, cột NFR Verification),
+#                 checklists/edge-cases.md, mục ## Test Strategy của plan.md.
+# Không agent CODE/TEST nào được sửa spec.md. Tên mỗi test bắt đầu bằng ID scenario (vd. `ABC-003-S2 ...`).
+#
+# Làm xong code + test và suite xanh → /spec-archive chuyển thư mục này sang specs/archive/NNN-<feature>/.

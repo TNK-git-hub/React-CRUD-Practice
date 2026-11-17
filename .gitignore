@@ -1,0 +1,66 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Uploaded images (saved by Multer, created again by pnpm seed)
+backend/uploads/
+
+# Keys & DB dumps
+*.pem
+*.key
+*.sql
+*.dump
+
+crash.log
+
+# Test private: chỉ nằm trên máy, không commit
+**/test/private/
+
+# Kết quả mutation testing
+reports/
+.stryker-tmp/
+
+# Môi trường Python cho webapp-testing (Playwright)
+.venv/
+
+# Build output / generated files
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Log của agent job (lưu local khi job k8s chạy)
+k8s/agents/logs/
+
+# File task do Claude tổng viết khi dispatch (chỉ giữ file mẫu)
+k8s/agents/tasks/*
+!k8s/agents/tasks/EXAMPLE.md
+
+# Python cache của script spec harness (.specify/scripts, .claude/hooks)
+__pycache__/
+*.pyc
