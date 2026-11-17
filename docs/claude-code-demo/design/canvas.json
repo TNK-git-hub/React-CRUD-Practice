@@ -1,0 +1,177 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Customer_Consent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "7. Khách · Đồng ý chia sẻ Myinfo",
+      "w": 390,
+      "x": 1410,
+      "y": 1380
+    },
+    "Customer_Done.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "8. Khách · Hoàn tất",
+      "w": 390,
+      "x": 1880,
+      "y": 1380
+    },
+    "Customer_Email.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "4. Khách · Email có link",
+      "w": 390,
+      "x": 0,
+      "y": 1380
+    },
+    "Customer_LinkCheck.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "5. Khách · Portal kiểm tra link",
+      "w": 390,
+      "x": 470,
+      "y": 1380
+    },
+    "Customer_Singpass.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "title": "6. Khách · Đăng nhập Singpass (giả lập)",
+      "w": 390,
+      "x": 940,
+      "y": 1380
+    },
+    "Dealer_Received.dc.html": {
+      "expand": "fill",
+      "h": 760,
+      "is_interactive": true,
+      "title": "3. Dealer · Interest Received",
+      "w": 1280,
+      "x": 2720,
+      "y": 0
+    },
+    "Dealer_Status.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "title": "9. Dealer · Application Status (IPA, Singpass pending)",
+      "w": 1280,
+      "x": 0,
+      "y": 2604
+    },
+    "Dealer_Submit.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "title": "2. Dealer · Review & Submit → Send Singpass Request",
+      "w": 1280,
+      "x": 1360,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "expand": "fill",
+      "h": 1000,
+      "is_interactive": true,
+      "title": "1. Dealer · Quick Apply – Application Details",
+      "w": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "Ops_Detail.dc.html": {
+      "expand": "fill",
+      "h": 1500,
+      "title": "11. Ops · Application Details & Issue AA",
+      "w": 1280,
+      "x": 2720,
+      "y": 2604
+    },
+    "Ops_List.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "title": "10. Ops · All Applications",
+      "w": 1280,
+      "x": 1360,
+      "y": 2604
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-17T06:40:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "noteOrder": [
+    "t1",
+    "t2",
+    "t3",
+    "s1",
+    "s2",
+    "s3"
+  ],
+  "notes": {
+    "s1": {
+      "fill": "orange",
+      "text": "Màn 1–3 và 9–11 vẽ theo ảnh Prototype v54 của ValueMax (bố cục, tên trường, nhãn trạng thái).\n\nDealer chỉ nhập thông tin liên hệ cơ bản; phần còn lại lấy tự động qua Myinfo và LTA sau khi hirer xác minh.",
+      "w": 360,
+      "x": 4080,
+      "y": 0
+    },
+    "s2": {
+      "fill": "blue",
+      "text": "Prototype không có màn phía khách (Singpass được giả lập). Màn 4–8 là đề xuất của CMC theo Proposal v2 §5.4:\n• 1 link active / người, hết hạn sau 72h\n• Link mở portal trước, link cũ/hết hạn dừng ở bước 5\n• Kết quả Myinfo phải khớp NRIC, từ link cũ thì bị từ chối\n\nLưu ý: prototype ghi request gửi tới Singpass app, còn requirement ghi gửi link qua email. Cần chốt với khách.",
+      "w": 360,
+      "x": 2350,
+      "y": 1380
+    },
+    "s3": {
+      "fill": "green",
+      "text": "IPA cấp được khi Singpass còn pending (Prototype §5.3).\nAA cần Singpass Fulfilled (Prototype §5.6). Proposal v2 đề xuất thêm: tài liệu đã duyệt, không còn query, người thứ 2 xác nhận; khoá ở server, không override.",
+      "w": 360,
+      "x": 4080,
+      "y": 2604
+    },
+    "t1": {
+      "kind": "title1",
+      "maxW": 4000,
+      "text": "Bước A · Dealer nhập hồ sơ và gửi yêu cầu Singpass",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 2270,
+      "text": "Bước B · Khách tự xác minh qua Singpass Myinfo",
+      "w": 240,
+      "x": 0,
+      "y": 1120
+    },
+    "t3": {
+      "kind": "title1",
+      "maxW": 4000,
+      "text": "Bước C · Dữ liệu tự về hồ sơ, Ops duyệt",
+      "w": 240,
+      "x": 0,
+      "y": 2344
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Dealer_Submit.dc.html",
+    "Dealer_Received.dc.html",
+    "Customer_Email.dc.html",
+    "Customer_LinkCheck.dc.html",
+    "Customer_Singpass.dc.html",
+    "Customer_Consent.dc.html",
+    "Customer_Done.dc.html",
+    "Dealer_Status.dc.html",
+    "Ops_List.dc.html",
+    "Ops_Detail.dc.html"
+  ],
+  "pages": [],
+  "title": "Dealer Portal Auto Verify UI Flow"
+}
