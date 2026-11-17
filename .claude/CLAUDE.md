@@ -104,7 +104,10 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 
 | Code | Domain |
 | --- | --- |
-| _(none yet)_ | điền khi bootstrap hệ thống mới (`/spec-bootstrap` replaces this row) |
+| AUTH | access |
+| APPL | applications |
+| SPV | singpass-verification |
+| DEMO | demo |
 
 - An ID that was removed (recorded in the domain's `history.md`) is never reissued, in any feature of the domain.
 - The name (or description) of every test starts with its scenario ID, e.g. `ABC-003-S2 ...`, whatever the test framework.

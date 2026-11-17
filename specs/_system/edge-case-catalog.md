@@ -164,7 +164,18 @@ Example (nested format of the delta spec template):
 Business traps specific to each app. Empty in the harness; `/spec-bootstrap` or each app's retro adds
 them here (on the app's branch), one question per line.
 
-- _(none yet: `/spec-bootstrap` adds the traps of this app here)_
+- A customer opened the link before Resend (or before expiry) and submits after it: is the result rejected and not attached to the party (BR-SPV-14), with a clear message on the phone?
+- Does the link check accept only the party's latest link, even when the old link has not reached its 72 hours yet?
+- Expiry exactly at 72 hours: 1 second before, at the second, 1 second after — and which clock (server) decides?
+- Is the NRIC comparison exact (case, spaces) between the dealer-entered NRIC and Myinfo `uinfin`?
+- Is "Issue AA" refused when called directly on the backend while a party is not Fulfilled, even though the button is disabled?
+- An application without a guarantor: does the AA check require only the hirer?
+- Hirer and guarantor run independently: does one party's Fulfilled / Declined / mismatch never change the other party's status?
+- Does an NRIC/FIN with every accepted prefix (S, T, F, G, M) pass the checksum, including the test persona `M5004553J`?
+- Realtime: when the dealer or Ops page reconnects after a dropped connection, does it show the current status, not a stale one?
+- The same link opened on two devices and submitted twice: one record, no duplicate status change?
+- Demo Control reset while a dealer page, an Ops page or a customer phone is open on an application: what does each one show?
+- Is any Myinfo data other than the NRIC comparison readable in plain text in the database or the logs?
 
 ---
 
