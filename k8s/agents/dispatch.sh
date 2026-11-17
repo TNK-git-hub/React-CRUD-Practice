@@ -2,7 +2,7 @@
 # Giao MỘT task cho một agent chạy headless trong pod (kind cluster), đợi xong, in kết quả.
 #
 # Usage (từ gốc repo):
-#   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base level-3]
+#   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base <branch>]
 #                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--no-private] [--dry-run]
 #
 #   <job-id>     chữ thường, số, dấu "-" (vd: search-btn-yellow). Branch sẽ là agent/<job-id>-<timestamp>.
@@ -13,7 +13,7 @@
 #   --tasks      chỉ làm các task này trong tasks.md (mặc định: mọi task). Scenario của chúng phải có test.
 #   --mode       full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
 #                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
-#   --base       branch để clone và mở PR vào (mặc định: level-3). Phải đã push lên origin.
+#   --base       branch để clone và mở PR vào (mặc định: dòng "Base branch" của CLAUDE.md). Phải đã push lên origin.
 #   --no-wait    tạo Job rồi thoát ngay, không theo dõi log.
 #   --no-private không chạy hidden test (test/private, chỉ có trên máy này) trên branch của PR.
 #   --dry-run    chỉ kiểm tra đầu vào và in manifest, KHÔNG tạo gì trong cluster.
@@ -28,7 +28,7 @@ fail() { echo "RESULT: FAILED reason=$*"; exit 1; }
 
 [[ $# -ge 2 ]] || usage
 JOB_ID="$1"; TASK_FILE="$2"; shift 2
-TITLE=""; BASE="level-3"; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""
+TITLE=""; BASE=""; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
@@ -45,6 +45,13 @@ done
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIR="$ROOT/k8s/agents"
+
+# Base branch mặc định: dòng "- Base branch: `<tên>`" trong mục Branches của CLAUDE.md (không viết cứng ở đây); --base ghi đè.
+if [[ -z "$BASE" ]]; then
+  BASE="$(sed -nE 's/^- Base branch: `([^`]+)`.*/\1/p' "$ROOT/CLAUDE.md" 2>/dev/null || true)"
+  [[ -n "$BASE" ]] || fail "no base branch: CLAUDE.md has no line '- Base branch: \`<name>\`' (or pass --base)"
+  [[ "$BASE" != *$'\n'* ]] || fail "CLAUDE.md has more than one '- Base branch:' line"
+fi
 
 # --- kiểm tra đầu vào ---
 [[ "$JOB_ID" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || fail "invalid job-id '$JOB_ID' (a-z, 0-9, '-', max 42 chars)"

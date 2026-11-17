@@ -14,7 +14,7 @@
 # MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
 #
 # Spec (tùy chọn, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): task được nối thêm mục "## Spec" trỏ tới
-# specs/changes/<change>/ (cấu trúc của spec harness nhánh new-project, xem specs/changes/.gitkeep). Agent CODE đọc
+# specs/changes/<change>/ (cấu trúc: specs/changes/.gitkeep). Agent CODE đọc
 # spec.md + plan.md + tasks.md, agent TEST đọc scenario + edge case + Test Strategy. Thêm 2 gate:
 #   - không ai được sửa specs/ (checksum, kể cả file spec chưa commit được gửi qua ConfigMap)
 #   - mỗi scenario ID của các task được giao phải có test mang tên bắt đầu bằng ID đó (chặn duyệt ở REVIEW)

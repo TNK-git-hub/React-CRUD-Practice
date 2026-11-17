@@ -11,7 +11,7 @@ Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.
 
 ## 0. Kiểm tra trước (dừng và báo người dùng nếu fail)
 - `kubectl get nodes` chạy được (cluster kind đang bật).
-- Branch base (mặc định `level-3`) đã push và không có commit local chưa push — pod clone từ origin.
+- Branch base (dòng "Base branch" của `CLAUDE.md`, hoặc `--base`) đã push và không có commit local chưa push — pod clone từ origin.
 - Hỏi người dùng xác nhận danh sách task trước khi dispatch: mỗi lần chạy tốn quota subscription và mở PR thật.
 
 ## 1. Chia việc

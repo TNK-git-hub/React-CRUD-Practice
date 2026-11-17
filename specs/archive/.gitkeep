@@ -1,4 +1,4 @@
-# specs/archive/ — CHANGE ĐÃ XONG VÀ ĐÃ GỘP VÀO capabilities/ (lấy theo khung spec harness của nhánh new-project)
+# specs/archive/ — CHANGE ĐÃ XONG VÀ ĐÃ GỘP VÀO capabilities/
 #
 # Chỉ /spec-archive được ghi vào đây: nó chuyển nguyên specs/changes/NNN-<feature>/ sang, giữ tên cũ (không
 # thêm ngày), và đặt `status: archived` trong frontmatter của spec.md. Không bao giờ ghi đè thư mục đã có.

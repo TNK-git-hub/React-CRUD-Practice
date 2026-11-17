@@ -1,4 +1,4 @@
-# .claude/CLAUDE.md — SPEC harness (ported from branch `new-project`)
+# .claude/CLAUDE.md — SPEC harness
 
 Spec harness following Spec-Driven Development (Spec Kit, level 4), bound to this app (pnpm monorepo `frontend/` + `backend/`).
 This is the **SPEC harness**: it goes from requirement documents to an approved spec, plan and tasks, then hands off
@@ -12,7 +12,7 @@ Where this file and the root `CLAUDE.md` disagree on code, tests, CI or git, the
 ## Branches
 
 - Base branch and PR target: the branch named in section "Branches" of the root `CLAUDE.md` ("the base branch" below and
-  in every skill / agent of this harness); never `new-project` or `main` unless that line names it.
+  in every skill / agent of this harness); never `main` or any other branch unless that line names it.
 - Feature change: branch `NNN-<name>`, created automatically by `/speckit-specify`. Never name a branch `NNN-...` for anything else.
 
 ## Domains, features, changes
@@ -183,7 +183,7 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 
 ## Harness status
 
-Ported from branch `new-project` (harness PRs #25–#40). If a skill or file mentioned above does not exist yet, tell the user; do not create it in its place.
+Harness skeleton without an app yet (branch `harness-base`; its first commit records where it was copied from). If a skill or file mentioned above does not exist yet, tell the user; do not create it in its place.
 
 This harness deliberately has no `speckit-implement`, `speckit-converge` or `speckit-taskstoissues` skill and no
 `implementer` agent. Upgrading Spec Kit (`specify init` / `specify integration` …) can regenerate those skills: delete

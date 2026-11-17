@@ -151,7 +151,7 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
     if (agent === "main" || agent === "code-writer") ask(`${who} muốn sửa file harness ${r}.`);
     block(`${who} không được sửa file harness ${r}.`);
   }
-  // Spec harness (từ nhánh new-project): spec-writer / planner chỉ ghi spec của change đang làm.
+  // Spec harness: spec-writer / planner chỉ ghi spec của change đang làm.
   // Hook allow_paths.py trong frontmatter của chúng siết thêm (vd planner chỉ được Edit vài mục của spec.md).
   if ((agent === "spec-writer" || agent === "planner") && SPEC_WRITABLE.test(r)) allow();
   if (agent === "spec-writer" && SPEC_SYSTEM_APPEND.test(r)) allow();

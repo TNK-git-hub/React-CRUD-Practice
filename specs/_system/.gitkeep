@@ -1,4 +1,4 @@
-# specs/_system/ — KIẾN THỨC CHUNG CỦA APP (lấy theo khung spec harness của nhánh new-project)
+# specs/_system/ — KIẾN THỨC CHUNG CỦA APP
 #
 # /spec-bootstrap tạo 5 file đầu một lần khi bắt đầu app, từ tài liệu trong docs/requirements/.
 #

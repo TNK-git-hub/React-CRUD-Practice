@@ -7,12 +7,12 @@ mỗi lần giao là một file markdown, truyền vào lúc chạy.
 Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) → tasks/<id>.md
   → dispatch.sh <id> tasks/<id>.md|- --title "..." [--mode full|code-only] [--change NNN-<feature> [--tasks T001,...]]
                                                        (chạy song song được; --change: làm theo spec, xem "Làm theo spec")
-      pod: clone level-3 → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
+      pod: clone base branch (CLAUDE.md, mục Branches) → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
         1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
         2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
         3. GREEN   code-writer → gate: chỉ đổi src, không dò môi trường test, pnpm ci:local (≤2 vòng sửa) → commit
         4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic → cần sửa thì quay lại 2/3 (≤2 vòng)
-        5. PR      push → PR vào level-3 (review không qua: PR draft + RESULT FAILED)
+        5. PR      push → PR vào base branch (review không qua: PR draft + RESULT FAILED)
       (mode code-only: chỉ bước 3 rồi 5)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
   → dispatch.sh chạy hidden test (test/private, chỉ có trên máy này) trên branch PR → "PRIVATE: PASS|FAIL|SKIPPED"
@@ -77,11 +77,11 @@ bash k8s/agents/watch-pr.sh <pr-number>
 ```
 
 ### Làm theo spec (`--change`)
-Spec do spec harness (nhánh `new-project`) viết, đặt ở `specs/changes/NNN-<feature>/` (cấu trúc: `specs/changes/.gitkeep`).
+Spec do spec harness (`.claude/CLAUDE.md`) viết, đặt ở `specs/changes/NNN-<feature>/` (cấu trúc: `specs/changes/.gitkeep`).
 ```bash
 # task sinh từ spec ("-"), chỉ làm T002 và T003 của tasks.md
 bash k8s/agents/dispatch.sh price-range-be - --title "Add price range filter" \
-  --change 001-products-price-range --tasks T002,T003 --base refine-test-code-ci-cd --dry-run
+  --change 001-products-price-range --tasks T002,T003 --dry-run
 # hoặc file task viết tay + mục "## Spec" do run.sh nối thêm
 bash k8s/agents/dispatch.sh price-range-be k8s/agents/tasks/price-range-be.md --title "..." --change 001-products-price-range
 ```

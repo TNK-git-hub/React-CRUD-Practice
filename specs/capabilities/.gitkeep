@@ -1,4 +1,4 @@
-# specs/capabilities/ — LIVING SPEC: hệ thống ĐANG làm gì (lấy theo khung spec harness của nhánh new-project)
+# specs/capabilities/ — LIVING SPEC: hệ thống ĐANG làm gì
 #
 # Mỗi domain một thư mục, tên khớp bảng mã domain (Code | Domain) trong CLAUDE.md. /spec-bootstrap tạo các
 # thư mục này; sau đó chỉ /spec-archive được sửa. Không bao giờ chứa chữ ADDED/MODIFIED/REMOVED/RENAMED.
