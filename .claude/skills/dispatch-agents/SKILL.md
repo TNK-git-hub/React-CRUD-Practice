@@ -12,6 +12,8 @@ Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.
 ## 0. Kiểm tra trước (dừng và báo người dùng nếu fail)
 - `kubectl get nodes` chạy được (cluster kind đang bật).
 - Branch base (dòng "Base branch" của `CLAUDE.md`, hoặc `--base`) đã push và không có commit local chưa push — pod clone từ origin.
+- **Không tự truyền `--base`**: `dispatch.sh` tự đọc base branch từ dòng "Base branch" của `CLAUDE.md`. Chỉ truyền `--base`
+  khi người dùng yêu cầu rõ; khi đó `dispatch.sh` in `WARNING: --base ... differs ...` nếu khác `CLAUDE.md`, báo lại dòng này cho người dùng.
 - Hỏi người dùng xác nhận danh sách task trước khi dispatch: mỗi lần chạy tốn quota subscription và mở PR thật.
 
 ## 1. Chia việc

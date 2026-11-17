@@ -46,11 +46,15 @@ done
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIR="$ROOT/k8s/agents"
 
-# Base branch mặc định: dòng "- Base branch: `<tên>`" trong mục Branches của CLAUDE.md (không viết cứng ở đây); --base ghi đè.
+# Base branch mặc định: dòng "- Base branch: `<tên>`" trong mục Branches của CLAUDE.md (không viết cứng ở đây).
+# --base ghi đè, nhưng in WARNING khi khác CLAUDE.md (PR sẽ vào branch khác branch mà spec harness dùng).
+CLAUDE_BASE="$(sed -nE 's/^- Base branch: `([^`]+)`.*/\1/p' "$ROOT/CLAUDE.md" 2>/dev/null || true)"
+[[ "$CLAUDE_BASE" != *$'\n'* ]] || fail "CLAUDE.md has more than one '- Base branch:' line"
 if [[ -z "$BASE" ]]; then
-  BASE="$(sed -nE 's/^- Base branch: `([^`]+)`.*/\1/p' "$ROOT/CLAUDE.md" 2>/dev/null || true)"
-  [[ -n "$BASE" ]] || fail "no base branch: CLAUDE.md has no line '- Base branch: \`<name>\`' (or pass --base)"
-  [[ "$BASE" != *$'\n'* ]] || fail "CLAUDE.md has more than one '- Base branch:' line"
+  [[ -n "$CLAUDE_BASE" ]] || fail "no base branch: CLAUDE.md has no line '- Base branch: \`<name>\`' (or pass --base)"
+  BASE="$CLAUDE_BASE"
+elif [[ "$BASE" != "$CLAUDE_BASE" ]]; then
+  echo "WARNING: --base '$BASE' differs from the Base branch in CLAUDE.md ('${CLAUDE_BASE:-<none>}'): the pod clones '$BASE' and opens the PR into '$BASE'."
 fi
 
 # --- kiểm tra đầu vào ---
