@@ -11,6 +11,7 @@ interface Session {
 }
 
 export class MockGateway implements MyinfoGateway {
+  readonly name = "simulated" as const;
   private sessions = new Map<string, Session>();
 
   async getToken(): Promise<GatewayToken> {

@@ -279,9 +279,10 @@ function dealerApply() {
   });
   document.getElementById("sample").addEventListener("click", () => {
     const email = d.hirer.email || "";
-    d.hirer = { name: "HENG SHI ZHENG", nric: "F4440488P", email, mobile: "9123 4567" };
+    const sp = state.config.samples;
+    d.hirer = { name: sp.hirer.name, nric: sp.hirer.nric, email, mobile: "9123 4567" };
     d.guarantorOn = true;
-    d.guarantor = { name: "RAJESH KUMAR S/O MURUGAN", nric: "G4440425M", email: d.guarantor.email || email, mobile: "9876 5432" };
+    d.guarantor = { name: sp.guarantor.name, nric: sp.guarantor.nric, email: d.guarantor.email || email, mobile: "9876 5432" };
     d.ltaCode = "A7K29Q";
     saveDraft();
     dealerApply();
@@ -688,6 +689,10 @@ function invalidScreen() {
 }
 
 async function customerFlow(token) {
+  const q = new URLSearchParams(location.search);
+  const step = q.get("step");
+  if (step === "declined") return declinedScreen();
+  if (step === "done") return doneScreen(q.get("ref") || "");
   const info = await api("GET", `/api/v/${token}`);
   if (!info.valid) return invalidScreen();
   const ctx = { token, info, person: null, tab: "app" };
@@ -708,7 +713,15 @@ async function customerFlow(token) {
     </div></div></div>`;
     document.getElementById("go").addEventListener("click", async (e) => {
       e.target.disabled = true;
-      try { await api("POST", `/api/v/${token}/start`); login(); } catch (err) { fail(err); e.target.disabled = false; }
+      try {
+        const r = await api("POST", `/api/v/${token}/start`);
+        if (r.external) {
+          e.target.textContent = "Opening Singpass…";
+          location.href = r.loginUrl; // MockPass Myinfo login + consent, then back to /myinfo-callback
+          return;
+        }
+        login();
+      } catch (err) { fail(err); e.target.disabled = false; }
     });
   };
 
@@ -760,7 +773,7 @@ async function customerFlow(token) {
     </div></div>`;
     document.getElementById("agree").addEventListener("click", () => (info.showReview ? review() : submit()));
     document.getElementById("cancel").addEventListener("click", async () => {
-      try { await api("POST", `/api/v/${token}/decline`); declined(); } catch (e) { fail(e); }
+      try { await api("POST", `/api/v/${token}/decline`); declinedScreen(); } catch (e) { fail(e); }
     });
   };
 
@@ -788,30 +801,48 @@ async function customerFlow(token) {
   const submit = async () => {
     const b = document.getElementById("submit") || document.getElementById("agree");
     if (b) { b.disabled = true; b.textContent = "Submitting…"; }
-    try { await api("POST", `/api/v/${token}/submit`); done(); } catch (e) { fail(e); }
+    try {
+      await api("POST", `/api/v/${token}/submit`);
+      history.replaceState({}, "", `/v/${token}?step=done&ref=${encodeURIComponent(info.ref)}`);
+      doneScreen(info.ref);
+    } catch (e) { fail(e); }
   };
 
-  // Screen 8b — done (no redirect back to the portal)
-  const done = () => {
-    $app.innerHTML = `<div class="phone">${simbar.replace("var(--sp-bar)", "#3A3A44")}
-      <div style="flex:1;padding:32px 24px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;justify-content:center">
-        <div class="okcircle" style="width:80px;height:80px"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
-        <h1 style="font-size:24px">Details shared</h1>
-        <p class="para" style="font-size:15px;max-width:300px">Your MyInfo details were sent to ValueMax AutoFinance for application ${esc(info.ref)}. You can close this page.</p>
-        <p class="small muted" style="margin:0;max-width:300px">Your dealer will contact you about the next step.</p>
-      </div>
-      <div class="foot">The gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
-    </div>`;
-  };
-
-  const declined = () => {
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
-      <h1>You cancelled</h1>
-      <p style="margin:0;color:var(--sp-2)">No details were shared with ValueMax AutoFinance. To continue your application, ask your dealer to send a new link.</p>
-    </div></div>`;
-  };
-
+  if (step === "review") {
+    try {
+      const r = await api("GET", `/api/v/${token}/review`);
+      ctx.person = r.person;
+      return review();
+    } catch (e) { return fail(e); }
+  }
+  if (step === "error") {
+    $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
+      <h1 style="color:var(--red)">Could not retrieve your Myinfo</h1>
+      <p class="para">${esc(q.get("msg") || "Please try again.")}</p>
+      <a class="pbtn" href="/v/${esc(token)}">Try again</a></div></div></div>`;
+    return;
+  }
   check();
+}
+
+// Screen 8b — done (no redirect back to the portal)
+function doneScreen(ref) {
+  $app.innerHTML = `<div class="phone">${simbar.replace("var(--sp-bar)", "#3A3A44")}
+    <div style="flex:1;padding:32px 24px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;justify-content:center">
+      <div class="okcircle" style="width:80px;height:80px"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
+      <h1 style="font-size:24px">Details shared</h1>
+      <p class="para" style="font-size:15px;max-width:300px">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application ${esc(ref)}` : ""}. You can close this page.</p>
+      <p class="small muted" style="margin:0;max-width:300px">Your dealer will contact you about the next step.</p>
+    </div>
+    <div class="foot">The gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
+  </div>`;
+}
+
+function declinedScreen() {
+  $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
+    <h1>You cancelled</h1>
+    <p style="margin:0;color:var(--sp-2)">No details were shared with ValueMax AutoFinance. To continue your application, ask your dealer to send a new link.</p>
+  </div></div>`;
 }
 
 // ---------------- boot ----------------

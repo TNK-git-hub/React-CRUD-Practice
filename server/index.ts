@@ -6,7 +6,12 @@ import { networkInterfaces } from "node:os";
 import { extname, join, normalize, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { decrypt, encrypt, loadKey } from "./crypto.ts";
+import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { request as httpRequest } from "node:http";
 import { MockGateway } from "./gateway/mock.ts";
+import { MockPassGateway } from "./gateway/mockpass.ts";
+import type { MyinfoGateway } from "./gateway/types.ts";
 import { sendSingpassEmail } from "./mail.ts";
 import { isValidNric, maskNric } from "./nric.ts";
 import { PERSONAS, personaFor } from "./personas.ts";
@@ -45,7 +50,68 @@ function lanAddress(): string | null {
 const BASE_URL = (process.env.PUBLIC_BASE_URL || `http://${lanAddress() ?? "localhost"}:${PORT}`).replace(/\/$/, "");
 
 const store = new Store({ file: join(ROOT, "data", "db.json"), ttlHours: TTL_HOURS });
-const gateway = new MockGateway();
+
+// ---------- gateway: "mockpass" (MockPass Myinfo v3) or "simulated" (built-in screens) ----------
+const GATEWAY = process.env.GATEWAY === "simulated" ? "simulated" : "mockpass";
+const MOCKPASS_PORT = Number(process.env.MOCKPASS_PORT || 5156);
+const MOCKPASS_INTERNAL = (process.env.MOCKPASS_URL || `http://127.0.0.1:${MOCKPASS_PORT}`).replace(/\/$/, "");
+const MOCKPASS_DIR = join(ROOT, "node_modules", "@opengovsg", "mockpass");
+const MOCKPASS_PREFIXES = ["/myinfo/v3/", "/singpass/", "/consent/", "/mockpass/"];
+const simulated = new MockGateway();
+const mockpass =
+  GATEWAY === "mockpass"
+    ? new MockPassGateway({
+        internalUrl: MOCKPASS_INTERNAL,
+        publicUrl: BASE_URL, // MockPass is proxied through this app (see MOCKPASS_PREFIXES)
+        appBaseUrl: BASE_URL,
+        clientId: process.env.MYINFO_CLIENT_ID || "VMAF-AUTOFIN-DEMO",
+        mockpassDir: MOCKPASS_DIR,
+      })
+    : null;
+const gateway: MyinfoGateway = mockpass ?? simulated;
+
+let mockpassChild: ChildProcess | null = null;
+async function startMockPass(): Promise<void> {
+  if (GATEWAY !== "mockpass" || process.env.MOCKPASS_AUTOSTART === "false") return;
+  try {
+    await fetch(`${MOCKPASS_INTERNAL}/mockpass/resources/img/favicon.ico`);
+    console.log(`[mockpass] already running at ${MOCKPASS_INTERNAL}`);
+    return;
+  } catch {
+    // not running yet
+  }
+  // cwd = MockPass dir, so its dotenv does not read this app's .env
+  mockpassChild = spawn(process.execPath, ["index.js"], {
+    cwd: MOCKPASS_DIR,
+    env: { PATH: process.env.PATH ?? "", MOCKPASS_PORT: String(MOCKPASS_PORT), SHOW_LOGIN_PAGE: "true", ENCRYPT_MYINFO: "false", MOCKPASS_STATELESS: "false" },
+    stdio: ["ignore", "ignore", "inherit"],
+  });
+  mockpassChild.on("exit", (code) => code && console.error(`[mockpass] exited with code ${code}`));
+  console.log(`[mockpass] started on port ${MOCKPASS_PORT}`);
+}
+for (const sig of ["SIGINT", "SIGTERM"] as const)
+  process.on(sig, () => {
+    mockpassChild?.kill();
+    process.exit(0);
+  });
+process.on("exit", () => mockpassChild?.kill());
+
+/** Forward MockPass paths so the phone reaches MockPass through this app's single URL (LAN or tunnel). */
+function proxyToMockPass(req: IncomingMessage, res: ServerResponse): void {
+  const target = new URL(req.url ?? "/", MOCKPASS_INTERNAL);
+  const up = httpRequest(
+    target,
+    { method: req.method, headers: { ...req.headers, host: target.host, "x-forwarded-host": req.headers.host ?? "" } },
+    (r) => {
+      res.writeHead(r.statusCode ?? 502, r.headers);
+      r.pipe(res);
+    },
+  );
+  up.on("error", () => {
+    if (!res.headersSent) send(res, 502, { error: "MockPass is not running (npm run dev starts it)" });
+  });
+  req.pipe(up);
+}
 const sessions = new Map<string, string>(); // sid -> userId
 
 // ---------- realtime (SSE) ----------
@@ -186,7 +252,18 @@ const route = (method: string, pattern: string, h: Handler) =>
   routes.push([method, new RegExp(`^${pattern.replace(/:[a-z]+/g, "([^/]+)")}$`), h]);
 
 route("GET", "/api/config", async (_req, res) => {
-  send(res, 200, { baseUrl: BASE_URL, ttlHours: TTL_HOURS, showReview: SHOW_REVIEW, smtp: Boolean(process.env.SMTP_HOST) });
+  send(res, 200, {
+    baseUrl: BASE_URL,
+    ttlHours: TTL_HOURS,
+    showReview: SHOW_REVIEW,
+    smtp: Boolean(process.env.SMTP_HOST),
+    gateway: gateway.name,
+    // personas the customer can pick on the login page, used by the dealer's "Fill sample"
+    samples:
+      gateway === simulated
+        ? { hirer: { name: "HENG SHI ZHENG", nric: "F4440488P" }, guarantor: { name: "RAJESH KUMAR S/O MURUGAN", nric: "G4440425M" } }
+        : { hirer: { name: "LIM YONG XIANG", nric: "S9812379B" }, guarantor: { name: "TAN CHONG HO", nric: "S9812351B" } },
+  });
 });
 
 route("GET", "/api/users", async (_req, res) => send(res, 200, USERS));
@@ -272,7 +349,7 @@ function linkInfo(token: string) {
     maskedNric: maskNric(c.party.nric),
     expiresAt: c.link.expiresAt,
     showReview: SHOW_REVIEW,
-    gatewayLinkId: c.link.gatewayLinkId ?? null,
+    gateway: gateway.name,
   };
 }
 
@@ -292,34 +369,41 @@ route("POST", "/api/v/:token/start", async (_req, res, [token]) => {
   const t = await gateway.getToken();
   const link = await gateway.getLinkId(t, { applicationRef: c.app.ref, role: c.party.role });
   store.setGatewayLinkId(token ?? "", link.linkId);
-  send(res, 200, { linkId: link.linkId });
+  send(res, 200, { linkId: link.linkId, loginUrl: link.loginUrl, external: /^https?:/.test(link.loginUrl) });
 });
 
+// Simulated gateway only: the built-in "Singpass" login screen
 route("POST", "/api/v/:token/login", async (req, res, [token]) => {
   const c = requireValidLink(token ?? "");
+  if (gateway !== simulated) throw new AppError(409, "Log in through MockPass");
   const { uinfin } = await readJson<{ uinfin?: string }>(req);
   if (!uinfin || !isValidNric(uinfin)) throw new AppError(400, "Enter a valid test NRIC / FIN");
   if (!c.link.gatewayLinkId) throw new AppError(409, "Start from the link page");
-  gateway.simulateLogin(c.link.gatewayLinkId, uinfin);
+  simulated.simulateLogin(c.link.gatewayLinkId, uinfin);
   send(res, 200, { person: personaFor(uinfin) });
+});
+
+// Data the customer reviews before "Submit Application" (5_review-and-submit.png)
+route("GET", "/api/v/:token/review", async (_req, res, [token]) => {
+  const c = requireValidLink(token ?? "");
+  const linkId = c.link.gatewayLinkId;
+  if (!linkId) throw new AppError(409, "Start from the link page");
+  const r = await gateway.getPerson(await gateway.getToken(), linkId);
+  if (r.kind !== "ok") throw new AppError(409, "No Myinfo data yet: log in with Singpass and press Allow first");
+  send(res, 200, { person: r.person, ref: c.app.ref, role: c.party.role });
 });
 
 async function finish(token: string, outcome: "agreed" | "declined") {
   const c = requireValidLink(token);
   const linkId = c.link.gatewayLinkId;
   if (!linkId) throw new AppError(409, "Start from the link page");
-  gateway.simulateConsent(linkId, outcome);
-  const t = await gateway.getToken();
-  const r = await gateway.getPerson(t, linkId); // person/autofin/{LinkId}
+  if (gateway === simulated) simulated.simulateConsent(linkId, outcome);
+  const r = outcome === "declined" ? { kind: "declined" as const } : await gateway.getPerson(await gateway.getToken(), linkId); // person/autofin/{LinkId}
   const now = Date.now();
-  const status =
-    r.kind === "ok"
-      ? store.attachResult(token, { kind: "ok", uinfin: r.person.uinfin, sealed: encrypt(key, r.person) }, now)
-      : r.kind === "declined"
-        ? store.attachResult(token, { kind: "declined" }, now)
-        : (() => {
-            throw new AppError(409, "Log in with Singpass first");
-          })();
+  let status;
+  if (r.kind === "ok") status = store.attachResult(token, { kind: "ok", uinfin: r.person.uinfin, sealed: encrypt(key, r.person) }, now);
+  else if (r.kind === "declined") status = store.attachResult(token, { kind: "declined" }, now);
+  else throw new AppError(409, "Log in with Singpass first");
   changed(c.app.ref);
   return { status, ref: c.app.ref };
 }
@@ -336,6 +420,33 @@ route("POST", "/api/v/:token/submit", async (_req, res, [token]) => {
 
 route("POST", "/api/v/:token/decline", async (_req, res, [token]) => send(res, 200, await finish(token ?? "", "declined")));
 
+/** OAuth redirect back from MockPass (Myinfo v3): fetch the person, then show the review screen. */
+async function myinfoCallback(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+  const redirect = (to: string) => {
+    res.writeHead(302, { location: to });
+    res.end();
+  };
+  const found = store.findByGatewayLinkId(url.searchParams.get("state") ?? "");
+  if (!found || !gateway.handleCallback) return redirect("/v/invalid");
+  const token = found.link.token;
+  try {
+    const { outcome } = await gateway.handleCallback(url.searchParams);
+    if (outcome === "declined") {
+      await finish(token, "declined");
+      return redirect(`/v/${token}?step=declined`);
+    }
+    if (!SHOW_REVIEW) {
+      await finish(token, "agreed");
+      return redirect(`/v/${token}?step=done&ref=${encodeURIComponent(found.app.ref)}`);
+    }
+    return redirect(`/v/${token}?step=review`);
+  } catch (e) {
+    console.error("[myinfo-callback]", e);
+    if (e instanceof AppError && e.status === 410) return redirect(`/v/${token}`);
+    return redirect(`/v/${token}?step=error&msg=${encodeURIComponent(e instanceof Error ? e.message : "Myinfo error")}`);
+  }
+}
+
 // ---- Demo Control (D-05: any signed-in user) ----
 route("GET", "/api/demo/outbox", async (req, res) => {
   requireUser(req);
@@ -346,6 +457,7 @@ route("POST", "/api/demo/reset", async (req, res) => {
   requireUser(req);
   store.reset();
   gateway.reset();
+  simulated.reset();
   broadcast("application", { ref: null });
   broadcast("outbox", {});
   send(res, 200, { ok: true });
@@ -392,6 +504,8 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
   try {
+    if (GATEWAY === "mockpass" && MOCKPASS_PREFIXES.some((p) => url.pathname.startsWith(p))) return proxyToMockPass(req, res);
+    if (url.pathname === "/myinfo-callback" && req.method === "GET") return await myinfoCallback(req, res, url);
     if (url.pathname.startsWith("/api/")) {
       for (const [method, re, h] of routes) {
         const m = re.exec(url.pathname);
@@ -409,10 +523,12 @@ const server = createServer(async (req, res) => {
   }
 });
 
+await startMockPass();
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`\nValueMax Singpass demo running`);
   console.log(`  Laptop:      http://localhost:${PORT}`);
   console.log(`  Phone links: ${BASE_URL}  (PUBLIC_BASE_URL)`);
   console.log(`  Demo Control: http://localhost:${PORT}/demo`);
+  console.log(`  Gateway:     ${GATEWAY === "mockpass" ? `MockPass (Myinfo v3) on :${MOCKPASS_PORT}, proxied via ${BASE_URL}` : "built-in simulated screens"}`);
   console.log(`  Email: ${process.env.SMTP_HOST ? `SMTP ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}` : "SMTP not configured — links printed below"}\n`);
 });

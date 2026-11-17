@@ -270,6 +270,14 @@ export class Store {
     return null;
   }
 
+  findByGatewayLinkId(linkId: string): { app: Application; party: Party; link: Link } | null {
+    if (!linkId) return null;
+    for (const app of this.state.applications)
+      for (const party of app.parties)
+        for (const link of party.links) if (link.gatewayLinkId === linkId) return { app, party, link };
+    return null;
+  }
+
   /** Link check (screen 5): valid only if it is the latest link of the person and still pending. */
   checkLink(token: string, now: number) {
     const found = this.findByToken(token);

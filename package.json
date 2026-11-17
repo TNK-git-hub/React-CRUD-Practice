@@ -4,7 +4,9 @@
   "private": true,
   "description": "Dealer Portal – Singpass Myinfo Auto Verify demo for ValueMax AutoFinance",
   "type": "module",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "setup": "node scripts/setup.ts",
     "dev": "node scripts/setup.ts && node --env-file=.env --watch server/index.ts",
@@ -13,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@opengovsg/mockpass": "4.10.1",
     "nodemailer": "^6.9.16"
   },
   "devDependencies": {
