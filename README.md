@@ -65,16 +65,18 @@ Test personas: `F4440488P`, `F4440489M`, `G4440425M`, `G4440427W`, `G4440430W`,
 ## Structure
 
 ```
-server/index.ts         HTTP API, SSE (/api/events), static files, sessions
-server/store.ts         domain rules: links (72 h, 1 active per person), outcomes, IPA / AA lock, seed / reset
-server/gateway/         adapter.ts (issueLink / fetchPerson / GatewayUnavailable), simulated.ts (simulated gateway +
-                        MockGatewayAdapter), valuemax.ts (stub for the real gateway)
-server/nric.ts          NRIC / FIN checksum, mobile, email checks
-server/crypto.ts        AES-256-GCM for stored Myinfo data
-server/mail.ts          email (nodemailer)
-public/                 frontend (vanilla JS SPA): dealer, Ops, customer phone screens, Demo Control
-tests/rules.test.ts     NRIC validation, link expiry / supersede, NRIC comparison, AA lock
-data/db.json            demo data (git-ignored); Demo Control → Reset deletes it all
+server/index.ts              entry point: environment → runtime
+server/runtime.ts            HTTP API, SSE (/api/events), auto-verify job timer, Demo Control, static files
+server/verification/         service.ts (links, job, Retrieve MyInfo, resend), model.ts, db.ts (JSON file), users.ts
+server/gateway/              adapter.ts (issueLink / fetchPerson / GatewayUnavailable), simulated.ts (simulated
+                             gateway + MockGatewayAdapter), valuemax.ts (stub for the real gateway)
+server/views.ts              what dealer / Ops screens receive (labels D-25, D-38)
+server/nric.ts, crypto.ts    NRIC / FIN checks and masking; AES-256-GCM for stored Myinfo data
+server/mail.ts               email template + SMTP sender
+public/                      frontend (vanilla JS SPA): dealer, Ops, portal /verify/<token>, gateway /gateway/<LinkId>,
+                             Demo Control
+tests/                       SC-xx scenario tests (service + HTTP), validation tests
+data/db.json                 demo data (git-ignored); Demo Control → Reset deletes it all
 ```
 
 Decisions behind the rules: `docs/requirements/decisions.md` (D-01 … D-32).

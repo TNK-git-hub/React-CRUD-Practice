@@ -1,7 +1,8 @@
-// Email of screen 4. SMTP from .env; without SMTP_HOST the email is only logged (link printed) and kept in the outbox.
+// Email of screen 4 (template) and the SMTP sender.
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { formatSgt } from "./time.ts";
+import type { EmailSender } from "./verification/service.ts";
 
 export interface SingpassEmail {
   to: string;
@@ -12,20 +13,6 @@ export interface SingpassEmail {
   url: string;
   expiresAt: number;
   ttlHours: number;
-}
-
-let transporter: Transporter | null = null;
-
-function getTransport(): Transporter | null {
-  const host = process.env.SMTP_HOST;
-  if (!host) return null;
-  transporter ??= nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === "true",
-    ...(process.env.SMTP_USER ? { auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS ?? "" } } : {}),
-  });
-  return transporter;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -48,17 +35,32 @@ export function renderEmail(m: SingpassEmail): { subject: string; html: string; 
   return { subject, html, text };
 }
 
-export async function sendSingpassEmail(m: SingpassEmail): Promise<{ delivered: boolean; error?: string }> {
-  const { subject, html, text } = renderEmail(m);
-  console.log(`[mail] ${m.role} ${m.ref} → ${m.to}\n       ${m.url}`);
-  const t = getTransport();
-  if (!t) return { delivered: false, error: "SMTP not configured (link printed to the log)" };
-  try {
-    await t.sendMail({ from: process.env.MAIL_FROM || "ValueMax AutoFinance (Demo) <no-reply@example.com>", to: m.to, subject, html, text });
-    return { delivered: true };
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    console.error(`[mail] failed: ${error}`);
-    return { delivered: false, error };
+/** SMTP from the environment; without SMTP_HOST the email is only logged (with its link) and kept in the outbox. */
+export function createEmailSender(env: Record<string, string | undefined>): EmailSender {
+  const host = env.SMTP_HOST;
+  let transporter: Transporter | null = null;
+  if (host) {
+    transporter = nodemailer.createTransport({
+      host,
+      port: Number(env.SMTP_PORT || 587),
+      secure: env.SMTP_SECURE === "true",
+      ...(env.SMTP_USER ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS ?? "" } } : {}),
+    });
   }
+  const from = env.MAIL_FROM || "ValueMax AutoFinance (Demo) <no-reply@example.com>";
+  return {
+    async send(m) {
+      const link = /https?:\/\/\S+/.exec(m.text)?.[0] ?? "";
+      console.log(`[mail] → ${m.to}${transporter ? "" : ` (SMTP not configured) ${link}`}`);
+      if (!transporter) return { delivered: false };
+      try {
+        await transporter.sendMail({ from, to: m.to, subject: m.subject, html: m.html, text: m.text });
+        return { delivered: true };
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        console.error(`[mail] failed: ${error}`);
+        return { delivered: false, error };
+      }
+    },
+  };
 }

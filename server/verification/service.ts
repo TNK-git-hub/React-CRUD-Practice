@@ -7,6 +7,7 @@ import { GatewayUnavailable } from "../gateway/adapter.ts";
 import type { GatewayAdapter } from "../gateway/adapter.ts";
 import { renderEmail } from "../mail.ts";
 import { maskNric, normalizeNric, nricMatches } from "../nric.ts";
+import { personaFor } from "../personas.ts";
 import type { MyinfoPerson } from "../personas.ts";
 import type { Db } from "./db.ts";
 import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, isCurrent, validateParty } from "./model.ts";
@@ -439,6 +440,77 @@ export class VerificationService {
         this.polling.delete(link.id);
       }
     }
+  }
+
+  // ---------------------------------------------------------------- Demo Control
+
+  /** D-29: the rows of the Ops list design (VMAF-2026-05114 … 05119); existing refs are skipped. */
+  seedSamples(): number {
+    const now = this.clock.now();
+    const day = 24 * 3_600_000;
+    const at = (d: number) => now - d * day;
+    type Sample = { status: "FULFILLED" | "SENT" | "EXPIRED"; role: Role; name: string; nric: string; at: number };
+    const party = (ref: string, s: Sample): Party => {
+      const label = s.role === "hirer" ? "Hirer" : "Guarantor";
+      const sentAt = s.status === "SENT" ? now - 2 * 3_600_000 : s.at;
+      const link: VerificationLink = {
+        id: randomUUID(),
+        portalToken: randomBytes(24).toString("base64url"),
+        status: s.status,
+        reason: "submit",
+        createdAt: sentAt,
+        linkId: `LNK-SAMPLE-${randomBytes(4).toString("hex").toUpperCase()}`,
+        customerUrl: `${this.config.publicBaseUrl}/gateway/sample`,
+        sentAt,
+        expiresAt: sentAt + this.config.linkTtlMs,
+        ...(s.status === "FULFILLED" ? { closedAt: sentAt + 3 * 3_600_000 } : {}),
+        ...(s.status === "EXPIRED" ? { closedAt: sentAt + this.config.linkTtlMs, lateResultAt: sentAt } : {}),
+      };
+      return {
+        id: `${ref}-${label.toLowerCase()}`,
+        role: s.role,
+        label,
+        name: s.name,
+        nric: s.nric,
+        email: `${s.name.split(" ")[0]?.toLowerCase()}@example.com`,
+        mobile: "91234567",
+        triggerAt: sentAt,
+        resendsAt: [],
+        currentLinkId: link.id,
+        links: [link],
+        ...(s.status === "FULFILLED" ? { fulfilledAt: sentAt + 3 * 3_600_000, myinfoSealed: this.seal(personaFor(s.nric)) } : {}),
+      };
+    };
+    const rows: Array<{ ref: string; dealerId: string; by: [string, string]; created: number; plate: string; stage: Application["stage"]; ipaAt?: number; aaAt?: number; parties: Sample[] }> = [
+      { ref: "VMAF-2026-05114", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SKS6603L", stage: "Declined", parties: [{ status: "FULFILLED", role: "hirer", name: "CHUA MEI TING", nric: "S8935520F", at: at(15) }] },
+      { ref: "VMAF-2026-05115", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SNA7781B", stage: "AA", aaAt: at(13), parties: [{ status: "FULFILLED", role: "hirer", name: "LEE XIN YI", nric: "S9612083D", at: at(15) }, { status: "FULFILLED", role: "guarantor", name: "LEE KOK WAH", nric: "S6512274Z", at: at(15) }] },
+      { ref: "VMAF-2026-05116", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(14), plate: "SNB9902E", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "MUHAMMAD HAFIZ BIN ISMAIL", nric: "S9023316E", at: at(14) }] },
+      { ref: "VMAF-2026-05117", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(13), plate: "SLA4410K", stage: "IPA", ipaAt: at(12), parties: [{ status: "FULFILLED", role: "hirer", name: "TAN BEE LENG", nric: "S7834562A", at: at(13) }] },
+      { ref: "VMAF-2026-05118", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(12), plate: "SMB2290X", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "ONG CHEE KEONG", nric: "S8101234D", at: at(12) }, { status: "EXPIRED", role: "guarantor", name: "ONG SIEW LAN", nric: "S8302345B", at: at(12) }] },
+      { ref: "VMAF-2026-05119", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(11), plate: "SMF1187D", stage: "Submitted", parties: [{ status: "SENT", role: "hirer", name: "SITI AMINAH BINTE YUSOF", nric: "S8820147G", at: at(11) }] },
+    ];
+    let added = 0;
+    for (const r of rows) {
+      if (this.db.applications.some((a) => a.ref === r.ref)) continue;
+      this.db.applications.push({
+        ref: r.ref,
+        dealerId: r.dealerId,
+        createdById: r.by[0],
+        createdByName: r.by[1],
+        createdAt: r.created,
+        ltaCode: "DEMO01",
+        carPlate: r.plate,
+        stage: r.stage,
+        ...(r.ipaAt ? { ipaAt: r.ipaAt } : {}),
+        ...(r.aaAt ? { aaAt: r.aaAt } : {}),
+        parties: r.parties.map((p) => party(r.ref, p)),
+      });
+      added++;
+    }
+    this.db.applications.sort((a, b) => b.ref.localeCompare(a.ref));
+    this.db.save();
+    this.onChange(null);
+    return added;
   }
 
   // ---------------------------------------------------------------- audit

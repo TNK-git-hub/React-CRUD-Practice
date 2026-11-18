@@ -41,7 +41,6 @@ function hoursLeft(ms) {
   const h = Math.max(0, Math.ceil((ms - Date.now()) / 3_600_000));
   return `${h} h`;
 }
-const roleLabel = (r) => (r === "hirer" ? "Hirer" : "Guarantor");
 
 // NRIC / FIN check (same rules as server/nric.ts)
 function validNric(v) {
@@ -85,7 +84,7 @@ function connectEvents() {
     if (state.refresh) state.refresh(data);
   };
   es.addEventListener("application", onChange);
-  es.addEventListener("outbox", () => state.refresh && state.refresh({ outbox: true }));
+  es.addEventListener("demo", () => state.refresh && state.refresh({}));
 }
 
 // ---------------- router ----------------
@@ -107,7 +106,8 @@ async function render() {
   const path = location.pathname;
   let m;
   try {
-    if ((m = path.match(/^\/v\/([^/]+)$/))) return await customerFlow(m[1]);
+    if ((m = path.match(/^\/verify\/([^/]+)$/))) return await portalPage(m[1]);
+    if ((m = path.match(/^\/gateway\/([^/]+)$/))) return await gatewayFlow(decodeURIComponent(m[1]));
     if (!state.user) return signIn();
     if (path === "/" || path === "/login") return go(state.user.kind === "ops" ? "/ops" : "/dealer/apply");
     if (path === "/demo") return await demoPage();
@@ -361,7 +361,7 @@ async function dealerReceived(ref) {
       <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 1 ? "hirer and guarantor" : "hirer"}, and retrieving their vehicle documents via LTA.</p>
       <span class="pill">Application Ref: ${esc(app.ref)}</span>
       <div class="grid2" style="width:100%;max-width:560px;text-align:left">
-        ${app.parties.map((p) => `<div class="sumbox"><span class="muted small">${roleLabel(p.role)} · link sent</span><b style="font-size:14px">Expires ${fmt(p.expiresAt)}</b></div>`).join("")}
+        ${app.parties.map((p) => `<div class="sumbox"><span class="muted small">${esc(p.label)} · ${p.linkStatus === "QUEUED" ? "queued — sent automatically once the Singpass gateway is reachable" : "link sent"}</span><b style="font-size:14px">${p.expiresAt ? `Expires ${fmt(p.expiresAt)}` : "Expiry starts when the link is sent"}</b></div>`).join("")}
       </div>
       <p class="para" style="font-size:15px">Keep an eye on the <b>My Applications</b> page for updates — this application now shows as <b>Pending</b>.</p>
       <div class="row center">
@@ -377,8 +377,8 @@ async function dealerReceived(ref) {
     const box = document.getElementById("qrs");
     box.hidden = !box.hidden;
     if (box.hidden) return;
-    box.innerHTML = app.parties.map((p, i) => `<div class="qrbox"><b>${roleLabel(p.role)}</b><div id="qr${i}"></div><code>${esc(p.linkUrl)}</code></div>`).join("");
-    app.parties.forEach((p, i) => makeQr(document.getElementById(`qr${i}`), p.linkUrl));
+    box.innerHTML = app.parties.map((p, i) => p.linkUrl ? `<div class="qrbox"><b>${esc(p.label)}</b><div id="qr${i}"></div><code>${esc(p.linkUrl)}</code></div>` : `<div class="qrbox"><b>${esc(p.label)}</b><span class="muted small">Link queued</span></div>`).join("");
+    app.parties.forEach((p, i) => p.linkUrl && makeQr(document.getElementById(`qr${i}`), p.linkUrl));
   });
 }
 
@@ -401,13 +401,13 @@ async function dealerList() {
 
 // ---------------- screen 9: Application Status ----------------
 function partyChip(p) {
-  const r = roleLabel(p.role);
+  const r = esc(p.label);
   switch (p.status) {
     case "Fulfilled": return `<span class="chip ok">${r} · Fulfilled ${fmt(p.fulfilledAt)}</span>`;
     case "Pending": return `<span class="chip wait">${r} · Pending · link expires in ${hoursLeft(p.expiresAt)}</span>`;
     case "Expired": return `<span class="chip bad">${r} · Link expired</span>`;
     case "NRIC mismatch": return `<span class="chip bad">${r} · NRIC mismatch — Ops will follow up</span>`;
-    case "Declined": return `<span class="chip bad">${r} · Declined on Singpass</span>`;
+    case "Queued": return `<span class="chip wait">${r} · Link queued · sent once the gateway is reachable</span>`;
     default: return `<span class="chip bad">${r} · ${esc(p.status)}</span>`;
   }
 }
@@ -461,7 +461,7 @@ function statusChip(label) {
 function singpassCount(a) {
   const n = a.parties.filter((p) => p.status === "Fulfilled").length;
   if (n === a.parties.length) return `<b class="t-ok">Yes</b>`;
-  if (a.parties.some((p) => ["NRIC mismatch", "Declined", "Expired"].includes(p.status))) return `<b class="t-bad">${n ? `${n} of ${a.parties.length}` : "No"}</b>`;
+  if (a.parties.some((p) => ["NRIC mismatch", "Expired"].includes(p.status))) return `<b class="t-bad">${n ? `${n} of ${a.parties.length}` : "No"}</b>`;
   return `<b class="${n ? "t-wait" : "t-bad"}">${n ? `${n} of ${a.parties.length}` : "No"}</b>`;
 }
 function partyStatusText(p) {
@@ -503,10 +503,10 @@ async function opsList() {
 function opsPartyStatus(p) {
   switch (p.status) {
     case "Fulfilled": return `<dd class="t-ok">Fulfilled · NRIC matched</dd>`;
-    case "Pending": return `<dd class="t-wait">Pending · link expires in ${hoursLeft(p.expiresAt)}</dd>`;
+    case "Pending": return `<dd class="t-wait">Pending${p.linkStatus === "OPENED" ? " · opened by the customer" : ""} · link expires in ${hoursLeft(p.expiresAt)}</dd>`;
     case "NRIC mismatch": return `<dd class="t-bad">NRIC mismatch · logged in as ${esc(p.mismatchUinfin)}</dd>`;
     case "Expired": return `<dd class="t-bad">Expired · resend to send a new link</dd>`;
-    case "Declined": return `<dd class="t-bad">Declined · customer pressed Cancel</dd>`;
+    case "Queued": return `<dd class="t-wait">Queued · waiting for the Singpass gateway</dd>`;
     default: return `<dd class="t-bad">${esc(p.status)}</dd>`;
   }
 }
@@ -514,7 +514,7 @@ function opsPartyStatus(p) {
 function myinfoTable(p) {
   const mi = p.myinfo;
   if (p.status === "NRIC mismatch") {
-    return `<h2 style="font-size:24px">MyInfo Data — ${roleLabel(p.role)}</h2>
+    return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
       <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
       <tr><td>NRIC</td><td>${esc(p.nric)}</td><td class="t-bad" style="font-weight:600">${esc(p.mismatchUinfin)} ✗ mismatch</td></tr>
       </tbody></table></div><p class="small muted" style="margin:0">Only the returned NRIC is kept; the rest of the MyInfo data was discarded.</p>`;
@@ -522,7 +522,7 @@ function myinfoTable(p) {
   if (!mi) return "";
   const noa = mi.noaHistory?.[0];
   const row = (f, dealer, myinfo, cls = "") => `<tr><td>${f}</td><td${dealer ? "" : ' style="color:var(--faint)"'}>${dealer ? esc(dealer) : "—"}</td><td class="${cls}">${myinfo}</td></tr>`;
-  return `<h2 style="font-size:24px">MyInfo Data — ${roleLabel(p.role)}</h2>
+  return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
     <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
     ${row("NRIC", p.nric, `${esc(mi.uinfin)} ✓ match`, "t-ok")}
     ${row("Name", p.name, esc(mi.name))}
@@ -533,6 +533,28 @@ function myinfoTable(p) {
     ${row("CPF contributions", "", `${mi.cpfMonths} months`)}
     ${row("Housing", "", esc(mi.hdbType || mi.housingType))}
     </tbody></table></div>`;
+}
+
+const ACTIVITY = {
+  "link.queued": (e) => `Link requested (${e.details.reason})`,
+  "link.sent": () => "Link sent by email + SMS notice",
+  "link.opened": () => "Customer opened the link on the portal",
+  "link.blocked": (e) => `Portal blocked a link (${e.details.reason})`,
+  "link.resent": (e) => `Link resent by ${e.actorName} — reason: ${e.details.reason}`,
+  "link.replaced": () => "Previous link replaced",
+  "link.expired": () => "Link expired (72 h without a result)",
+  "result.rejected": (e) => `MyInfo result rejected — ${e.details.reason === "old-link" ? "old link" : "expired link"} (returned ${e.details.returned}, ${e.details.nricMatches === "yes" ? "same NRIC" : "different NRIC"}); not attached`,
+  "party.fulfilled": () => "MyInfo retrieved — NRIC matched → Fulfilled",
+  "party.mismatch": (e) => `NRIC mismatch — logged in as ${e.details.returned}, dealer entered ${e.details.expected}`,
+};
+function activityLog(app) {
+  if (!app.activity?.length) return "";
+  const label = (id) => app.parties.find((p) => p.id === id)?.label ?? "";
+  const bad = new Set(["result.rejected", "party.mismatch", "link.expired", "link.blocked"]);
+  return `<h2 style="font-size:24px">Activity</h2><div style="display:flex;flex-direction:column;gap:6px">${app.activity
+    .slice(0, 30)
+    .map((e) => `<div class="${bad.has(e.type) ? "note-red" : "sumbox"}" style="padding:8px 12px"><span class="small">${fmt(e.at)} · ${esc(label(e.partyId))} · ${esc((ACTIVITY[e.type] || ((x) => x.type))(e))}</span></div>`)
+    .join("")}</div>`;
 }
 
 async function opsDetail(ref) {
@@ -560,17 +582,17 @@ async function opsDetail(ref) {
         <h2 style="font-size:24px">Singpass Status</h2>
         ${app.parties.map((p) => `<div class="partyblock">
           <dl class="kv">
-            <div><dt>${roleLabel(p.role)} — Status</dt>${opsPartyStatus(p)}</div>
-            <div><dt>${roleLabel(p.role)} — Trigger Date</dt><dd>${fmt(p.triggerAt)}</dd></div>
-            <div><dt>${roleLabel(p.role)} — Fulfilled Date</dt><dd${p.fulfilledAt ? "" : ' style="color:var(--faint)"'}>${fmt(p.fulfilledAt)}</dd></div>
+            <div><dt>${esc(p.label)} — Status</dt>${opsPartyStatus(p)}</div>
+            <div><dt>${esc(p.label)} — Trigger Date</dt><dd>${fmt(p.triggerAt)}</dd></div>
+            <div><dt>${esc(p.label)} — Fulfilled Date</dt><dd${p.fulfilledAt ? "" : ' style="color:var(--faint)"'}>${fmt(p.fulfilledAt)}</dd></div>
           </dl>
           <div class="row" style="gap:10px">
-            <button class="btn sm" type="button" disabled title="Retrieval happens automatically when the customer submits">Retrieve MyInfo (${roleLabel(p.role)})</button>
-            <button class="btn sm" type="button" data-resend="${p.role}" ${p.status === "Fulfilled" ? "disabled" : ""}>Resend Email (${roleLabel(p.role)})</button>
+            <button class="btn sm" type="button" data-retrieve="${esc(p.id)}" ${["Pending", "Queued"].includes(p.status) ? "" : "disabled"}>Retrieve MyInfo (${esc(p.label)})</button>
+            <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
             ${p.history.length > 1 ? `<span class="small muted" style="align-self:center">${p.history.length} links sent</span>` : ""}
           </div>
         </div>`).join("")}
-        ${app.notes.map((n) => `<div class="note-red">${fmt(n.at)}: ${esc(n.text)}</div>`).join("")}
+        ${activityLog(app)}
         ${app.parties.map(myinfoTable).join("")}
         <h2 style="font-size:24px">Vehicle Info</h2>
         <dl class="kv"><div><dt>Car Plate</dt><dd>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd style="color:var(--faint)">— (via LTA, out of scope)</dd></div><div><dt>Model</dt><dd style="color:var(--faint)">—</dd></div></dl>
@@ -584,7 +606,7 @@ async function opsDetail(ref) {
           </select></label>
         ${selected === "AA" && canAaStage ? `<div class="cond ${aaBlocked ? "" : "ok"}">
           <b style="color:${aaBlocked ? "var(--red-text)" : "var(--green-text)"}">${aaBlocked ? "Cannot issue AA yet" : "Ready to issue AA"}</b>
-          ${app.parties.map((p) => p.status === "Fulfilled" ? `<span class="t-ok">✓ ${roleLabel(p.role)} Singpass fulfilled</span>` : `<span style="color:var(--red-text)">✗ ${roleLabel(p.role)} Singpass ${esc(p.status.toLowerCase())}</span>`).join("")}
+          ${app.parties.map((p) => p.status === "Fulfilled" ? `<span class="t-ok">✓ ${esc(p.label)} Singpass fulfilled</span>` : `<span style="color:var(--red-text)">✗ ${esc(p.label)} Singpass ${esc(p.status.toLowerCase())}</span>`).join("")}
         </div>` : ""}
         ${selected === "IPA" && canIpa && !app.allFulfilled ? `<div class="note-gold" style="padding:12px 16px">An IPA can be issued while Singpass is still pending.</div>` : ""}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="apply" type="button" ${applyDisabled ? "disabled" : ""}>Apply Status Change</button></div>
@@ -599,11 +621,21 @@ async function opsDetail(ref) {
       } catch (e) { toast(e.message, true); }
     });
     $app.querySelectorAll("[data-resend]").forEach((b) => b.addEventListener("click", async () => {
+      const reason = window.prompt(`Reason for resending the Singpass link to the ${b.dataset.label}:`);
+      if (!reason || !reason.trim()) return;
       b.disabled = true;
       try {
-        await api("POST", `/api/applications/${ref}/parties/${b.dataset.resend}/resend`);
-        toast(`New link emailed to the ${b.dataset.resend}; the old link no longer works`);
+        await api("POST", `/api/applications/${ref}/parties/${b.dataset.resend}/resend`, { reason });
+        toast(`New link sent to the ${b.dataset.label}; the old link no longer works`);
       } catch (e) { toast(e.message, true); b.disabled = false; }
+    }));
+    $app.querySelectorAll("[data-retrieve]").forEach((b) => b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        const r = await api("POST", `/api/applications/${ref}/parties/${b.dataset.retrieve}/retrieve`);
+        toast({ fulfilled: "MyInfo retrieved — NRIC matched", mismatch: "MyInfo retrieved — NRIC mismatch", expired: "The link has expired", sent: "Link sent", unchanged: "No MyInfo data yet — the customer has not shared it" }[r.outcome] || r.outcome);
+      } catch (e) { toast(e.message, true); }
+      b.disabled = false;
     }));
   };
   await load();
@@ -617,8 +649,9 @@ async function demoPage() {
     return signIn();
   }
   const load = async () => {
-    const [apps, outbox] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox")]);
+    const [apps, outbox, demo] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox"), api("GET", "/api/demo/state")]);
     const cfg = state.config;
+    const hours = Math.round(demo.offsetMs / 3_600_000);
     $app.innerHTML = `${header()}<main class="wrap narrow">
       <div class="row between"><div><h1 style="font-size:28px">Demo Control</h1><span class="muted">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "SMTP configured" : "SMTP not configured (links only in the log and below)"}</span></div>
         <a class="btn" href="/" data-go>Back to portal</a></div>
@@ -628,44 +661,48 @@ async function demoPage() {
           <button class="btn danger" id="reset" type="button">Reset all data</button>
           <button class="btn" id="seed" type="button">Create sample applications</button>
         </div>
-        <p class="small muted" style="margin:0">Reset hard-deletes every application, link and MyInfo record. Sample applications are VMAF-2026-05114 to 05119.</p>
+        <p class="small muted" style="margin:0">Reset hard-deletes every application, link, MyInfo record and message, and puts the clock back. Sample applications are VMAF-2026-05114 to 05119.</p>
       </section>
       <section class="card" style="gap:14px">
-        <h2>Links (error cases)</h2>
-        ${apps.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th><th></th></tr></thead><tbody>
-        ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${roleLabel(p.role)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nric)}</span></td><td>${partyStatusText(p)}</td>
-          <td><a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button">QR</button></td>
-          <td>${p.status === "Pending" ? `<button class="btn sm" data-expire="${esc(a.ref)}|${p.role}" type="button">Make link expired</button>` : ""}</td></tr>`)).join("")}
+        <h2>Gateway, job and clock</h2>
+        <div class="row" style="align-items:center">
+          <span>Simulated Myinfo gateway: ${demo.gatewayAvailable ? '<b class="t-ok">available</b>' : '<b class="t-bad">unavailable</b>'}</span>
+          <button class="btn sm" id="gw" type="button">${demo.gatewayAvailable ? "Switch gateway off" : "Switch gateway on"}</button>
+          <button class="btn sm" id="runjob" type="button">Run job now</button>
+          <span class="small muted">The auto-verify job also runs every ${(demo.pollIntervalMs / 1000).toFixed(1)} s.</span>
+        </div>
+        <div class="row" style="align-items:center">
+          <span>Clock: ${fmt(demo.now)}${hours ? ` <b class="t-wait">(+${hours} h)</b>` : ""}</span>
+          <button class="btn sm" data-advance="1" type="button">+1 h</button>
+          <button class="btn sm" data-advance="24" type="button">+24 h</button>
+          <button class="btn sm" data-advance="73" type="button">+73 h (expire links)</button>
+        </div>
+      </section>
+      <section class="card" style="gap:14px">
+        <h2>Links</h2>
+        ${apps.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
+        ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(p.label)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nric)}</span></td><td>${partyStatusText(p)}</td>
+          <td>${p.linkUrl ? `<a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button">QR</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
         </tbody></table></div>` : `<p class="muted" style="margin:0">No applications yet.</p>`}
         <div id="qrdemo" class="row center"></div>
       </section>
       <section class="card" style="gap:14px">
-        <h2>Outbox (last emails)</h2>
-        ${outbox.length ? outbox.map((m) => `<div class="sumbox"><span class="lbl">${fmt(m.at)} · ${esc(m.ref)} · ${roleLabel(m.role)} → ${esc(m.to)} · ${m.delivered ? '<span class="t-ok">sent</span>' : `<span class="t-wait">${esc(m.error || "not sent")}</span>`}</span><a class="mono" href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.url)}</a></div>`).join("") : `<p class="muted" style="margin:0">No emails yet.</p>`}
+        <h2>Outbox (email + SMS)</h2>
+        ${outbox.length ? outbox.slice(0, 30).map((m) => `<div class="sumbox"><span class="lbl">${fmt(m.at)} · ${esc(m.applicationRef)} · ${m.channel === "sms" ? "SMS" : "Email"} → ${esc(m.to)} · ${m.status === "sent" ? '<span class="t-ok">sent</span>' : m.status === "failed" ? `<span class="t-bad">${esc(m.error || "failed")}</span>` : '<span class="t-wait">outbox only</span>'}</span>${m.channel === "sms" ? `<span class="small">${esc(m.body)}</span>` : (() => { const u = /https?:\/\/\S+/.exec(m.body)?.[0] ?? ""; return `<a class="mono" href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`; })()}</div>`).join("") : `<p class="muted" style="margin:0">No messages yet.</p>`}
       </section>
-      <section class="card" style="gap:10px">
-        <h2>Error cases to show</h2>
-        <ol class="para" style="padding-left:20px;margin:0;display:flex;flex-direction:column;gap:6px">
-          <li><b>Expired link</b>: "Make link expired" above, then open the link on the phone.</li>
-          <li><b>Old link after Resend</b>: Ops → Application → "Resend Email", then open the first email's link.</li>
-          <li><b>NRIC mismatch</b>: on the simulated Singpass login, pick a persona different from the NRIC the dealer entered.</li>
-          <li><b>Customer cancels</b>: press "Cancel" on the consent screen.</li>
-        </ol>
+      <section class="card" style="gap:14px">
+        <h2>Gateway log (simulated gateway side)</h2>
+        <p class="small muted" style="margin:0">What the gateway knows. AutoFinance never sees refusals (D-33).</p>
+        ${demo.gatewayLog.length ? demo.gatewayLog.slice(0, 20).map((g) => `<div class="small">${fmt(g.at)} · ${esc(g.applicationRef)} · <code>${esc(g.linkId)}</code> · <b class="${g.event === "declined" ? "t-bad" : ""}">${esc(g.event)}</b>${g.who ? ` · ${esc(g.who)}` : ""}</div>`).join("") : `<p class="muted" style="margin:0">Nothing yet.</p>`}
       </section>
     </main>`;
     bindCommon();
-    document.getElementById("reset").addEventListener("click", async () => {
-      await api("POST", "/api/demo/reset");
-      toast("All demo data deleted");
-    });
-    document.getElementById("seed").addEventListener("click", async () => {
-      const r = await api("POST", "/api/demo/seed");
-      toast(`${r.added} sample application(s) created`);
-    });
-    $app.querySelectorAll("[data-expire]").forEach((b) => b.addEventListener("click", async () => {
-      const [ref, role] = b.dataset.expire.split("|");
-      try { await api("POST", `/api/demo/expire/${ref}/${role}`); toast("Link is now expired"); } catch (e) { toast(e.message, true); }
-    }));
+    const act = async (fn, msg) => { try { await fn(); if (msg) toast(msg); } catch (e) { toast(e.message, true); } load(); };
+    document.getElementById("reset").addEventListener("click", () => act(() => api("POST", "/api/demo/reset"), "All demo data deleted"));
+    document.getElementById("seed").addEventListener("click", () => act(async () => toast(`${(await api("POST", "/api/demo/seed")).added} sample application(s) created`)));
+    document.getElementById("gw").addEventListener("click", () => act(() => api("POST", "/api/demo/gateway", { available: !demo.gatewayAvailable })));
+    document.getElementById("runjob").addEventListener("click", () => act(() => api("POST", "/api/demo/run-job"), "Job run"));
+    $app.querySelectorAll("[data-advance]").forEach((b) => b.addEventListener("click", () => act(() => api("POST", "/api/demo/clock", { advanceHours: Number(b.dataset.advance) }), `Clock +${b.dataset.advance} h`)));
     $app.querySelectorAll("[data-qr]").forEach((b) => b.addEventListener("click", () => {
       const box = document.getElementById("qrdemo");
       box.innerHTML = `<div class="qrbox"><div id="qrd"></div><code>${esc(b.dataset.qr)}</code></div>`;
@@ -676,7 +713,7 @@ async function demoPage() {
   state.refresh = () => load();
 }
 
-// ---------------- customer flow (screens 5–8) ----------------
+// ---------------- customer: AutoFinance portal (screen 5) ----------------
 const simbar = `<div class="simbar">SIMULATED GATEWAY · DEMO ONLY · NOT REAL SINGPASS</div>`;
 const phoneHdr = `<div class="phone-hdr"><span class="dot" style="width:10px;height:10px"></span><div><b>ValueMax AutoFinance</b><small>IDENTITY VERIFICATION</small></div></div>`;
 
@@ -684,50 +721,57 @@ function invalidScreen() {
   $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
     <span class="chip xs bad" style="align-self:flex-start">Link not valid</span>
     <h1 style="color:var(--red)">This link is no longer valid</h1>
-    <p class="para">A newer link was sent, or this one expired or was already used. Please use the latest email, or ask your dealer to resend.</p>
+    <p class="para">A newer link was sent, or this one expired. Please use the latest email, or ask your dealer to resend.</p>
   </div></div></div>`;
 }
 
-async function customerFlow(token) {
-  const q = new URLSearchParams(location.search);
-  const step = q.get("step");
-  if (step === "declined") return declinedScreen();
-  if (step === "done") return doneScreen(q.get("ref") || "");
-  const info = await api("GET", `/api/v/${token}`);
-  if (!info.valid) return invalidScreen();
-  const ctx = { token, info, person: null, tab: "app" };
-
-  const fail = (e) => {
+/** /verify/<token>: the server checks the link (current + not expired), marks it OPENED and gives the gateway URL. */
+async function portalPage(token) {
+  let info;
+  try {
+    info = await api("POST", `/api/verify/${encodeURIComponent(token)}/open`);
+  } catch (e) {
     if (e.status === 410) return invalidScreen();
-    toast(e.message, true);
+    throw e;
+  }
+  $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
+    <span class="chip xs ok" style="align-self:flex-start">✓ Link valid · expires in ${hoursLeft(info.expiresAt)}</span>
+    <h1>Verify your identity</h1>
+    <dl class="pdl"><dt>Application</dt><dd>${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${esc(info.role)}</dd><dt>NRIC</dt><dd>${esc(info.maskedNric)}</dd></dl>
+    <p class="para">You will log in with Singpass and choose to share your MyInfo details. Only the person with NRIC ${esc(info.maskedNric)} can complete this.</p>
+    <a class="pbtn" href="${esc(info.redirectUrl)}">Continue to Singpass →</a>
+  </div></div></div>`;
+}
+
+// ---------------- customer: simulated ValueMax Myinfo gateway (screens 6–8) ----------------
+async function gatewayFlow(linkId) {
+  const gw = (method, sub = "", body) => api(method, `/gateway-api/${encodeURIComponent(linkId)}${sub}`, body);
+  const unavailable = (msg) => {
+    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
+      <h1>Myinfo is not available</h1><p style="margin:0;color:var(--sp-2)">${esc(msg)}</p></div></div>`;
+  };
+  let info;
+  try {
+    info = await gw("GET");
+  } catch (e) {
+    return unavailable(e.status === 404 ? "This Myinfo request is not recognised." : e.message);
+  }
+  if (info.submitted) return doneScreen(info.applicationRef);
+  const ctx = { person: null, tab: "app" };
+  const fail = (e) => (e.status === 503 ? unavailable(e.message) : toast(e.message, true));
+
+  // Retrieve Myinfo (singpass-reference/1)
+  const landing = () => {
+    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp">
+      <div><span class="spsub">ValueMax Myinfo gateway</span><h1>Retrieve Myinfo with Singpass</h1></div>
+      <p style="margin:0;color:var(--sp-2)">VM AutoFinance would like to retrieve your Myinfo details for car loan application ${esc(info.applicationRef)}. You will log in with Singpass and choose whether to share them.</p>
+      <button class="spbtn" id="retrieve" type="button">Retrieve Myinfo with Singpass</button>
+    </div></div>`;
+    document.getElementById("retrieve").addEventListener("click", login);
   };
 
-  // Screen 5 — link check
-  const check = () => {
-    $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
-      <span class="chip xs ok" style="align-self:flex-start">✓ Link valid · expires in ${hoursLeft(info.expiresAt)}</span>
-      <h1>Verify your identity</h1>
-      <dl class="pdl"><dt>Application</dt><dd>${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${roleLabel(info.role)}</dd><dt>NRIC</dt><dd>${esc(info.maskedNric)}</dd></dl>
-      <p class="para">You will log in with Singpass and choose to share your MyInfo details. Only the person with NRIC ${esc(info.maskedNric)} can complete this.</p>
-      <button class="pbtn" id="go" type="button">Retrieve Myinfo with Singpass</button>
-    </div></div></div>`;
-    document.getElementById("go").addEventListener("click", async (e) => {
-      e.target.disabled = true;
-      try {
-        const r = await api("POST", `/api/v/${token}/start`);
-        if (r.external) {
-          e.target.textContent = "Opening Singpass…";
-          location.href = r.loginUrl; // MockPass Myinfo login + consent, then back to /myinfo-callback
-          return;
-        }
-        login();
-      } catch (err) { fail(err); e.target.disabled = false; }
-    });
-  };
-
-  // Screen 6 — simulated Singpass login
-  const login = async () => {
-    const personas = await api("GET", "/api/personas");
+  // Simulated Singpass login
+  const login = () => {
     const qrCells = "101101010110110011011001101110110101".split("").map((c) => `<i class="${c === "1" ? "f" : ""}"></i>`).join("");
     $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp">
       <div><span class="spsub">Step 1 of 2 · via ValueMax Myinfo gateway</span><h1>Log in with Singpass</h1></div>
@@ -735,7 +779,7 @@ async function customerFlow(token) {
       ${ctx.tab === "app" ? `
         <div class="qr" role="img" aria-label="QR code (decorative)">${qrCells}</div>
         <p style="margin:0;text-align:center;font-size:14px;color:var(--sp-2)">Scan with the Singpass app on another device, or pick a test persona on this phone.</p>
-        <div style="display:flex;flex-direction:column;gap:8px">${personas.map((p) => `<button class="persona" type="button" data-nric="${esc(p.uinfin)}"><b>${esc(p.name)}</b><code>${esc(p.uinfin)}</code></button>`).join("")}</div>`
+        <div style="display:flex;flex-direction:column;gap:8px">${info.personas.map((p) => `<button class="persona" type="button" data-nric="${esc(p.uinfin)}"><b>${esc(p.name)}</b><code>${esc(p.uinfin)}</code></button>`).join("")}</div>`
       : `
         <label class="field">Singpass ID (test NRIC / FIN)<input class="input" id="nric" autocomplete="off" placeholder="e.g. F4440488P"></label>
         <label class="field">Password<input class="input" type="password" placeholder="Any value — not checked, not stored"></label>
@@ -745,8 +789,7 @@ async function customerFlow(token) {
     $app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { ctx.tab = b.dataset.tab; login(); }));
     const doLogin = async (uinfin) => {
       try {
-        const r = await api("POST", `/api/v/${token}/login`, { uinfin });
-        ctx.person = r.person;
+        ctx.person = (await gw("POST", "/login", { uinfin })).person;
         consent();
       } catch (e) { fail(e); }
     };
@@ -754,7 +797,7 @@ async function customerFlow(token) {
     document.getElementById("pwlogin")?.addEventListener("click", () => doLogin(document.getElementById("nric").value));
   };
 
-  // Screen 7 — consent
+  // Consent
   const consent = () => {
     const p = ctx.person;
     const noa = p.noaHistory?.[0];
@@ -765,19 +808,25 @@ async function customerFlow(token) {
     ];
     $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="padding:24px;gap:16px">
       <div><span class="spsub">Step 2 of 2 · Myinfo</span><h1 style="font-size:22px">VM AutoFinance is requesting your details</h1>
-        <p style="margin:6px 0 0;font-size:14px;color:var(--sp-2)">For: car loan application ${esc(info.ref)}</p></div>
+        <p style="margin:6px 0 0;font-size:14px;color:var(--sp-2)">For: car loan application ${esc(info.applicationRef)}</p></div>
       <ul class="splist">${items.map(([k, v]) => `<li><span>${k}</span><b>${esc(v)}</b></li>`).join("")}</ul>
       <p style="margin:0;font-size:12px;color:var(--sp-3)">Sample data only. The real data list is set by the ValueMax gateway.</p>
       <button class="spbtn" id="agree" type="button">I agree, share my details</button>
       <button class="spbtn ghost" id="cancel" type="button">Cancel</button>
     </div></div>`;
-    document.getElementById("agree").addEventListener("click", () => (info.showReview ? review() : submit()));
+    document.getElementById("agree").addEventListener("click", async () => {
+      try {
+        await gw("POST", "/agree");
+        if (info.showReview) review();
+        else await submit();
+      } catch (e) { fail(e); }
+    });
     document.getElementById("cancel").addEventListener("click", async () => {
-      try { await api("POST", `/api/v/${token}/decline`); declinedScreen(); } catch (e) { fail(e); }
+      try { await gw("POST", "/decline"); declinedScreen(); } catch (e) { fail(e); }
     });
   };
 
-  // Screen 8a — review
+  // Review and submit (singpass-reference/5)
   const review = (tab = "personal") => {
     const p = ctx.person;
     const rows = {
@@ -802,30 +851,15 @@ async function customerFlow(token) {
     const b = document.getElementById("submit") || document.getElementById("agree");
     if (b) { b.disabled = true; b.textContent = "Submitting…"; }
     try {
-      await api("POST", `/api/v/${token}/submit`);
-      history.replaceState({}, "", `/v/${token}?step=done&ref=${encodeURIComponent(info.ref)}`);
-      doneScreen(info.ref);
+      await gw("POST", "/submit");
+      doneScreen(info.applicationRef);
     } catch (e) { fail(e); }
   };
 
-  if (step === "review") {
-    try {
-      const r = await api("GET", `/api/v/${token}/review`);
-      ctx.person = r.person;
-      return review();
-    } catch (e) { return fail(e); }
-  }
-  if (step === "error") {
-    $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
-      <h1 style="color:var(--red)">Could not retrieve your Myinfo</h1>
-      <p class="para">${esc(q.get("msg") || "Please try again.")}</p>
-      <a class="pbtn" href="/v/${esc(token)}">Try again</a></div></div></div>`;
-    return;
-  }
-  check();
+  landing();
 }
 
-// Screen 8b — done (no redirect back to the portal)
+// Done — the gateway does not redirect back to AutoFinance
 function doneScreen(ref) {
   $app.innerHTML = `<div class="phone">${simbar.replace("var(--sp-bar)", "#3A3A44")}
     <div style="flex:1;padding:32px 24px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;justify-content:center">
@@ -841,7 +875,7 @@ function doneScreen(ref) {
 function declinedScreen() {
   $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
     <h1>You cancelled</h1>
-    <p style="margin:0;color:var(--sp-2)">No details were shared with ValueMax AutoFinance. To continue your application, ask your dealer to send a new link.</p>
+    <p style="margin:0;color:var(--sp-2)">No details were shared with ValueMax AutoFinance. You can open the link in your email again while it is valid.</p>
   </div></div>`;
 }
 
