@@ -29,7 +29,15 @@ Shortcut: instead of `cp` + editing the key by hand, `npm run setup` creates `.e
 valid key (D-03) and says why.
 
 If port 3000 is already used on the machine (an editor or another dev server), set `PORT=3001` (or any free port) in
-`.env`. `npm ci` may print `npm audit` warnings; they do not stop the demo (see the open items in the final report).
+`.env`. `npm ci` may print `npm audit` warnings; see "Known audit findings" below.
+
+### Known audit findings (2026-11-18)
+
+`npm audit --omit=dev` (what the demo runs): **0 vulnerabilities** (nodemailer upgraded to 10.6). `npm audit` still
+reports high-severity findings only in **development tools**: `picomatch` (ReDoS, GHSA-fc5q-39xc-vjpf) pulled in by
+`typescript-eslint` → `@typescript-eslint/typescript-estree` → `tinyglobby` / `fdir`, used by `npm run lint` on our own
+source files only. `npm audit fix` cannot fix it without `--force`, which would downgrade `typescript-eslint`; it is
+accepted until `typescript-eslint` ships a fixed dependency.
 
 Then open:
 
