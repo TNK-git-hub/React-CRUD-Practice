@@ -241,6 +241,23 @@ export class VerificationService {
     return rows.sort((a, b) => a.expiredAt - b.expiredAt);
   }
 
+  /**
+   * D-41: the full NRIC on explicit request, audited. "entered" (what the dealer typed): Ops, or the dealer that owns
+   * the application. "returned" (the uinfin of a mismatch, someone else's NRIC): Ops only.
+   */
+  revealNric(ref: string, partyId: string, actor: Actor, which: "entered" | "returned"): string {
+    const app = this.getApplication(ref);
+    const party = this.party(app, partyId);
+    if (actor.kind !== "ops" && !(which === "entered" && actor.kind === "dealer" && actor.dealerId === app.dealerId))
+      throw new ServiceError(403, "Not allowed to view this NRIC");
+    const value = which === "entered" ? party.nric : party.mismatchUinfin;
+    if (!value) throw new ServiceError(404, "No such NRIC for this person");
+    this.audit("nric.viewed", actor, app, party, { which });
+    this.db.save();
+    this.onChange(app.ref);
+    return value;
+  }
+
   // ---------------------------------------------------------------- IPA / AA (flow item 12)
 
   /** IPA: Ops, any time after submission, whatever the Singpass status (SC-60). */

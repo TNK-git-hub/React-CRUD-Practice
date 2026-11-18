@@ -1,24 +1,16 @@
 // What the dealer and Ops screens receive. Labels follow D-25 and D-38.
+import { STATUS_LABELS, activityFor } from "./activity.ts";
 import { decrypt } from "./crypto.ts";
+import { maskNric } from "./nric.ts";
 import type { MyinfoPerson } from "./personas.ts";
 import { checkAa } from "./verification/approval.ts";
 import { currentLink } from "./verification/model.ts";
-import type { Application, AuditEvent, LinkStatus, Party } from "./verification/model.ts";
+import type { Application, AuditEvent, Party } from "./verification/model.ts";
 import { DEALERS } from "./verification/users.ts";
 import type { User } from "./verification/users.ts";
 
-const PARTY_LABELS: Record<LinkStatus, string> = {
-  QUEUED: "Queued",
-  SENT: "Pending",
-  OPENED: "Pending",
-  FULFILLED: "Fulfilled",
-  MISMATCH: "NRIC mismatch",
-  EXPIRED: "Expired",
-  REPLACED: "Replaced",
-};
-
 export function partyStatusLabel(party: Party): string {
-  return PARTY_LABELS[currentLink(party).status];
+  return STATUS_LABELS[currentLink(party).status];
 }
 
 export function allFulfilled(app: Application): boolean {
@@ -54,12 +46,13 @@ function partyView(p: Party, ctx: ViewContext) {
       myinfo = null;
     }
   }
-  return {
+  const view = {
     id: p.id,
     role: p.role,
     label: p.label,
     name: p.name,
-    nric: p.nric,
+    /** D-41: masked everywhere; the full value only through the audited reveal request. */
+    nricMasked: maskNric(p.nric),
     email: p.email,
     mobile: p.mobile,
     status: partyStatusLabel(p),
@@ -70,11 +63,26 @@ function partyView(p: Party, ctx: ViewContext) {
     openedAt: link.openedAt ?? null,
     fulfilledAt: p.fulfilledAt ?? null,
     linkUrl: link.status === "QUEUED" ? null : ctx.portalUrl(link.portalToken),
-    mismatchUinfin: ops ? (p.mismatchUinfin ?? null) : null,
-    myinfo,
+    myinfo: myinfo ? { ...myinfo, uinfin: maskNric(myinfo.uinfin) } : null,
     resends: p.resendsAt.length,
-    history: p.links.map((l) => ({ id: l.id, status: l.status, reason: l.reason, sentAt: l.sentAt ?? null, expiresAt: l.expiresAt ?? null, closedAt: l.closedAt ?? null })),
+    /** Every link, oldest first; a link that is not the current one is labelled "no longer valid" whatever its status. */
+    history: p.links.map((l) => {
+      const current = l.id === p.currentLinkId;
+      const label = STATUS_LABELS[l.status];
+      return {
+        id: l.id,
+        status: l.status,
+        current,
+        label: current ? label : `${label} — no longer valid`,
+        reason: l.reason,
+        sentAt: l.sentAt ?? null,
+        expiresAt: l.expiresAt ?? null,
+        closedAt: l.closedAt ?? null,
+      };
+    }),
   };
+  // The NRIC returned by a mismatch belongs to someone else: Ops only, masked; never in a dealer's data.
+  return ops ? { ...view, mismatchUinfin: p.mismatchUinfin ? maskNric(p.mismatchUinfin) : null } : view;
 }
 
 export function applicationView(app: Application, ctx: ViewContext, audit: readonly AuditEvent[]) {
@@ -94,7 +102,7 @@ export function applicationView(app: Application, ctx: ViewContext, audit: reado
     /** The server's AA check (same as issueAa): Ops show its reasons in "Cannot issue AA yet". */
     aaCheck: checkAa(app),
     parties: app.parties.map((p) => partyView(p, ctx)),
-    /** Activity log for Ops (audit events of this application, newest first). Never a full NRIC (D-41). */
-    activity: ctx.user.kind === "ops" ? audit.filter((e) => e.applicationRef === app.ref) : [],
+    /** Activity log for Ops, newest first, in plain sentences. Dealers get none. */
+    activity: ctx.user.kind === "ops" ? activityFor(app, audit) : [],
   };
 }

@@ -61,15 +61,56 @@ function makeQr(el, text, size = 180) {
   else el.textContent = "QR library not loaded";
 }
 
+// Small modal form (reason for resend, correction of details). Resolves with the values, or null if cancelled.
+function openDialog({ title, intro = "", fields, submit }) {
+  return new Promise((resolve) => {
+    const bg = document.createElement("div");
+    bg.className = "modal-bg";
+    bg.innerHTML = `<form class="modal card" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <h2 style="font-size:21px">${esc(title)}</h2>${intro ? `<p class="para" style="margin:0">${intro}</p>` : ""}
+      ${fields.map((f) => `<label class="field">${esc(f.label)}<input class="input" name="${f.name}" value="${esc(f.value ?? "")}" placeholder="${esc(f.placeholder ?? "")}" autocomplete="off"></label>`).join("")}
+      <div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit">${esc(submit)}</button></div>
+    </form>`;
+    const close = (v) => { bg.remove(); resolve(v); };
+    bg.querySelector("[data-cancel]").addEventListener("click", () => close(null));
+    bg.addEventListener("click", (e) => e.target === bg && close(null));
+    bg.querySelector("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      close(Object.fromEntries(new FormData(e.target).entries()));
+    });
+    document.body.appendChild(bg);
+    bg.querySelector("input")?.focus();
+  });
+}
+
+// D-41: NRICs are masked; "Show" asks the server for the full value, which is audited.
+function nricWithReveal(ref, party, which, masked) {
+  return `<span data-nric="${esc(party.id)}|${which}">${esc(masked)}</span> <button class="link-btn" type="button" data-reveal="${esc(ref)}|${esc(party.id)}|${which}">Show</button>`;
+}
+function bindReveal() {
+  $app.querySelectorAll("[data-reveal]").forEach((b) => b.addEventListener("click", async () => {
+    const [ref, partyId, which] = b.dataset.reveal.split("|");
+    try {
+      const r = await api("POST", `/api/applications/${ref}/parties/${partyId}/reveal-nric`, { which });
+      const slot = $app.querySelector(`[data-nric="${partyId}|${which}"]`);
+      if (slot) slot.textContent = r.nric;
+      b.remove();
+    } catch (e) { toast(e.message, true); }
+  }));
+}
+
 // ---------------- state ----------------
-const state = { user: null, config: null, draft: null, refresh: null };
+const state = { user: null, config: null, draft: null, refresh: null, demo: null };
 const emptyParty = () => ({ name: "", nric: "", email: "", mobile: "" });
 function loadDraft() {
   try {
     const d = JSON.parse(sessionStorage.getItem("draft") || "null");
-    if (d) return d;
+    if (d) return { ...emptyDraft(), ...d };
   } catch {}
-  return { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), ltaCode: "", c1: false, c2: false };
+  return emptyDraft();
+}
+function emptyDraft() {
+  return { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), guarantor2On: false, guarantor2: emptyParty(), ltaCode: "", c1: false, c2: false };
 }
 function saveDraft() {
   try { sessionStorage.setItem("draft", JSON.stringify(state.draft)); } catch {}
@@ -84,11 +125,21 @@ function connectEvents() {
     if (state.refresh) state.refresh(data);
   };
   es.addEventListener("application", onChange);
-  es.addEventListener("demo", () => state.refresh && state.refresh({}));
+  es.addEventListener("demo", async () => {
+    await loadDemoClock();
+    if (state.refresh) state.refresh({});
+    else if (state.user) render();
+  });
+}
+
+async function loadDemoClock() {
+  if (!state.user) return (state.demo = null);
+  try { state.demo = await api("GET", "/api/demo/state"); } catch { state.demo = null; }
 }
 
 // ---------------- router ----------------
 function go(path) {
+  $toast.className = ""; // a toast belongs to the page it was shown on
   history.pushState({}, "", path);
   render();
 }
@@ -120,6 +171,7 @@ async function render() {
       return go("/dealer/apply");
     }
     if (path === "/ops") return await opsList();
+    if (path === "/ops/expired") return await opsExpired();
     if ((m = path.match(/^\/ops\/applications\/([^/]+)$/))) return await opsDetail(m[1]);
     return go("/ops");
   } catch (e) {
@@ -132,10 +184,17 @@ async function render() {
 }
 
 // ---------------- shells ----------------
+function demoBanner() {
+  const off = state.demo?.offsetMs ?? 0;
+  if (!state.user || off <= 0) return "";
+  const h = Math.round(off / 3_600_000);
+  return `<div class="demo-time" role="status"><b>Demo time: +${h} h</b><span>The clock is moved forward for the demo (now ${fmt(state.demo.now)} SGT).</span><button class="btn sm" id="realtime" type="button">Back to real time</button></div>`;
+}
+
 function header() {
   const u = state.user;
   const area = u?.kind === "ops" ? "OPERATIONS" : "DEALER PORTAL";
-  return `<header class="hdr">
+  return `${demoBanner()}<header class="hdr">
     <a class="brand" href="/" data-go><span class="dot"></span><div><b>ValueMax AutoFinance</b><small>${area}</small></div></a>
     <div class="who">${u ? `${esc(u.org)} — ${esc(u.name)}<span class="avatar">${esc(u.initials)}</span>
       <button class="hdr-btn" id="signout" type="button">Switch role</button>` : ""}</div>
@@ -159,6 +218,9 @@ function dealerShell(active, inner) {
 }
 
 function bindCommon() {
+  document.getElementById("realtime")?.addEventListener("click", async () => {
+    try { state.demo = await api("POST", "/api/demo/clock/reset"); toast("Back to real time"); } catch (e) { toast(e.message, true); }
+  });
   document.getElementById("signout")?.addEventListener("click", async () => {
     await api("DELETE", "/api/session");
     state.user = null;
@@ -181,6 +243,7 @@ async function signIn() {
     b.addEventListener("click", async () => {
       const { user } = await api("POST", "/api/session", { userId: b.dataset.user });
       state.user = user;
+      await loadDemoClock();
       const target = sessionStorage.getItem("after-login");
       sessionStorage.removeItem("after-login");
       go(target || (user.kind === "ops" ? "/ops" : "/dealer/apply"));
@@ -209,11 +272,11 @@ function partyFields(prefix, p, label, boxed) {
   </div>`;
 }
 
-function fieldState(prefix, key, value, other) {
+function fieldState(prefix, key, value, others = []) {
   if (!value) return { cls: "", msg: "" };
   if (key === "nric") {
     if (!validNric(value)) return { cls: "err", msg: "✗ Invalid NRIC / FIN" };
-    if (prefix === "guarantor" && other && value.trim().toUpperCase() === other.trim().toUpperCase()) return { cls: "err", msg: "✗ Must differ from the hirer's NRIC" };
+    if (others.some((o) => o && value.trim().toUpperCase() === o.trim().toUpperCase())) return { cls: "err", msg: "✗ Each person needs a different NRIC" };
     return { cls: "ok", msg: "✓ Valid NRIC / FIN" };
   }
   if (key === "email") return validEmail(value) ? { cls: "ok", msg: "✓ Looks good" } : { cls: "err", msg: "✗ Invalid email" };
@@ -221,11 +284,12 @@ function fieldState(prefix, key, value, other) {
   return { cls: "", msg: "" };
 }
 
-function partyValid(p, other) {
-  return p.name.trim() && validNric(p.nric) && validEmail(p.email) && validMobile(p.mobile) && (!other || p.nric.trim().toUpperCase() !== other.trim().toUpperCase());
+function partyValid(p, others = []) {
+  return p.name.trim() && validNric(p.nric) && validEmail(p.email) && validMobile(p.mobile) && !others.some((o) => p.nric.trim().toUpperCase() === o.trim().toUpperCase());
 }
+const otherNrics = (d, prefix) => ({ hirer: [], guarantor: [d.hirer.nric], guarantor2: [d.hirer.nric, d.guarantor.nric] })[prefix];
 function draftValid(d) {
-  return partyValid(d.hirer) && (!d.guarantorOn || partyValid(d.guarantor, d.hirer.nric)) && d.ltaCode.trim();
+  return partyValid(d.hirer) && (!d.guarantorOn || partyValid(d.guarantor, otherNrics(d, "guarantor"))) && (!d.guarantorOn || !d.guarantor2On || partyValid(d.guarantor2, otherNrics(d, "guarantor2"))) && d.ltaCode.trim();
 }
 
 function dealerApply() {
@@ -241,7 +305,10 @@ function dealerApply() {
       ${partyFields("hirer", d.hirer, "Applicant", false)}
       <button class="toggle" id="gtoggle" type="button" aria-pressed="${d.guarantorOn}"><span class="sw"></span>
         <span><b>Add Guarantor Info</b><span class="muted">Optional — if added, the guarantor's NRIC and an income document will also be required</span></span></button>
-      ${d.guarantorOn ? `<div class="gbox"><b style="font-size:16px">Guarantor Details</b>${partyFields("guarantor", d.guarantor, "Guarantor", true)}</div>` : ""}
+      ${d.guarantorOn ? `<div class="gbox"><b style="font-size:16px">Guarantor Details</b>${partyFields("guarantor", d.guarantor, "Guarantor", true)}
+        <button class="toggle" id="g2toggle" type="button" aria-pressed="${d.guarantor2On}"><span class="sw"></span>
+          <span><b>Add a second guarantor</b><span class="muted">Optional — at most two guarantors per application</span></span></button>
+        ${d.guarantor2On ? `<b style="font-size:16px">Second Guarantor Details</b>${partyFields("guarantor2", d.guarantor2, "Second Guarantor", true)}` : ""}</div>` : ""}
       <label class="field" style="max-width:360px">LTA Access Code *<input class="input" data-f="ltaCode" value="${esc(d.ltaCode)}"><span class="hint">The rest of the form unlocks once this is entered.</span></label>
     </section>
     <div class="row between">
@@ -251,11 +318,11 @@ function dealerApply() {
   bindCommon();
 
   const refreshHints = () => {
-    for (const prefix of ["hirer", "guarantor"]) {
+    for (const prefix of ["hirer", "guarantor", "guarantor2"]) {
       for (const key of ["nric", "email", "mobile"]) {
         const h = $app.querySelector(`[data-h="${prefix}.${key}"]`);
         if (!h) continue;
-        const s = fieldState(prefix, key, d[prefix][key], d.hirer.nric);
+        const s = fieldState(prefix, key, d[prefix][key], otherNrics(d, prefix));
         h.className = `hint ${s.cls}`;
         h.textContent = s.msg;
         $app.querySelector(`[data-f="${prefix}.${key}"]`)?.classList.toggle("bad", s.cls === "err");
@@ -277,6 +344,11 @@ function dealerApply() {
     saveDraft();
     dealerApply();
   });
+  document.getElementById("g2toggle")?.addEventListener("click", () => {
+    d.guarantor2On = !d.guarantor2On;
+    saveDraft();
+    dealerApply();
+  });
   document.getElementById("sample").addEventListener("click", () => {
     const email = d.hirer.email || "";
     const sp = state.config.samples;
@@ -289,7 +361,7 @@ function dealerApply() {
     toast("Sample filled — type the email address(es) that should receive the Singpass link");
   });
   document.getElementById("clear").addEventListener("click", () => {
-    state.draft = { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), ltaCode: "", c1: false, c2: false };
+    state.draft = emptyDraft();
     saveDraft();
     dealerApply();
   });
@@ -309,13 +381,13 @@ function dealerReview() {
     ${stepsBar(3)}
     <section class="card" style="gap:16px">
       <h2>Singpass requests</h2>
-      <div class="grid2">${box("HIRER", d.hirer)}${d.guarantorOn ? box("GUARANTOR", d.guarantor) : ""}</div>
+      <div class="grid2">${box("HIRER", d.hirer)}${d.guarantorOn ? box(d.guarantor2On ? "GUARANTOR 1" : "GUARANTOR", d.guarantor) : ""}${d.guarantorOn && d.guarantor2On ? box("GUARANTOR 2", d.guarantor2) : ""}</div>
       <label class="check"><input type="checkbox" id="c1" ${d.c1 ? "checked" : ""}>I confirm that the Applicant and Guarantor(s) have been shown the declarations above, have read and understood them in a language they understand, and have agreed to them — including consent to identity, employment and credit bureau verification.</label>
       <div class="band">DEALER'S ATTESTATION</div>
       <p class="para">By submitting this application, I, as an authorised representative of the Dealer named in this application, confirm that: (a) all information was provided by the Applicant / Guarantor(s) and is accurate and complete; (b) I have verified the identity of the Applicant / Guarantor(s) against their original supporting documents; (c) the Applicant / Guarantor(s) have consented to … receiving a Singpass verification request to authorise MyInfo retrieval; and (d) I understand the Dealer is not an agent of VMAF.</p>
       <label class="check"><input type="checkbox" id="c2" ${d.c2 ? "checked" : ""}>I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.</label>
     </section>
-    <div class="note-gold">On submit, a Singpass verification link is emailed to the hirer${d.guarantorOn ? " and the guarantor" : ""} (one active link each, valid ${state.config.ttlHours} hours), and the LTA Access Code is used to retrieve the vehicle's log card and PARF/COE rebate details automatically.</div>
+    <div class="note-gold">On submit, a Singpass verification link is emailed to the hirer${d.guarantorOn ? (d.guarantor2On ? " and both guarantors" : " and the guarantor") : ""} (one active link each, valid ${state.config.ttlHours} hours), and the LTA Access Code is used to retrieve the vehicle's log card and PARF/COE rebate details automatically.</div>
     <div class="row between">
       <a class="btn" href="/dealer/apply" data-go>← Back</a>
       <div class="row"><a class="btn" href="/dealer/apply" data-go>Cancel</a><button class="btn primary" id="send" type="button">Send Singpass Request →</button></div>
@@ -336,10 +408,10 @@ function dealerReview() {
     try {
       const app = await api("POST", "/api/applications", {
         hirer: d.hirer,
-        guarantor: d.guarantorOn ? d.guarantor : null,
+        guarantors: d.guarantorOn ? [d.guarantor, ...(d.guarantor2On ? [d.guarantor2] : [])] : [],
         ltaCode: d.ltaCode,
       });
-      state.draft = { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), ltaCode: "", c1: false, c2: false };
+      state.draft = emptyDraft();
       saveDraft();
       go(`/dealer/received/${app.ref}`);
     } catch (e) {
@@ -358,7 +430,7 @@ async function dealerReceived(ref) {
     <section class="card hero">
       <div class="okcircle"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
       <h1 style="font-size:28px;color:var(--red-deep)">Interest Received</h1>
-      <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 1 ? "hirer and guarantor" : "hirer"}, and retrieving their vehicle documents via LTA.</p>
+      <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}, and retrieving their vehicle documents via LTA.</p>
       <span class="pill">Application Ref: ${esc(app.ref)}</span>
       <div class="grid2" style="width:100%;max-width:560px;text-align:left">
         ${app.parties.map((p) => `<div class="sumbox"><span class="muted small">${esc(p.label)} · ${p.linkStatus === "QUEUED" ? "queued — sent automatically once the Singpass gateway is reachable" : "link sent"}</span><b style="font-size:14px">${p.expiresAt ? `Expires ${fmt(p.expiresAt)}` : "Expiry starts when the link is sent"}</b></div>`).join("")}
@@ -406,7 +478,7 @@ function partyChip(p) {
     case "Fulfilled": return `<span class="chip ok">${r} · Fulfilled ${fmt(p.fulfilledAt)}</span>`;
     case "Pending": return `<span class="chip wait">${r} · Pending · link expires in ${hoursLeft(p.expiresAt)}</span>`;
     case "Expired": return `<span class="chip bad">${r} · Link expired</span>`;
-    case "NRIC mismatch": return `<span class="chip bad">${r} · NRIC mismatch — Ops will follow up</span>`;
+    case "NRIC mismatch": return `<span class="chip bad">${r} · NRIC mismatch — Ops is following up</span>`;
     case "Queued": return `<span class="chip wait">${r} · Link queued · sent once the gateway is reachable</span>`;
     default: return `<span class="chip bad">${r} · ${esc(p.status)}</span>`;
   }
@@ -472,19 +544,19 @@ function partyStatusText(p) {
 async function opsList() {
   let flashRef = null;
   const load = async () => {
-    const apps = await api("GET", "/api/applications");
+    const [apps, expired] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/links/expired")]);
     $app.innerHTML = `${header()}<main class="wrap">
       <div class="row between" style="align-items:flex-start">
         <div><h1 style="font-size:28px">Ops — All Applications</h1><span style="font-size:15px;color:var(--text-2)">All loan applications across every dealer — Ops review queue.</span></div>
-        <a class="btn" href="/demo" data-go>Demo Control</a>
+        <div class="row"><a class="btn${expired.length ? " danger" : ""}" href="/ops/expired" data-go>Expired links (${expired.length})</a><a class="btn" href="/demo" data-go>Demo Control</a></div>
       </div>
       <div class="tablebox"><table class="list"><thead><tr><th>APPLICATION NO.</th><th>DEALER</th><th>HIRER</th><th>GUARANTOR</th><th>CAR PLATE</th><th>SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
       ${apps.length ? apps.map((a) => {
         const h = a.parties.find((p) => p.role === "hirer");
-        const g = a.parties.find((p) => p.role === "guarantor");
+        const gs = a.parties.filter((p) => p.role === "guarantor");
         return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td><b>${esc(a.ref)}</b></td><td>${esc(a.dealer)}</td>
-          <td>${esc(h.name)}<br><span class="sub">${esc(h.nric)} · ${partyStatusText(h)}</span></td>
-          <td>${g ? `${esc(g.name)}<br><span class="sub">${esc(g.nric)} · ${partyStatusText(g)}</span>` : "—"}</td>
+          <td>${esc(h.name)}<br><span class="sub">${esc(h.nricMasked)} · ${partyStatusText(h)}</span></td>
+          <td>${gs.length ? gs.map((g) => `${esc(g.name)}<br><span class="sub">${esc(g.nricMasked)} · ${partyStatusText(g)}</span>`).join("<br>") : "—"}</td>
           <td>${esc(a.carPlate || "—")}</td><td>${singpassCount(a)}</td>
           <td>${esc(a.createdBy)}<br><span class="sub">${fmt(a.createdAt)}</span></td>
           <td>${statusChip(a.opsStatus)}</td>
@@ -500,11 +572,11 @@ async function opsList() {
 }
 
 // ---------------- screen 11: Ops detail ----------------
-function opsPartyStatus(p) {
+function opsPartyStatus(p, ref) {
   switch (p.status) {
     case "Fulfilled": return `<dd class="t-ok">Fulfilled · NRIC matched</dd>`;
     case "Pending": return `<dd class="t-wait">Pending${p.linkStatus === "OPENED" ? " · opened by the customer" : ""} · link expires in ${hoursLeft(p.expiresAt)}</dd>`;
-    case "NRIC mismatch": return `<dd class="t-bad">NRIC mismatch · logged in as ${esc(p.mismatchUinfin)}</dd>`;
+    case "NRIC mismatch": return `<dd class="t-bad">NRIC mismatch · logged in as ${nricWithReveal(ref, p, "returned", p.mismatchUinfin)}</dd>`;
     case "Expired": return `<dd class="t-bad">Expired · resend to send a new link</dd>`;
     case "Queued": return `<dd class="t-wait">Queued · waiting for the Singpass gateway</dd>`;
     default: return `<dd class="t-bad">${esc(p.status)}</dd>`;
@@ -516,7 +588,7 @@ function myinfoTable(p) {
   if (p.status === "NRIC mismatch") {
     return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
       <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
-      <tr><td>NRIC</td><td>${esc(p.nric)}</td><td class="t-bad" style="font-weight:600">${esc(p.mismatchUinfin)} ✗ mismatch</td></tr>
+      <tr><td>NRIC</td><td>${esc(p.nricMasked)}</td><td class="t-bad" style="font-weight:600">${esc(p.mismatchUinfin)} ✗ mismatch</td></tr>
       </tbody></table></div><p class="small muted" style="margin:0">Only the returned NRIC is kept; the rest of the MyInfo data was discarded.</p>`;
   }
   if (!mi) return "";
@@ -524,7 +596,7 @@ function myinfoTable(p) {
   const row = (f, dealer, myinfo, cls = "") => `<tr><td>${f}</td><td${dealer ? "" : ' style="color:var(--faint)"'}>${dealer ? esc(dealer) : "—"}</td><td class="${cls}">${myinfo}</td></tr>`;
   return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
     <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
-    ${row("NRIC", p.nric, `${esc(mi.uinfin)} ✓ match`, "t-ok")}
+    ${row("NRIC", p.nricMasked, `${esc(mi.uinfin)} ✓ match`, "t-ok")}
     ${row("Name", p.name, esc(mi.name))}
     ${row("Date of birth", "", esc(mi.dob))}
     ${row("Registered address", "", esc(mi.regAddress))}
@@ -535,26 +607,60 @@ function myinfoTable(p) {
     </tbody></table></div>`;
 }
 
-const ACTIVITY = {
-  "link.queued": (e) => `Link requested (${e.details.reason})`,
-  "link.sent": () => "Link sent by email + SMS notice",
-  "link.opened": () => "Customer opened the link on the portal",
-  "link.blocked": (e) => `Portal blocked a link (${e.details.reason})`,
-  "link.resent": (e) => `Link resent by ${e.actorName} — reason: ${e.details.reason}`,
-  "link.replaced": () => "Previous link replaced",
-  "link.expired": () => "Link expired (72 h without a result)",
-  "result.rejected": (e) => `MyInfo result rejected — ${e.details.reason === "old-link" ? "old link" : "expired link"} (returned ${e.details.returned}, ${e.details.nricMatches === "yes" ? "same NRIC" : "different NRIC"}); not attached`,
-  "party.fulfilled": () => "MyInfo retrieved — NRIC matched → Fulfilled",
-  "party.mismatch": (e) => `NRIC mismatch — logged in as ${e.details.returned}, dealer entered ${e.details.expected}`,
-};
+// Activity log: the server writes the sentences (SGT, no internal codes, no full NRIC).
 function activityLog(app) {
   if (!app.activity?.length) return "";
-  const label = (id) => app.parties.find((p) => p.id === id)?.label ?? "";
-  const bad = new Set(["result.rejected", "party.mismatch", "link.expired", "link.blocked"]);
-  return `<h2 style="font-size:24px">Activity</h2><div style="display:flex;flex-direction:column;gap:6px">${app.activity
-    .slice(0, 30)
-    .map((e) => `<div class="${bad.has(e.type) ? "note-red" : "sumbox"}" style="padding:8px 12px"><span class="small">${fmt(e.at)} · ${esc(label(e.partyId))} · ${esc((ACTIVITY[e.type] || ((x) => x.type))(e))}</span></div>`)
+  return `<h2 style="font-size:24px">Activity</h2><div class="activity">${app.activity
+    .slice(0, 40)
+    .map((e) => `<div class="act ${e.tone}"><span class="when">${esc(e.time)}</span>${e.party ? `<b>${esc(e.party)}</b>` : ""}<span>${esc(e.text)}</span></div>`)
     .join("")}</div>`;
+}
+
+function linkHistory(p) {
+  if (p.history.length < 2) return "";
+  return `<div class="linkhist"><span class="muted small">Links sent to the ${esc(p.label.toLowerCase())}:</span>${p.history
+    .map((l, i) => `<span class="small ${l.current ? "" : "old"}">#${i + 1}${l.sentAt ? ` · sent ${fmt(l.sentAt)}` : " · not sent"} · <b>${esc(l.label)}</b>${l.current ? " (current)" : ""}</span>`)
+    .join("")}</div>`;
+}
+
+// Resend with a mandatory reason (D-39: the server enforces the limit and says when the next resend is possible).
+function bindResend(ref, after) {
+  $app.querySelectorAll("[data-resend]").forEach((b) => b.addEventListener("click", async () => {
+    const refOf = b.dataset.ref || ref;
+    const v = await openDialog({
+      title: `Resend the Singpass link to the ${b.dataset.label.toLowerCase()}`,
+      intro: "A new link is emailed and the current one stops working. At most 3 resends per person in 24 hours.",
+      fields: [{ name: "reason", label: "Reason (required)", placeholder: "e.g. Customer did not receive the email" }],
+      submit: "Resend link",
+    });
+    if (!v) return;
+    b.disabled = true;
+    try {
+      await api("POST", `/api/applications/${refOf}/parties/${b.dataset.resend}/resend`, { reason: v.reason });
+      toast(`New link sent to the ${b.dataset.label.toLowerCase()}; the old link no longer works`);
+      if (after) after();
+    } catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
+}
+
+// ---------------- Ops: expired links (flow item 9) ----------------
+async function opsExpired() {
+  const load = async () => {
+    const rows = await api("GET", "/api/links/expired");
+    $app.innerHTML = `${header()}<main class="wrap">
+      <a href="/ops" data-go style="font-weight:600;text-decoration:none">← All Applications</a>
+      <div><h1 style="font-size:28px">Expired Singpass links</h1><span style="font-size:15px;color:var(--text-2)">People whose current link expired without a result. Resend to issue a new link.</span></div>
+      <div class="tablebox"><table class="list"><thead><tr><th>APPLICATION NO.</th><th>PERSON</th><th>EXPIRED</th><th>NEXT RESEND</th><th>ACTIONS</th></tr></thead><tbody>
+      ${rows.length ? rows.map((r) => `<tr><td><a href="/ops/applications/${esc(r.ref)}" data-go><b>${esc(r.ref)}</b></a></td><td>${esc(r.label)} · ${esc(r.name)}</td><td>${fmt(r.expiredAt)}</td>
+        <td>${r.resendRetryAt ? `<span class="t-wait">from ${fmt(r.resendRetryAt)}</span>` : '<span class="t-ok">now</span>'}</td>
+        <td><button class="btn sm" type="button" data-resend="${esc(r.partyId)}" data-ref="${esc(r.ref)}" data-label="${esc(r.label)}" ${r.resendRetryAt ? "disabled" : ""}>Resend link</button></td></tr>`).join("") : `<tr><td colspan="5" class="muted">No expired links.</td></tr>`}
+      </tbody></table></div>
+    </main>`;
+    bindCommon();
+    bindResend(null, load);
+  };
+  await load();
+  state.refresh = () => load();
 }
 
 async function opsDetail(ref) {
@@ -573,7 +679,7 @@ async function opsDetail(ref) {
         <div class="row" style="align-items:center;gap:14px"><h1 style="font-size:28px">Application Details</h1><span class="chip wait" style="font-size:14px">${esc(app.ref)}</span>${statusChip(app.opsStatus)}</div>
         <dl class="kv">
           <div><dt>Applicant Name</dt><dd>${esc(h.name)}</dd></div>
-          <div><dt>Applicant NRIC</dt><dd>${esc(h.nric)}</dd></div>
+          <div><dt>Applicant NRIC</dt><dd>${nricWithReveal(app.ref, h, "entered", h.nricMasked)}</dd></div>
           <div><dt>Applicant Email</dt><dd>${esc(h.email)}</dd></div>
           <div><dt>Dealer</dt><dd>${esc(app.dealer)}</dd></div>
           <div><dt>Created by</dt><dd>${esc(app.createdBy)} · ${fmt(app.createdAt)}</dd></div>
@@ -582,15 +688,16 @@ async function opsDetail(ref) {
         <h2 style="font-size:24px">Singpass Status</h2>
         ${app.parties.map((p) => `<div class="partyblock">
           <dl class="kv">
-            <div><dt>${esc(p.label)} — Status</dt>${opsPartyStatus(p)}</div>
+            <div><dt>${esc(p.label)} — Status</dt>${opsPartyStatus(p, app.ref)}</div>
             <div><dt>${esc(p.label)} — Trigger Date</dt><dd>${fmt(p.triggerAt)}</dd></div>
             <div><dt>${esc(p.label)} — Fulfilled Date</dt><dd${p.fulfilledAt ? "" : ' style="color:var(--faint)"'}>${fmt(p.fulfilledAt)}</dd></div>
           </dl>
           <div class="row" style="gap:10px">
             <button class="btn sm" type="button" data-retrieve="${esc(p.id)}" ${["Pending", "Queued"].includes(p.status) ? "" : "disabled"}>Retrieve MyInfo (${esc(p.label)})</button>
-            <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
-            ${p.history.length > 1 ? `<span class="small muted" style="align-self:center">${p.history.length} links sent</span>` : ""}
+            <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" || app.stage === "AA" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
+            <button class="btn sm" type="button" data-correct="${esc(p.id)}" data-label="${esc(p.label)}" data-email="${esc(p.email)}" ${app.stage === "AA" ? "disabled" : ""}>Correct NRIC / email</button>
           </div>
+          ${linkHistory(p)}
         </div>`).join("")}
         ${activityLog(app)}
         ${app.parties.map(myinfoTable).join("")}
@@ -623,14 +730,26 @@ async function opsDetail(ref) {
         toast(selected === "IPA" ? "IPA issued" : "AA issued");
       } catch (e) { toast(e.message, true); }
     });
-    $app.querySelectorAll("[data-resend]").forEach((b) => b.addEventListener("click", async () => {
-      const reason = window.prompt(`Reason for resending the Singpass link to the ${b.dataset.label}:`);
-      if (!reason || !reason.trim()) return;
-      b.disabled = true;
+    bindResend(ref);
+    bindReveal();
+    $app.querySelectorAll("[data-correct]").forEach((b) => b.addEventListener("click", async () => {
+      const v = await openDialog({
+        title: `Correct the ${b.dataset.label.toLowerCase()}'s details`,
+        intro: "Changing the NRIC issues a new Singpass link and the person verifies again. Changing only the email of a person already fulfilled keeps the result.",
+        fields: [
+          { name: "nric", label: "Correct NRIC / FIN (leave empty to keep)", placeholder: "e.g. S8812345Z" },
+          { name: "email", label: "Email address", value: b.dataset.email },
+          { name: "reason", label: "Reason (required)", placeholder: "e.g. Dealer typo, checked against the NRIC card" },
+        ],
+        submit: "Save correction",
+      });
+      if (!v) return;
+      const body = { reason: v.reason, email: v.email };
+      if (v.nric.trim()) body.nric = v.nric;
       try {
-        await api("POST", `/api/applications/${ref}/parties/${b.dataset.resend}/resend`, { reason });
-        toast(`New link sent to the ${b.dataset.label}; the old link no longer works`);
-      } catch (e) { toast(e.message, true); b.disabled = false; }
+        await api("POST", `/api/applications/${ref}/parties/${b.dataset.correct}/correct`, body);
+        toast("Details corrected");
+      } catch (e) { toast(e.message, true); }
     }));
     $app.querySelectorAll("[data-retrieve]").forEach((b) => b.addEventListener("click", async () => {
       b.disabled = true;
@@ -679,12 +798,13 @@ async function demoPage() {
           <button class="btn sm" data-advance="1" type="button">+1 h</button>
           <button class="btn sm" data-advance="24" type="button">+24 h</button>
           <button class="btn sm" data-advance="73" type="button">+73 h (expire links)</button>
+          ${demo.offsetMs ? '<button class="btn sm" id="realtime2" type="button">Back to real time</button>' : ""}
         </div>
       </section>
       <section class="card" style="gap:14px">
         <h2>Links</h2>
         ${apps.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
-        ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(p.label)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nric)}</span></td><td>${partyStatusText(p)}</td>
+        ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(p.label)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nricMasked)}</span></td><td>${partyStatusText(p)}</td>
           <td>${p.linkUrl ? `<a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button">QR</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
         </tbody></table></div>` : `<p class="muted" style="margin:0">No applications yet.</p>`}
         <div id="qrdemo" class="row center"></div>
@@ -705,6 +825,7 @@ async function demoPage() {
     document.getElementById("seed").addEventListener("click", () => act(async () => toast(`${(await api("POST", "/api/demo/seed")).added} sample application(s) created`)));
     document.getElementById("gw").addEventListener("click", () => act(() => api("POST", "/api/demo/gateway", { available: !demo.gatewayAvailable })));
     document.getElementById("runjob").addEventListener("click", () => act(() => api("POST", "/api/demo/run-job"), "Job run"));
+    document.getElementById("realtime2")?.addEventListener("click", () => act(() => api("POST", "/api/demo/clock/reset"), "Back to real time"));
     $app.querySelectorAll("[data-advance]").forEach((b) => b.addEventListener("click", () => act(() => api("POST", "/api/demo/clock", { advanceHours: Number(b.dataset.advance) }), `Clock +${b.dataset.advance} h`)));
     $app.querySelectorAll("[data-qr]").forEach((b) => b.addEventListener("click", () => {
       const box = document.getElementById("qrdemo");
@@ -740,8 +861,8 @@ async function portalPage(token) {
   $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
     <span class="chip xs ok" style="align-self:flex-start">✓ Link valid · expires in ${hoursLeft(info.expiresAt)}</span>
     <h1>Verify your identity</h1>
-    <dl class="pdl"><dt>Application</dt><dd>${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${esc(info.role)}</dd><dt>NRIC</dt><dd>${esc(info.maskedNric)}</dd></dl>
-    <p class="para">You will log in with Singpass and choose to share your MyInfo details. Only the person with NRIC ${esc(info.maskedNric)} can complete this.</p>
+    <dl class="pdl"><dt>Application</dt><dd>${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${esc(info.role)}</dd></dl>
+    <p class="para">You will log in with Singpass and choose to share your MyInfo details. Only the person this request was sent to can complete it.</p>
     <a class="pbtn" href="${esc(info.redirectUrl)}">Continue to Singpass →</a>
   </div></div></div>`;
 }
@@ -885,6 +1006,7 @@ function declinedScreen() {
 // ---------------- boot ----------------
 (async function boot() {
   [state.config, { user: state.user }] = await Promise.all([api("GET", "/api/config"), api("GET", "/api/session")]);
+  await loadDemoClock();
   connectEvents();
   render();
 })();

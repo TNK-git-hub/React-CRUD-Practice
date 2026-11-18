@@ -4,7 +4,7 @@ Answers to the open questions raised by `/spec-bootstrap`. The user delegated th
 yourself"); they are demo choices, not answers from ValueMax, and can be changed through a later change.
 
 **2026-11-18:** the user answered Q1–Q9 of `docs/claude-code-demo/GAP_REPORT.md`. Rows marked *Changed* or *Clarified*
-keep the previous decision in italics; D-33 to D-47 are new.
+keep the previous decision in italics; D-33 to D-48 are new.
 "Brief" = `docs/requirements/singpass-demo-brief.md`.
 
 | ID | Question | Decision |
@@ -56,3 +56,4 @@ keep the previous decision in italics; D-33 to D-47 are new.
 | D-45 | Late data on old links (2026-11-18) | The job polls the current link only while it is SENT / OPENED, never QUEUED, FULFILLED or MISMATCH links. A separate pass of the same job checks REPLACED / EXPIRED links that have a LinkId, until their original expiry + `LINK_TTL_HOURS`: when data is found it records exactly one `result.rejected` audit event (reason "old link" or "expired", returned NRIC masked, whether it matches) and stops checking that link. This pass never changes a link or party status and never stores the person data. MISMATCH history links are not re-checked |
 | D-46 | Resend or correction while the gateway is down (2026-11-18) | The old link becomes REPLACED immediately (the portal blocks it at once); the new link is QUEUED and the job issues and sends it once the gateway is back, exactly once (same rule as D-24); its 72 hours count from that moment |
 | D-47 | Expired links list (2026-11-18) | Ops get the list of parties whose current link is EXPIRED (oldest first, with the time a resend is next allowed, D-39) and can resend from it. A party leaves the list as soon as a new link is issued |
+| D-48 | Amending an IPA (2026-11-18) | Not in the demo: an IPA is issued once and cannot be amended or re-issued. Prototype v54 (fig. 5.4–5.5, "Amend") and the Proposal have an IPA amendment; it is out of scope here (brief §12, IPA contents) |

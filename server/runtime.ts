@@ -12,7 +12,7 @@ import type { AppConfig } from "./config.ts";
 import { encrypt } from "./crypto.ts";
 import { MockGatewayAdapter, SimulatedGateway } from "./gateway/simulated.ts";
 import { GatewayUnavailable } from "./gateway/adapter.ts";
-import { isValidNric, maskNric } from "./nric.ts";
+import { isValidNric } from "./nric.ts";
 import { PERSONAS } from "./personas.ts";
 import { applicationView, canSee } from "./views.ts";
 import { Db } from "./verification/db.ts";
@@ -212,6 +212,12 @@ export function createRuntime(opts: RuntimeOptions) {
     await service.correctParty(ref ?? "", party ?? "", user, changes, body.reason ?? "");
     send(res, 200, view(user, ref ?? ""));
   });
+  route("POST", "/api/applications/:ref/parties/:party/reveal-nric", async (req, res, [ref, party]) => {
+    const user = requireUser(req);
+    const { which } = await readJson<{ which?: string }>(req);
+    if (which !== "entered" && which !== "returned") throw new HttpError(400, "which must be entered or returned");
+    send(res, 200, { nric: service.revealNric(ref ?? "", party ?? "", user, which) });
+  });
   route("GET", "/api/links/expired", async (req, res) => {
     requireUser(req, "ops");
     send(res, 200, service.expiredLinks());
@@ -242,8 +248,7 @@ export function createRuntime(opts: RuntimeOptions) {
       redirectUrl: r.redirectUrl,
       ref: found?.app.ref,
       dealer: found ? (DEALERS[found.app.dealerId] ?? "") : "",
-      role: found?.party.label,
-      maskedNric: found ? maskNric(found.party.nric) : "",
+      role: found?.party.label, // no personal information on the customer pages
       expiresAt: found?.link.expiresAt ?? null,
     });
   });
@@ -322,6 +327,12 @@ export function createRuntime(opts: RuntimeOptions) {
     const hours = Number(advanceHours);
     if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 30) throw new HttpError(400, "advanceHours must be between 0 and 720");
     clock.advance(hours * 3_600_000);
+    broadcast("demo", {});
+    send(res, 200, demoState());
+  });
+  route("POST", "/api/demo/clock/reset", async (req, res) => {
+    requireUser(req);
+    clock.resetOffset();
     broadcast("demo", {});
     send(res, 200, demoState());
   });
