@@ -4,7 +4,7 @@ Answers to the open questions raised by `/spec-bootstrap`. The user delegated th
 yourself"); they are demo choices, not answers from ValueMax, and can be changed through a later change.
 
 **2026-11-18:** the user answered Q1–Q9 of `docs/claude-code-demo/GAP_REPORT.md`. Rows marked *Changed* or *Clarified*
-keep the previous decision in italics; D-33 to D-43 are new.
+keep the previous decision in italics; D-33 to D-45 are new.
 "Brief" = `docs/requirements/singpass-demo-brief.md`.
 
 | ID | Question | Decision |
@@ -52,3 +52,5 @@ keep the previous decision in italics; D-33 to D-43 are new.
 | D-41 | NRIC display and logs (2026-11-18) | NRICs are masked in lists and details (e.g. `S****249H`); showing the full value needs a click and writes an audit event. Server logs never contain a full NRIC or person data |
 | D-42 | Time and configuration (2026-11-18) | All time comes from an injected clock (Demo Control can move it forward). `LINK_TTL_HOURS`, `POLL_INTERVAL_MS`, `RESEND_LIMIT`, `RESEND_WINDOW_HOURS` are configuration; the code never detects a test environment |
 | D-43 | Old rule tests (Q9, 2026-11-18) | `tests/rules.test.ts` checks the previous behaviour (Declined, Superseded, Rejected): it is replaced by the SC-xx tests. The NRIC / FIN, mobile number and application-ref tests are kept because those rules still hold |
+| D-44 | Auto-verify job: data vs expiry in the same cycle (2026-11-18) | For the party's current link while it is SENT / OPENED, the job (and "Retrieve MyInfo") calls `fetchPerson` first and only then looks at the expiry: data → processed (FULFILLED / MISMATCH) even if the link expired during that cycle; no data and past `expiresAt` → EXPIRED. If the gateway is unavailable nothing changes (retried next cycle). Opening an expired link on the portal is blocked but does not itself set EXPIRED: only the job does, after checking for data. Once a link is EXPIRED or REPLACED in the database, any data that shows up for it later is rejected (D-45) |
+| D-45 | Late data on old links (2026-11-18) | The job polls the current link only while it is SENT / OPENED, never QUEUED, FULFILLED or MISMATCH links. A separate pass of the same job checks REPLACED / EXPIRED links that have a LinkId, until their original expiry + `LINK_TTL_HOURS`: when data is found it records exactly one `result.rejected` audit event (reason "old link" or "expired", returned NRIC masked, whether it matches) and stops checking that link. This pass never changes a link or party status and never stores the person data. MISMATCH history links are not re-checked |

@@ -1,5 +1,8 @@
 // Shared test harness: the verification service wired to the simulated gateway, a fake clock and a fake mailer.
+import { randomBytes } from "node:crypto";
 import type { Clock } from "../server/clock.ts";
+import { encrypt } from "../server/crypto.ts";
+import type { GatewayAdapter } from "../server/gateway/adapter.ts";
 import { loadConfig } from "../server/config.ts";
 import { MockGatewayAdapter, SimulatedGateway } from "../server/gateway/simulated.ts";
 import { Db } from "../server/verification/db.ts";
@@ -36,31 +39,59 @@ export function applicationInput(): ApplicationInput {
   };
 }
 
-export function harness(env: Record<string, string> = {}) {
+export interface HarnessOptions {
+  env?: Record<string, string>;
+  /** Wrap the adapter, e.g. to alter what the gateway returns. */
+  wrapGateway?: (inner: GatewayAdapter) => GatewayAdapter;
+}
+
+export function harness(opts: HarnessOptions = {}) {
   const clock = new FakeClock(T0);
-  const config = loadConfig({ PUBLIC_BASE_URL: "https://demo.test", ...env });
+  const config = loadConfig({ PUBLIC_BASE_URL: "https://demo.test", ...opts.env });
   const gatewaySystem = new SimulatedGateway(clock);
-  const gateway = new MockGatewayAdapter(gatewaySystem, config.publicBaseUrl);
+  const mock = new MockGatewayAdapter(gatewaySystem, config.publicBaseUrl);
+  const fetches: string[] = [];
+  const inner = opts.wrapGateway ? opts.wrapGateway(mock) : mock;
+  const gateway: GatewayAdapter = {
+    issueLink: (p) => inner.issueLink(p),
+    fetchPerson: (linkId) => {
+      fetches.push(linkId);
+      return inner.fetchPerson(linkId);
+    },
+  };
   const db = new Db();
   const emails: EmailMessage[] = [];
+  const changes: Array<string | null> = [];
+  const key = randomBytes(32);
   const service = new VerificationService({
     db,
     gateway,
     clock,
     config,
+    onChange: (ref) => changes.push(ref),
     email: {
       send: async (m) => {
         emails.push(m);
         return { delivered: true };
       },
     },
-    seal: (person) => `sealed:${JSON.stringify(person)}`,
+    seal: (person) => encrypt(key, person),
   });
-  return { clock, config, gatewaySystem, gateway, db, service, emails };
+  return { clock, config, gatewaySystem, gateway, db, service, emails, changes, fetches, key };
 }
 
 export type Harness = ReturnType<typeof harness>;
 
 export function outboxFor(h: Harness, party: Party, channel: "email" | "sms") {
   return h.db.outbox.filter((m) => m.partyId === party.id && m.channel === channel);
+}
+
+/** The customer goes through the simulated gateway pages for a LinkId: login as `uinfin`, I agree, Submit. */
+export function consent(h: Harness, linkId: string, uinfin: string): void {
+  if (!h.gatewaySystem.login(linkId, uinfin)) throw new Error(`unknown LinkId ${linkId}`);
+  if (!h.gatewaySystem.agree(linkId) || !h.gatewaySystem.submit(linkId)) throw new Error("consent failed");
+}
+
+export function auditOf(h: Harness, type: string, partyId?: string) {
+  return h.db.audit.filter((e) => e.type === type && (partyId === undefined || e.partyId === partyId));
 }

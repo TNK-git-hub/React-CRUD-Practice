@@ -41,7 +41,7 @@ test("SC-11 open a link that was replaced by a resend → blocked, no gateway UR
   assert.equal(h.service.openLink(currentLink(hirer).portalToken).ok, true);
 });
 
-test("SC-12 open a link more than 72 hours after it was sent → blocked, link EXPIRED", async () => {
+test("SC-12 open a link more than 72 hours after it was sent → blocked; the job then sets EXPIRED (D-44)", async () => {
   const h = harness();
   const app = await h.service.submitApplication(applicationInput(), DEALER);
   const link = currentLink(app.parties[0]!);
@@ -51,8 +51,12 @@ test("SC-12 open a link more than 72 hours after it was sent → blocked, link E
   h.clock.advance(1);
   const r = h.service.openLink(link.portalToken);
   assert.deepEqual(r, { ok: false, reason: "expired" });
+  assert.equal(link.status, "OPENED", "the portal does not set EXPIRED itself: the job checks for data first");
+
+  await h.service.runJob();
   assert.equal(link.status, "EXPIRED");
   assert.ok(h.db.audit.some((e) => e.type === "link.expired" && e.details.link === link.id));
+  assert.deepEqual(h.service.openLink(link.portalToken), { ok: false, reason: "expired" });
 });
 
 test("SC-11b an EXPIRED link kept as history after a resend is not the current link → blocked", async () => {

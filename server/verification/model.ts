@@ -27,6 +27,8 @@ export interface VerificationLink {
   openedAt?: number;
   /** When it reached FULFILLED, MISMATCH, EXPIRED or REPLACED. */
   closedAt?: number;
+  /** When data was found on this link after it was EXPIRED / REPLACED and rejected (D-45). Checked once. */
+  lateResultAt?: number;
 }
 
 export interface Party {

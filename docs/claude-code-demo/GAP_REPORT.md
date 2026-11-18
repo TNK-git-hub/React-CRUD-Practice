@@ -63,19 +63,22 @@ Tất cả màn đã gọi API thật (không có dữ liệu cứng về hồ s
 
 ## 4. Kế hoạch (theo thứ tự)
 
-Mỗi bước: viết test SC trước → xác nhận đỏ → code cho xanh → `npm test`, `npm run lint`, `npm run typecheck`.
+Mỗi bước: viết test SC trước → xác nhận đỏ → code cho xanh → `npm test`, `npm run lint`, `npm run typecheck` →
+commit. (Cập nhật 2026-11-18: thêm bước 3b, đánh số lại các bước sau.)
 
-1. **Nền móng + nộp hồ sơ.** Gỡ MockPass (Q6); thêm ESLint (Q7); `Clock` inject, `config`; adapter mới
-   (`issueLink`, `fetchPerson`, `GatewayUnavailable`) + gateway giả lập bật/tắt được + `ValueMaxGatewayAdapter` stub;
-   mô hình link mới (QUEUED … REPLACED), phát hành link lúc nộp, outbox email + SMS, audit.
-   Test: SC-01, SC-50, SC-51.
-2. **Portal link check.** `/verify/<portalToken>`: hiện hành + còn hạn → OPENED → URL gateway. Test: SC-10, SC-11, SC-12.
-3. **Job auto verify + Retrieve thủ công.** Polling, kiểm tra link hiện hành + NRIC, MISMATCH, EXPIRED, idempotent,
-   chạy chồng an toàn. Test: SC-20, SC-21, SC-22, SC-23, SC-24, SC-26, SC-27, SC-28.
+1. ✅ **Nền móng + nộp hồ sơ.** Gỡ MockPass (Q6); ESLint (Q7); `Clock` inject, `config`; adapter `issueLink`,
+   `fetchPerson`, `GatewayUnavailable` + gateway giả lập bật/tắt được + `ValueMaxGatewayAdapter` stub; link QUEUED …
+   REPLACED, phát hành link lúc nộp, outbox email + SMS, audit. Test: SC-01, SC-50, SC-51.
+2. ✅ **Portal link check.** `/verify/<portalToken>`, con trỏ `currentLinkId`. Test: SC-10, SC-11, SC-11b, SC-12.
+3. **Job auto verify + Retrieve thủ công.** Poll link hiện hành SENT/OPENED (fetch trước, xét hạn sau, D-44), pass
+   riêng cho kết quả muộn trên link REPLACED/EXPIRED (D-45), so NRIC, MISMATCH, EXPIRED, idempotent, chạy chồng an
+   toàn; Retrieve MyInfo dùng đúng hàm xử lý party của job. Test: SC-20 … SC-30, SC-22b, 2 test D-44, test chạy chồng.
+3b. **Chuyển `server/index.ts` sang service mới** cho các luồng đã có: nộp hồ sơ, `/verify`, trang gateway giả lập,
+   job poll, Retrieve MyInfo; xoá `store.ts` và hành vi cũ. Sau bước này app chạy luồng chính trên code mới.
 4. **Resend / sửa NRIC / link hết hạn.** Lý do, 3 lần/24 h trượt, Ops + dealer đã nộp. Test: SC-40, SC-41, SC-44, SC-46.
 5. **IPA / AA.** Test: SC-60, SC-61, SC-62, SC-63.
-6. **HTTP + frontend.** Chuyển `server/index.ts` sang service mới, trang gateway giả lập, che NRIC + audit xem,
-   Demo Control mới, nối các phần tử còn thiếu (không thiết kế lại giao diện).
+6. **Giao diện.** Che NRIC + audit xem, nhật ký hoạt động Ops (gồm "kết quả bị từ chối (link cũ)"), danh sách link
+   hết hạn, resend có lý do, sửa NRIC, guarantor thứ 2, Demo Control mới (không thiết kế lại giao diện).
 7. **E2E + tài liệu.** 1 test Playwright cho kịch bản chính (Q8), README, chạy tay 7 kịch bản, báo cáo cuối.
 
 ## 5. Quyết định đã chốt (2026-11-18)
@@ -91,6 +94,8 @@ Mỗi bước: viết test SC trước → xác nhận đỏ → code cho xanh �
 | Q7 | ESLint cấu hình tối giản, `npm run lint` | D-35 |
 | Q8 | Playwright, 1 test e2e cho kịch bản trình diễn chính; các SC khác test ở mức API/service | D-36 |
 | Q9 | `tests/rules.test.ts` kiểm tra hành vi cũ (Declined, Superseded, Rejected): thay bằng bộ SC-xx; giữ các test NRIC, số điện thoại, mã hồ sơ vì vẫn đúng | D-43 |
+| — | Job: fetch trước, xét hạn sau; link đã EXPIRED/REPLACED thì mọi dữ liệu về sau bị từ chối | D-44 |
+| — | Kết quả muộn trên link cũ: pass riêng trong job (không đổi trạng thái, 1 sự kiện result.rejected/link) | D-45 |
 | — | Stack: giữ Node `http`, JSON file, SPA vanilla JS, SSE (đã xác nhận) | D-37 |
 | — | Giữ D-22: khi sai NRIC chỉ lưu `uinfin`, không lưu phần còn lại của dữ liệu person | D-22 |
 
