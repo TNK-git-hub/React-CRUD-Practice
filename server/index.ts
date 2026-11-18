@@ -10,8 +10,11 @@ import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { request as httpRequest } from "node:http";
 import { MockGateway } from "./gateway/mock.ts";
+import { HttpGateway } from "./gateway/http.ts";
 import { MockPassGateway } from "./gateway/mockpass.ts";
 import type { MyinfoGateway } from "./gateway/types.ts";
+import { SIGNATURE_HEADER, verifyWebhook } from "./gateway/webhook.ts";
+import type { WebhookEvent, WebhookReply } from "./gateway/webhook.ts";
 import { sendSingpassEmail } from "./mail.ts";
 import { isValidNric, maskNric } from "./nric.ts";
 import { PERSONAS, personaFor } from "./personas.ts";
@@ -51,8 +54,16 @@ const BASE_URL = (process.env.PUBLIC_BASE_URL || `http://${lanAddress() ?? "loca
 
 const store = new Store({ file: join(ROOT, "data", "db.json"), ttlHours: TTL_HOURS });
 
-// ---------- gateway: "mockpass" (MockPass Myinfo v3) or "simulated" (built-in screens) ----------
-const GATEWAY = process.env.GATEWAY === "simulated" ? "simulated" : "mockpass";
+// ---------- gateway ----------
+// "http"      (default) separate Myinfo gateway service (mock-gateway/, in front of MockPass) that pushes results by webhook
+// "mockpass"  this app is the Myinfo client of MockPass itself
+// "simulated" built-in fake Singpass screens
+const GATEWAY = process.env.GATEWAY === "simulated" || process.env.GATEWAY === "mockpass" ? process.env.GATEWAY : "http";
+const GW_PORT = Number(process.env.GW_PORT || 4000);
+const GW_INTERNAL = (process.env.GATEWAY_URL || `http://127.0.0.1:${GW_PORT}`).replace(/\/$/, "");
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "demo-webhook-secret";
+const GW_CLIENT_ID = process.env.GW_CLIENT_ID || "VMAF-AUTOFIN-DEMO";
+const GW_CLIENT_SECRET = process.env.GW_CLIENT_SECRET || "demo-client-secret";
 const MOCKPASS_PORT = Number(process.env.MOCKPASS_PORT || 5156);
 const MOCKPASS_INTERNAL = (process.env.MOCKPASS_URL || `http://127.0.0.1:${MOCKPASS_PORT}`).replace(/\/$/, "");
 const MOCKPASS_DIR = join(ROOT, "node_modules", "@opengovsg", "mockpass");
@@ -68,9 +79,55 @@ const mockpass =
         mockpassDir: MOCKPASS_DIR,
       })
     : null;
-const gateway: MyinfoGateway = mockpass ?? simulated;
+const httpGateway =
+  GATEWAY === "http"
+    ? new HttpGateway({
+        baseUrl: GW_INTERNAL,
+        clientId: GW_CLIENT_ID,
+        clientSecret: GW_CLIENT_SECRET,
+        webhookUrl: process.env.WEBHOOK_URL || `http://127.0.0.1:${PORT}/api/gateway/webhook`,
+      })
+    : null;
+const gateway: MyinfoGateway = mockpass ?? httpGateway ?? simulated;
 
 let mockpassChild: ChildProcess | null = null;
+let gatewayChild: ChildProcess | null = null;
+/** GATEWAY=http: start mock-gateway/server.ts (which starts MockPass), unless one is already running. */
+async function startGateway(): Promise<void> {
+  if (GATEWAY !== "http" || process.env.GATEWAY_AUTOSTART === "false") return;
+  try {
+    await fetch(`${GW_INTERNAL}/gw/health`);
+    console.log(`[gateway] already running at ${GW_INTERNAL}`);
+    return;
+  } catch {
+    // not running yet
+  }
+  gatewayChild = spawn(process.execPath, [join(ROOT, "mock-gateway", "server.ts")], {
+    cwd: ROOT,
+    env: {
+      PATH: process.env.PATH ?? "",
+      GW_PORT: String(GW_PORT),
+      GW_PUBLIC_URL: BASE_URL, // customer pages are proxied through this app (see GATEWAY_PREFIXES)
+      MOCKPASS_PORT: String(MOCKPASS_PORT),
+      GW_CLIENT_ID,
+      GW_CLIENT_SECRET,
+      WEBHOOK_SECRET,
+      MYINFO_SHOW_REVIEW: String(SHOW_REVIEW),
+      LINK_TTL_HOURS: String(TTL_HOURS),
+    },
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  gatewayChild.on("exit", (code) => code && console.error(`[gateway] exited with code ${code}`));
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 150));
+    try {
+      if ((await fetch(`${GW_INTERNAL}/gw/health`)).ok) return;
+    } catch {
+      // starting
+    }
+  }
+  console.error(`[gateway] did not start on ${GW_INTERNAL}`);
+}
 async function startMockPass(): Promise<void> {
   if (GATEWAY !== "mockpass" || process.env.MOCKPASS_AUTOSTART === "false") return;
   try {
@@ -92,13 +149,20 @@ async function startMockPass(): Promise<void> {
 for (const sig of ["SIGINT", "SIGTERM"] as const)
   process.on(sig, () => {
     mockpassChild?.kill();
+    gatewayChild?.kill();
     process.exit(0);
   });
-process.on("exit", () => mockpassChild?.kill());
+process.on("exit", () => {
+  mockpassChild?.kill();
+  gatewayChild?.kill();
+});
 
-/** Forward MockPass paths so the phone reaches MockPass through this app's single URL (LAN or tunnel). */
-function proxyToMockPass(req: IncomingMessage, res: ServerResponse): void {
-  const target = new URL(req.url ?? "/", MOCKPASS_INTERNAL);
+/** Paths of the gateway's customer pages (and the MockPass pages it fronts), proxied so a phone needs one URL. */
+const GATEWAY_PREFIXES = ["/gw/", ...MOCKPASS_PREFIXES];
+
+/** Forward MockPass / gateway paths so the phone reaches them through this app's single URL (LAN or tunnel). */
+function proxyTo(base: string, req: IncomingMessage, res: ServerResponse): void {
+  const target = new URL(req.url ?? "/", base);
   const up = httpRequest(
     target,
     { method: req.method, headers: { ...req.headers, host: target.host, "x-forwarded-host": req.headers.host ?? "" } },
@@ -108,7 +172,7 @@ function proxyToMockPass(req: IncomingMessage, res: ServerResponse): void {
     },
   );
   up.on("error", () => {
-    if (!res.headersSent) send(res, 502, { error: "MockPass is not running (npm run dev starts it)" });
+    if (!res.headersSent) send(res, 502, { error: `${base === GW_INTERNAL ? "Myinfo gateway" : "MockPass"} is not running (npm run dev starts it)` });
   });
   req.pipe(up);
 }
@@ -130,7 +194,7 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(JSON.stringify(body));
 }
 
-async function readJson<T>(req: IncomingMessage): Promise<T> {
+async function readRaw(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of req) {
@@ -138,9 +202,14 @@ async function readJson<T>(req: IncomingMessage): Promise<T> {
     if (size > 100_000) throw new AppError(413, "Body too large");
     chunks.push(c as Buffer);
   }
-  if (!chunks.length) return {} as T;
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readJson<T>(req: IncomingMessage): Promise<T> {
+  const raw = await readRaw(req);
+  if (!raw) return {} as T;
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as T;
+    return JSON.parse(raw) as T;
   } catch {
     throw new AppError(400, "Invalid JSON");
   }
@@ -447,6 +516,67 @@ async function myinfoCallback(req: IncomingMessage, res: ServerResponse, url: UR
   }
 }
 
+// ---- webhook from the Myinfo gateway (GATEWAY=http): the customer pressed Submit Application / Cancel ----
+interface WebhookLogEntry {
+  at: number;
+  event: string;
+  ref: string;
+  role: string;
+  httpStatus: number;
+  result: string;
+}
+const webhookLog: WebhookLogEntry[] = [];
+
+route("POST", "/api/gateway/webhook", async (req, res) => {
+  const raw = await readRaw(req);
+  const reply = (httpStatus: number, body: WebhookReply, ev?: Partial<WebhookEvent>) => {
+    webhookLog.unshift({
+      at: Date.now(),
+      event: ev?.event ?? "?",
+      ref: ev?.applicationRef ?? "",
+      role: ev?.role ?? "",
+      httpStatus,
+      result: body.status ?? body.reason ?? "",
+    });
+    webhookLog.length = Math.min(webhookLog.length, 50);
+    broadcast("webhook", {});
+    send(res, httpStatus, body);
+  };
+  const sig = req.headers[SIGNATURE_HEADER];
+  if (!verifyWebhook(raw, Array.isArray(sig) ? sig[0] : sig, WEBHOOK_SECRET)) return reply(401, { accepted: false, reason: "Bad signature" });
+  let ev: WebhookEvent;
+  try {
+    ev = JSON.parse(raw) as WebhookEvent;
+  } catch {
+    return reply(400, { accepted: false, reason: "Invalid JSON" });
+  }
+  const found = store.findByGatewayLinkId(ev.linkId);
+  if (!found) return reply(404, { accepted: false, reason: "Unknown LinkId" }, ev);
+  const { app, link } = found;
+  // Idempotent: the gateway may retry after a timeout
+  if (link.outcome === "Fulfilled" || link.outcome === "NRIC mismatch" || link.outcome === "Declined")
+    return reply(200, { accepted: true, status: link.outcome, duplicate: true }, ev);
+  // Superseded / expired / already rejected: attachResult refuses it (410) and leaves a note for Ops
+  try {
+    let status;
+    if (ev.event === "myinfo.declined") status = store.attachResult(link.token, { kind: "declined" }, Date.now());
+    else if (ev.event === "myinfo.submitted" && typeof ev.person?.uinfin === "string")
+      status = store.attachResult(link.token, { kind: "ok", uinfin: ev.person.uinfin, sealed: encrypt(key, ev.person) }, Date.now());
+    else return reply(400, { accepted: false, reason: "Unsupported event" }, ev);
+    changed(app.ref);
+    return reply(200, { accepted: true, status }, ev);
+  } catch (e) {
+    changed(app.ref);
+    if (e instanceof AppError) return reply(e.status, { accepted: false, reason: e.message }, ev);
+    throw e;
+  }
+});
+
+route("GET", "/api/demo/webhooks", async (req, res) => {
+  requireUser(req);
+  send(res, 200, webhookLog);
+});
+
 // ---- Demo Control (D-05: any signed-in user) ----
 route("GET", "/api/demo/outbox", async (req, res) => {
   requireUser(req);
@@ -458,6 +588,7 @@ route("POST", "/api/demo/reset", async (req, res) => {
   store.reset();
   gateway.reset();
   simulated.reset();
+  webhookLog.length = 0;
   broadcast("application", { ref: null });
   broadcast("outbox", {});
   send(res, 200, { ok: true });
@@ -504,7 +635,8 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, pathname: 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
   try {
-    if (GATEWAY === "mockpass" && MOCKPASS_PREFIXES.some((p) => url.pathname.startsWith(p))) return proxyToMockPass(req, res);
+    if (GATEWAY === "mockpass" && MOCKPASS_PREFIXES.some((p) => url.pathname.startsWith(p))) return proxyTo(MOCKPASS_INTERNAL, req, res);
+    if (GATEWAY === "http" && GATEWAY_PREFIXES.some((p) => url.pathname.startsWith(p))) return proxyTo(GW_INTERNAL, req, res);
     if (url.pathname === "/myinfo-callback" && req.method === "GET") return await myinfoCallback(req, res, url);
     if (url.pathname.startsWith("/api/")) {
       for (const [method, re, h] of routes) {
@@ -524,11 +656,20 @@ const server = createServer(async (req, res) => {
 });
 
 await startMockPass();
+await startGateway();
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`\nValueMax Singpass demo running`);
   console.log(`  Laptop:      http://localhost:${PORT}`);
   console.log(`  Phone links: ${BASE_URL}  (PUBLIC_BASE_URL)`);
   console.log(`  Demo Control: http://localhost:${PORT}/demo`);
-  console.log(`  Gateway:     ${GATEWAY === "mockpass" ? `MockPass (Myinfo v3) on :${MOCKPASS_PORT}, proxied via ${BASE_URL}` : "built-in simulated screens"}`);
+  console.log(
+    `  Gateway:     ${
+      GATEWAY === "http"
+        ? `Myinfo gateway ${GW_INTERNAL} (mock, MockPass on :${MOCKPASS_PORT}), webhook -> /api/gateway/webhook`
+        : GATEWAY === "mockpass"
+          ? `MockPass (Myinfo v3) on :${MOCKPASS_PORT}, proxied via ${BASE_URL}`
+          : "built-in simulated screens"
+    }`,
+  );
   console.log(`  Email: ${process.env.SMTP_HOST ? `SMTP ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}` : "SMTP not configured — links printed below"}\n`);
 });

@@ -86,6 +86,7 @@ function connectEvents() {
   };
   es.addEventListener("application", onChange);
   es.addEventListener("outbox", (e) => state.refresh && state.refresh({ outbox: true }));
+  es.addEventListener("webhook", () => state.refresh && state.refresh({ webhook: true }));
 }
 
 // ---------------- router ----------------
@@ -617,7 +618,7 @@ async function demoPage() {
     return signIn();
   }
   const load = async () => {
-    const [apps, outbox] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox")]);
+    const [apps, outbox, hooks] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox"), api("GET", "/api/demo/webhooks")]);
     const cfg = state.config;
     $app.innerHTML = `${header()}<main class="wrap narrow">
       <div class="row between"><div><h1 style="font-size:28px">Demo Control</h1><span class="muted">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "SMTP configured" : "SMTP not configured (links only in the log and below)"}</span></div>
@@ -643,13 +644,20 @@ async function demoPage() {
         <h2>Outbox (last emails)</h2>
         ${outbox.length ? outbox.map((m) => `<div class="sumbox"><span class="lbl">${fmt(m.at)} · ${esc(m.ref)} · ${roleLabel(m.role)} → ${esc(m.to)} · ${m.delivered ? '<span class="t-ok">sent</span>' : `<span class="t-wait">${esc(m.error || "not sent")}</span>`}</span><a class="mono" href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.url)}</a></div>`).join("") : `<p class="muted" style="margin:0">No emails yet.</p>`}
       </section>
+      ${cfg.gateway === "http" ? `<section class="card" style="gap:14px">
+        <h2>Gateway webhooks (received)</h2>
+        <p class="small muted" style="margin:0">Pushed by the Myinfo gateway when the customer presses Submit Application or Cancel. Signed with HMAC-SHA256 (<code>x-gateway-signature</code>).</p>
+        ${hooks.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>TIME</th><th>EVENT</th><th>APPLICATION</th><th>HTTP</th><th>RESULT</th></tr></thead><tbody>
+        ${hooks.map((h) => `<tr><td>${fmt(h.at)}</td><td><code>${esc(h.event)}</code></td><td>${esc(h.ref)}${h.role ? ` · ${roleLabel(h.role)}` : ""}</td><td>${h.httpStatus === 200 ? `<span class="t-ok">200</span>` : `<span class="t-wait">${h.httpStatus}</span>`}</td><td>${esc(h.result)}</td></tr>`).join("")}
+        </tbody></table></div>` : `<p class="muted" style="margin:0">No webhooks yet.</p>`}
+      </section>` : ""}
       <section class="card" style="gap:10px">
         <h2>Error cases to show</h2>
         <ol class="para" style="padding-left:20px;margin:0;display:flex;flex-direction:column;gap:6px">
           <li><b>Expired link</b>: "Make link expired" above, then open the link on the phone.</li>
           <li><b>Old link after Resend</b>: Ops → Application → "Resend Email", then open the first email's link.</li>
-          <li><b>NRIC mismatch</b>: on the simulated Singpass login, pick a persona different from the NRIC the dealer entered.</li>
-          <li><b>Customer cancels</b>: press "Cancel" on the consent screen.</li>
+          <li><b>NRIC mismatch</b>: on the Singpass login (MockPass or simulated), use a persona NRIC different from the one the dealer entered.</li>
+          <li><b>Customer cancels</b>: press "Deny" / "Cancel" on the consent screen, or "Cancel" on the review screen.</li>
         </ol>
       </section>
     </main>`;

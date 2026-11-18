@@ -22,7 +22,7 @@ export type GatewayPersonResult =
   | { kind: "not_ready" };
 
 export interface MyinfoGateway {
-  readonly name: "simulated" | "mockpass";
+  readonly name: "simulated" | "mockpass" | "http";
   /** GetToken */
   getToken(): Promise<GatewayToken>;
   /** GetLinkId — one Myinfo session per verification link. */

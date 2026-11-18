@@ -28,6 +28,8 @@ export interface MockPassOptions {
   appBaseUrl: string;
   clientId: string;
   mockpassDir: string;
+  /** Path of the OAuth callback on appBaseUrl (default /myinfo-callback). */
+  redirectPath?: string;
 }
 
 export class MockPassGateway implements MyinfoGateway {
@@ -43,7 +45,7 @@ export class MockPassGateway implements MyinfoGateway {
   }
 
   get redirectUri(): string {
-    return `${this.opts.appBaseUrl}/myinfo-callback`;
+    return `${this.opts.appBaseUrl}${this.opts.redirectPath ?? "/myinfo-callback"}`;
   }
 
   async getToken(): Promise<GatewayToken> {
@@ -121,6 +123,10 @@ export class MockPassGateway implements MyinfoGateway {
     const body = (await res.json()) as Record<string, unknown>;
     if (!res.ok) throw new Error(`Myinfo person failed: ${String(body.message ?? res.status)}`);
     return body;
+  }
+
+  forget(linkId: string): void {
+    this.sessions.delete(linkId);
   }
 
   reset(): void {

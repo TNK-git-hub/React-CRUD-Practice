@@ -7,15 +7,35 @@ the laptop, the hirer and guarantor each get a link by email, log in and consent
 
 ### Myinfo gateway
 
-`GATEWAY=mockpass` (default) — real OAuth round trip against MockPass, started by `npm run dev` on port 5156 and
-proxied through this app, so the phone only needs the app's URL:
+`GATEWAY=http` (default) — a separate **mock ValueMax Myinfo gateway** (`mock-gateway/server.ts`, port 4000) sits
+between AutoFinance and MockPass, the way the real ValueMax gateway will. AutoFinance only calls its HTTP API; the
+gateway does the Singpass / Myinfo OAuth with MockPass, shows the customer the Review screen, and when the customer
+presses **Submit Application** it **pushes the data back by webhook**. `npm run dev` starts the gateway (which starts
+MockPass on 5156); both are proxied through this app (`/gw/*`), so the phone only needs the app's URL.
 
 ```
-email link /v/{token} → "Retrieve Myinfo with Singpass" → /myinfo/v3/authorise (MockPass)
-  → MockPass login (Login → type a persona NRIC, e.g. S9812379B) → consent page (Allow / Deny → Submit)
-  → /myinfo-callback?code&state → backend: POST /myinfo/v3/token, GET /myinfo/v3/person/{uinfin}
-  → review screen (Personal / Employment & Education / Property) → Submit Application → NRIC check → Fulfilled
+AutoFinance                                   Mock gateway (:4000)                          MockPass (:5156)
+email link /v/{token} → link check → "Retrieve Myinfo with Singpass"
+  POST /gw/api/token (GetToken)          ─▶   access token
+  POST /gw/api/link  (GetLinkId)         ─▶   { linkId, url: /gw/l/{linkId} } ─▶ phone goes there
+                                              /myinfo/v3/authorise ─▶ Login (persona NRIC) ─▶ Allow
+                                              /gw/callback?code&state ◀─────────────────────┘ token + person
+                                              /gw/l/{linkId}/review → Submit Application
+  POST /api/gateway/webhook              ◀─   myinfo.submitted | myinfo.declined   (HMAC signed, 3 attempts)
+  verify signature → NRIC check → store encrypted → SSE: dealer + Ops turn Fulfilled
+  GET /gw/api/person/autofin/{linkId}    ─▶   pull fallback (data only after Submit)
 ```
+
+- Webhook header `x-gateway-signature: t=<unix s>,v1=<hex HMAC-SHA256(WEBHOOK_SECRET, "<t>.<body>")>`, 5-minute
+  replay window, idempotent per LinkId. AutoFinance answers `{accepted, status}`; a link that was superseded or expired
+  gets 410 and the phone shows "This link is no longer valid". Demo Control → **Gateway webhooks** lists every call.
+- Run the gateway on its own: `npm run gateway`, then start the app with `GATEWAY_AUTOSTART=false`.
+- Real gateway later: `GATEWAY_URL`, `GW_CLIENT_ID` / `GW_CLIENT_SECRET`, `WEBHOOK_SECRET`, `GATEWAY_AUTOSTART=false`;
+  adjust paths in `server/gateway/http.ts` once the spec (Q&A B1.1) is in.
+
+`GATEWAY=mockpass` — no separate gateway: this app is the Myinfo client of MockPass itself (OAuth callback at
+`/myinfo-callback`, review screen in this app). `GATEWAY=simulated` — built-in fake Singpass screens (staging persona
+list, no MockPass).
 
 MockPass personas (use one as the NRIC the dealer enters): `S9812379B` LIM YONG XIANG, `S9812351B` TAN CHONG HO,
 `S9812353I` SONG CHIN YONG, `S9912374E` TIMOTHY TAN CHENG GUAN … (full list:
@@ -23,7 +43,7 @@ MockPass personas (use one as the NRIC the dealer enters): `S9812379B` LIM YONG 
 `GATEWAY=simulated` switches back to the built-in fake Singpass screens (staging persona list, no MockPass).
 
 The real ValueMax gateway (`myinfo-stg.valuemax.com.sg`) is not wired: its API spec (GetToken, GetLinkId,
-person/autofin/{LinkId}) is still pending (Q&A B1.1). It plugs in as another adapter in `server/gateway/`.
+person/autofin/{LinkId}) is still pending (Q&A B1.1). `GATEWAY=http` is where it plugs in.
 
 > Work in progress: everything runs end to end, but the UI is not yet pixel-matched to `docs/claude-code-demo/design/`.
 
@@ -66,7 +86,8 @@ The link in the email uses `PUBLIC_BASE_URL`.
    link expiry; open **View Application Status** and leave it on screen.
 3. Phone: open the email → **Verify with Singpass** → **Retrieve Myinfo with Singpass** → MockPass: **Login**, NRIC
    **S9812379B** → Login → **Allow** → Submit → review tabs → **Submit Application** → "Details shared".
-   The laptop's hirer chip turns **Fulfilled** within a second.
+   The gateway pushes the data by webhook; the laptop's hirer chip turns **Fulfilled** within a second
+   (Demo Control → Gateway webhooks shows the call).
 4. Second tab as **Priya Nair** (Ops): All Applications shows hirer Fulfilled, guarantor Pending. Open it:
    Change Status → **Issue AA** shows "Cannot issue AA yet"; **Issue IPA** works while Singpass is pending.
 5. Guarantor link on the phone → MockPass NRIC **S9812351B** → Allow → Submit Application. Both Fulfilled → Issue AA is enabled.
@@ -85,7 +106,9 @@ Simulated-gateway personas (`GATEWAY=simulated`): `F4440488P`, `F4440489M`, `G44
 server/index.ts         HTTP API, SSE (/api/events), static files, sessions
 server/store.ts         domain rules: links (72 h, 1 active per person), outcomes, IPA / AA lock, seed / reset
 server/gateway/         gateway adapters: types.ts (GetToken, GetLinkId, person/autofin/{LinkId}),
+                        http.ts (separate gateway over HTTP), webhook.ts (HMAC signature),
                         mockpass.ts (MockPass Myinfo v3 OAuth), mock.ts (built-in simulated screens)
+mock-gateway/server.ts  mock ValueMax Myinfo gateway: API, Review / Submit pages, webhook push, starts MockPass
 server/nric.ts          NRIC / FIN checksum, mobile, email checks
 server/crypto.ts        AES-256-GCM for stored Myinfo data
 server/mail.ts          email (nodemailer)
