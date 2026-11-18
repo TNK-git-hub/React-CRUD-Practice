@@ -1,6 +1,6 @@
 // Screenshots of every screen in its main states → docs/claude-code-demo/screens/ (npm run screens).
 // Runs its own server in memory (no data/db.json, no SMTP) and drives it with Playwright.
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { createServer as createNetServer } from "node:net";
 import type { AddressInfo } from "node:net";
@@ -14,8 +14,8 @@ import { PERSONAS } from "../server/personas.ts";
 import { createRuntime } from "../server/runtime.ts";
 
 const OUT = resolve(import.meta.dirname, "..", "docs", "claude-code-demo", "screens");
-rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
+for (const f of readdirSync(OUT)) if (f.endsWith(".png")) rmSync(join(OUT, f)); // keep README.md
 
 // a free port first, so that PUBLIC_BASE_URL (links in emails, gateway redirect) points at this server
 const port = await new Promise<number>((done) => {
@@ -169,7 +169,11 @@ await phone.goto(BASE + oldPath);
 await shot(phone, "05b-customer-linkcheck-blocked", "no longer valid");
 await opsDetail(old.ref, "11d-ops-detail-old-link-rejected", "Result rejected");
 
-// ---- AA issued on the main application ----
+// ---- IPA, then AA, on the main application (Change Status on the Ops page) ----
+await ops.goto(`${BASE}/ops/applications/${mainRef}`);
+await ops.getByText("Singpass Status").waitFor();
+await ops.locator("#apply").click();
+await ops.getByText("IPA issued by").waitFor();
 await gatewayConsent(mainRef, guarantor.id, "G4440425M");
 await runJob();
 await ops.goto(`${BASE}/ops/applications/${mainRef}`);
@@ -184,6 +188,30 @@ await shot(dealer, "09e-dealer-status-aa-issued", "Approval Advice issued");
 
 await ops.goto(`${BASE}/ops`);
 await shot(ops, "10-ops-list", "Ops — All Applications");
+
+// ---- the design's "Demo: see …" shortcuts land on a sample in the right state (D-50) ----
+async function expectUrl(page: Page, pattern: RegExp, what: string): Promise<void> {
+  await page.waitForURL(pattern, { timeout: 10_000 }).catch(() => {
+    throw new Error(`${what}: landed on ${page.url()}`);
+  });
+}
+const shortcutPage = await (await signedIn(dealerCookie)).newPage();
+await shortcutPage.goto(`${BASE}/dealer/received/${mainRef}`);
+const [hirerTab] = await Promise.all([shortcutPage.context().waitForEvent("page"), shortcutPage.getByText("Demo: see what the hirer gets").click()]);
+await expectUrl(hirerTab, /\/verify\//, "hirer view");
+await hirerTab.getByText("Continue to Singpass").waitFor();
+await shortcutPage.goto(`${BASE}/dealer/applications/${mainRef}`);
+await shortcutPage.getByText("Demo: see the Ops view").click();
+await expectUrl(shortcutPage, /\/ops\/applications\/VMAF-2026-05117$/, "ops view");
+await shortcutPage.getByText("Cannot issue AA yet").or(shortcutPage.getByText("Singpass Status")).first().waitFor();
+const log = await api<{ gatewayLog: Array<{ linkId: string; applicationRef: string; event: string }> }>("GET", "/api/demo/state", opsCookie);
+const doneLinkId = log.gatewayLog.find((g) => g.applicationRef === mainRef && g.event === "submitted")!.linkId;
+const donePage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+await donePage.goto(`${BASE}/gateway/${doneLinkId}`);
+await donePage.getByText("Demo: see the dealer's view").click();
+await expectUrl(donePage, /\/dealer\/applications\/VMAF-2026-05117$/, "dealer view");
+await donePage.getByText("Pending Singpass Verification").waitFor();
+console.log("  demo shortcuts: hirer view, Ops view, dealer view checked");
 
 // ---- expired: clock +73 h ----
 const exp = await submit("M5004553J", "F4440489M");

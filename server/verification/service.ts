@@ -587,13 +587,23 @@ export class VerificationService {
    * D-29: the rows of the Ops list design (VMAF-2026-05114 … 05119); existing refs are skipped. Only Singpass test
    * personas are used (names and NRICs), so the stored Myinfo data matches the party.
    */
-  seedSamples(): number {
+  async seedSamples(): Promise<number> {
     const now = this.clock.now();
     const day = 24 * 3_600_000;
     const at = (d: number) => now - d * day;
     type Sample = { status: "FULFILLED" | "SENT" | "EXPIRED"; role: Role; name: string; nric: string; at: number };
-    const party = (ref: string, s: Sample): Party => {
+    const party = async (ref: string, s: Sample): Promise<Party> => {
       const label = s.role === "hirer" ? "Hirer" : "Guarantor";
+      const partyId = `${ref}-${label.toLowerCase()}`;
+      // a pending sample link is a real link of the gateway, so its customer flow works (D-50)
+      let issued = { linkId: `LNK-SAMPLE-${randomBytes(4).toString("hex").toUpperCase()}`, customerUrl: `${this.config.publicBaseUrl}/gateway/sample` };
+      if (s.status === "SENT") {
+        try {
+          issued = await this.gateway.issueLink({ applicationRef: ref, partyId, role: s.role });
+        } catch (e) {
+          if (!(e instanceof GatewayUnavailable)) throw e;
+        }
+      }
       const sentAt = s.status === "SENT" ? now - 2 * 3_600_000 : s.at;
       const link: VerificationLink = {
         id: randomUUID(),
@@ -601,15 +611,15 @@ export class VerificationService {
         status: s.status,
         reason: "submit",
         createdAt: sentAt,
-        linkId: `LNK-SAMPLE-${randomBytes(4).toString("hex").toUpperCase()}`,
-        customerUrl: `${this.config.publicBaseUrl}/gateway/sample`,
+        linkId: issued.linkId,
+        customerUrl: issued.customerUrl,
         sentAt,
         expiresAt: sentAt + this.config.linkTtlMs,
         ...(s.status === "FULFILLED" ? { closedAt: sentAt + 3 * 3_600_000 } : {}),
         ...(s.status === "EXPIRED" ? { closedAt: sentAt + this.config.linkTtlMs, lateResultAt: sentAt } : {}),
       };
       return {
-        id: `${ref}-${label.toLowerCase()}`,
+        id: partyId,
         role: s.role,
         label,
         name: s.name,
@@ -627,7 +637,7 @@ export class VerificationService {
       { ref: "VMAF-2026-05114", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SKS6603L", stage: "Declined", parties: [{ status: "FULFILLED", role: "hirer", name: "WANG XIAO LING", nric: "F4440489M", at: at(15) }] },
       { ref: "VMAF-2026-05115", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SNA7781B", stage: "AA", aaAt: at(13), parties: [{ status: "FULFILLED", role: "hirer", name: "MARIA SANTOS REYES", nric: "G4440427W", at: at(15) }, { status: "FULFILLED", role: "guarantor", name: "NGUYEN VAN AN", nric: "G4440430W", at: at(15) }] },
       { ref: "VMAF-2026-05116", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(14), plate: "SNB9902E", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "KIM MIN JUN", nric: "G4440431T", at: at(14) }] },
-      { ref: "VMAF-2026-05117", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(13), plate: "SLA4410K", stage: "IPA", ipaAt: at(12), parties: [{ status: "FULFILLED", role: "hirer", name: "AISHA BINTE RAHMAN", nric: "G4440432Q", at: at(13) }] },
+      { ref: "VMAF-2026-05117", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(3), plate: "SLA4410K", stage: "IPA", ipaAt: at(2), parties: [{ status: "FULFILLED", role: "hirer", name: "AISHA BINTE RAHMAN", nric: "G4440432Q", at: at(3) }, { status: "SENT", role: "guarantor", name: "NGUYEN VAN AN", nric: "G4440430W", at: at(3) }] },
       { ref: "VMAF-2026-05118", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(12), plate: "SMB2290X", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "DAVID TAN JUN HAO", nric: "G4440433N", at: at(12) }, { status: "EXPIRED", role: "guarantor", name: "OLIVIA CHEN YU TING", nric: "M5004553J", at: at(12) }] },
       { ref: "VMAF-2026-05119", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(11), plate: "SMF1187D", stage: "Submitted", parties: [{ status: "SENT", role: "hirer", name: "WANG XIAO LING", nric: "F4440489M", at: at(11) }] },
     ];
@@ -645,7 +655,7 @@ export class VerificationService {
         stage: r.stage,
         ...(r.ipaAt ? { ipaAt: r.ipaAt } : {}),
         ...(r.aaAt ? { aaAt: r.aaAt } : {}),
-        parties: r.parties.map((p) => party(r.ref, p)),
+        parties: await Promise.all(r.parties.map((p) => party(r.ref, p))),
       });
       added++;
     }
@@ -653,6 +663,37 @@ export class VerificationService {
     this.db.save();
     this.onChange(null);
     return added;
+  }
+
+  /**
+   * D-50: the design's "Demo: see …" buttons open a sample application in the matching state (samples are created if
+   * missing). hirer-view: the hirer's portal page of a pending link; ops-view: IPA issued, AA still locked; dealer-view:
+   * the sample dealer's application where the hirer has just shared their details.
+   */
+  async demoShortcut(kind: "hirer-view" | "ops-view" | "dealer-view"): Promise<{ ref: string; url: string; userId?: string }> {
+    const samples = () => this.db.applications.filter((a) => /^VMAF-2026-0511[4-9]$/.test(a.ref));
+    const pending = (p: Party) => {
+      const l = currentLink(p);
+      return (l.status === "SENT" || l.status === "OPENED") && !this.isPastExpiry(l);
+    };
+    const pick = () => {
+      for (const app of samples()) {
+        const hirer = app.parties[0]!;
+        if (kind === "hirer-view" && pending(hirer)) return { ref: app.ref, url: `/verify/${currentLink(hirer).portalToken}` };
+        if (kind === "ops-view" && app.stage === "IPA" && !checkAa(app).ready && app.parties.some((p) => currentLink(p).status === "FULFILLED"))
+          return { ref: app.ref, url: `/ops/applications/${app.ref}`, userId: "u-priya" };
+        if (kind === "dealer-view" && app.dealerId === "d-demo" && currentLink(hirer).status === "FULFILLED" && app.parties.some(pending))
+          return { ref: app.ref, url: `/dealer/applications/${app.ref}`, userId: "u-alex" };
+      }
+      return null;
+    };
+    let found = pick();
+    if (!found) {
+      await this.seedSamples(); // adds the samples that are missing
+      found = pick();
+    }
+    if (!found) throw new ServiceError(409, "No sample application is in that state any more. Use Demo Control → Reset all data, then try again.");
+    return found;
   }
 
   // ---------------------------------------------------------------- audit

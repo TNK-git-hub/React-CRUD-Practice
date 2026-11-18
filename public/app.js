@@ -99,6 +99,25 @@ function bindReveal() {
   }));
 }
 
+// D-50: the design's "Demo: see …" buttons open a sample application in the matching state. ops-view / dealer-view
+// switch the browser to that role first; hirer-view opens the customer page in a new tab.
+function bindShortcuts() {
+  document.querySelectorAll("[data-shortcut]").forEach((b) => b.addEventListener("click", async () => {
+    const kind = b.dataset.shortcut;
+    const tab = kind === "hirer-view" ? window.open("", "_blank") : null;
+    try {
+      if (kind === "dealer-view" && state.user?.kind !== "dealer") state.user = (await api("POST", "/api/session", { userId: "u-alex" })).user;
+      const r = await api("GET", `/api/demo/shortcut/${kind}`);
+      if (r.userId && state.user?.id !== r.userId) state.user = (await api("POST", "/api/session", { userId: r.userId })).user;
+      if (tab) tab.location.href = r.url;
+      else location.href = r.url;
+    } catch (e) {
+      tab?.close();
+      toast(e.message, true);
+    }
+  }));
+}
+
 // ---------------- state ----------------
 const state = { user: null, config: null, draft: null, refresh: null, demo: null };
 const emptyParty = () => ({ name: "", nric: "", email: "", mobile: "" });
@@ -206,8 +225,8 @@ function dealerShell(active, inner) {
   return `${header()}<div class="layout">
     <nav class="side" aria-label="Dealer menu">
       <span class="cap">FINANCE</span>
-      ${item("/dealer/applications", "My Applications", "list")}
-      ${item("/dealer/apply", "Quick Apply", "apply")}
+      ${item("/dealer/applications", "Home", "list")}
+      ${item("/dealer/apply", "Application", "apply")}
       <span class="item muted">Account</span>
       <span class="cap mt">SUPPORT</span>
       <span class="item muted">Document Centre</span>
@@ -268,7 +287,7 @@ function partyFields(prefix, p, label, boxed) {
     <label class="field span2">Name of ${label} *<input class="input" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"${bg}></label>
     <label class="field">NRIC of ${label} *<input class="input" data-f="${prefix}.nric" value="${esc(p.nric)}" autocomplete="off"${bg}><span class="hint" data-h="${prefix}.nric"></span></label>
     <label class="field">Email Address *${prefix === "hirer" ? " (to send Singpass request)" : ""}<input class="input" type="email" data-f="${prefix}.email" value="${esc(p.email)}"${bg}><span class="hint" data-h="${prefix}.email"></span></label>
-    <label class="field">Phone Number *${prefix === "hirer" ? " (for WhatsApp updates)" : ""}<input class="input" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(p.mobile)}"${bg}><span class="hint" data-h="${prefix}.mobile"></span></label>
+    <label class="field">Phone Number *<input class="input" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(p.mobile)}"${bg}><span class="hint" data-h="${prefix}.mobile"></span></label>
   </div>`;
 }
 
@@ -387,7 +406,7 @@ function dealerReview() {
       <p class="para">By submitting this application, I, as an authorised representative of the Dealer named in this application, confirm that: (a) all information was provided by the Applicant / Guarantor(s) and is accurate and complete; (b) I have verified the identity of the Applicant / Guarantor(s) against their original supporting documents; (c) the Applicant / Guarantor(s) have consented to … receiving a Singpass verification request to authorise MyInfo retrieval; and (d) I understand the Dealer is not an agent of VMAF.</p>
       <label class="check"><input type="checkbox" id="c2" ${d.c2 ? "checked" : ""}>I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.</label>
     </section>
-    <div class="note-gold">On submit, a Singpass verification link is emailed to the hirer${d.guarantorOn ? (d.guarantor2On ? " and both guarantors" : " and the guarantor") : ""} (one active link each, valid ${state.config.ttlHours} hours), and the LTA Access Code is used to retrieve the vehicle's log card and PARF/COE rebate details automatically.</div>
+    <div class="note-gold">On submit, a Singpass verification link is emailed to each person (one active link each, valid ${state.config.ttlHours} hours).</div>
     <div class="row between">
       <a class="btn" href="/dealer/apply" data-go>← Back</a>
       <div class="row"><a class="btn" href="/dealer/apply" data-go>Cancel</a><button class="btn primary" id="send" type="button">Send Singpass Request →</button></div>
@@ -430,7 +449,7 @@ async function dealerReceived(ref) {
     <section class="card hero">
       <div class="okcircle"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
       <h1 style="font-size:28px;color:var(--red-deep)">Interest Received</h1>
-      <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}, and retrieving their vehicle documents via LTA.</p>
+      <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}.</p>
       <span class="pill">Application Ref: ${esc(app.ref)}</span>
       <div class="grid2" style="width:100%;max-width:560px;text-align:left">
         ${app.parties.map((p) => `<div class="sumbox"><span class="muted small">${esc(p.label)} · ${p.linkStatus === "QUEUED" ? "queued — sent automatically once the Singpass gateway is reachable" : "link sent"}</span><b style="font-size:14px">${p.expiresAt ? `Expires ${fmt(p.expiresAt)}` : "Expiry starts when the link is sent"}</b></div>`).join("")}
@@ -438,20 +457,13 @@ async function dealerReceived(ref) {
       <p class="para" style="font-size:15px">Keep an eye on the <b>My Applications</b> page for updates — this application now shows as <b>Pending</b>.</p>
       <div class="row center">
         <a class="btn" href="/dealer/apply" data-go>Submit Another</a>
-        <button class="btn" id="qrbtn" type="button">Show QR of the link</button>
-        <a class="btn primary" href="/dealer/applications/${esc(app.ref)}" data-go>View Application Status →</a>
+        <a class="btn" href="/dealer/applications/${esc(app.ref)}" data-go>View Application Status</a>
+        <button class="btn primary" type="button" data-shortcut="hirer-view">Demo: see what the hirer gets →</button>
       </div>
-      <div id="qrs" class="row center" hidden></div>
     </section>
   </main>`;
   bindCommon();
-  document.getElementById("qrbtn").addEventListener("click", () => {
-    const box = document.getElementById("qrs");
-    box.hidden = !box.hidden;
-    if (box.hidden) return;
-    box.innerHTML = app.parties.map((p, i) => p.linkUrl ? `<div class="qrbox"><b>${esc(p.label)}</b><div id="qr${i}"></div><code>${esc(p.linkUrl)}</code></div>` : `<div class="qrbox"><b>${esc(p.label)}</b><span class="muted small">Link queued</span></div>`).join("");
-    app.parties.forEach((p, i) => p.linkUrl && makeQr(document.getElementById(`qr${i}`), p.linkUrl));
-  });
+  bindShortcuts();
 }
 
 // ---------------- dealer: My Applications (minimal) ----------------
@@ -493,7 +505,7 @@ function trackerSteps(app) {
     step(app.allFulfilled ? "done" : "current", "Pending Singpass Verification", app.allFulfilled ? "Every person has completed Singpass" : "An AA (final approval) needs every person to complete Singpass first.",
       `<div class="row" style="gap:8px">${app.parties.map(partyChip).join("")}</div>`),
     step(issued ? "done" : app.allFulfilled ? "current" : "todo", "Credit Review", issued ? "ValueMax Ops has completed its review" : "ValueMax Ops reviews the application"),
-    step(app.ipaAt ? "done" : "todo", "IPA Issued", app.ipaAt ? `In-Principle Approval issued ${fmt(app.ipaAt)}` : "In-Principle Approval"),
+    step(app.ipaAt || app.aaAt ? "done" : "todo", "IPA Issued", app.ipaAt ? `In-Principle Approval issued ${fmt(app.ipaAt)}` : app.aaAt ? "No IPA — the AA was issued directly" : "In-Principle Approval"),
     step(app.aaAt ? "done" : "todo", "AA", app.aaAt ? `Approval Advice issued ${fmt(app.aaAt)}` : "Approval Advice (final approval)"),
   ].join("");
 }
@@ -503,7 +515,7 @@ async function dealerStatus(ref) {
   const load = async () => {
     const app = await api("GET", `/api/applications/${ref}`);
     const sig = JSON.stringify(app.parties.map((p) => p.status)) + app.stage;
-    $app.innerHTML = dealerShell("list", `
+    $app.innerHTML = dealerShell("apply", `
       <div style="display:flex;flex-direction:column;gap:6px">
         <h1 style="font-size:30px"><a href="/dealer/applications" data-go style="text-decoration:none;color:inherit">← Application Details</a></h1>
         <span style="font-size:16px;color:var(--text-2)">${esc(app.ref)} · Submitted ${fmtDay(app.createdAt)} · Personal — Hire Purchase Loan (PARF / COE) — Quick Apply</span>
@@ -515,10 +527,12 @@ async function dealerStatus(ref) {
         <ol class="tracker ${prev && prev !== sig ? "flash" : ""}" style="text-align:left">${trackerSteps(app)}</ol>
         <div class="row center">
           ${app.ipaAt ? `<button class="btn primary" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">View IPA Notice</button>` : ""}
-          <span class="small muted">Updates live — no need to refresh.</span>
+          <button class="btn" type="button" data-shortcut="ops-view">Demo: see the Ops view →</button>
         </div>
+        <span class="small muted">Updates live — no need to refresh.</span>
       </section>`);
     bindCommon();
+    bindShortcuts();
     prev = sig;
   };
   await load();
@@ -702,7 +716,7 @@ async function opsDetail(ref) {
         ${activityLog(app)}
         ${app.parties.map(myinfoTable).join("")}
         <h2 style="font-size:24px">Vehicle Info</h2>
-        <dl class="kv"><div><dt>Car Plate</dt><dd>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd style="color:var(--faint)">— (via LTA, out of scope)</dd></div><div><dt>Model</dt><dd style="color:var(--faint)">—</dd></div></dl>
+        <dl class="kv"><div><dt>Car Plate</dt><dd>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd style="color:var(--faint)">—</dd></div><div><dt>Model</dt><dd style="color:var(--faint)">—</dd></div></dl>
       </section>
       <section class="card" style="gap:14px">
         <div class="row" style="align-items:center"><h2 style="font-size:21px">Change Status</h2><span class="ops-tag">OPS ONLY</span></div>
@@ -805,7 +819,7 @@ async function demoPage() {
         <h2>Links</h2>
         ${apps.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
         ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(p.label)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nricMasked)}</span></td><td>${partyStatusText(p)}</td>
-          <td>${p.linkUrl ? `<a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button">QR</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
+          <td>${p.linkUrl ? `<a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button" title="Presenter fallback to open the link on a phone; showroom QR is an option after Release 1, not in scope">QR (presenter only)</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
         </tbody></table></div>` : `<p class="muted" style="margin:0">No applications yet.</p>`}
         <div id="qrdemo" class="row center"></div>
       </section>
@@ -898,7 +912,7 @@ async function gatewayFlow(linkId) {
   const login = () => {
     const qrCells = "101101010110110011011001101110110101".split("").map((c) => `<i class="${c === "1" ? "f" : ""}"></i>`).join("");
     $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp">
-      <div><span class="spsub">Step 1 of 2 · via ValueMax Myinfo gateway</span><h1>Log in with Singpass</h1></div>
+      <div><span class="spsub">Step 1 of 3 · via ValueMax Myinfo gateway</span><h1>Log in with Singpass</h1></div>
       <div class="sptabs"><button type="button" data-tab="app" class="${ctx.tab === "app" ? "on" : ""}">Singpass app</button><button type="button" data-tab="pw" class="${ctx.tab === "pw" ? "on" : ""}">Password</button></div>
       ${ctx.tab === "app" ? `
         <div class="qr" role="img" aria-label="QR code (decorative)">${qrCells}</div>
@@ -908,7 +922,7 @@ async function gatewayFlow(linkId) {
         <label class="field">Singpass ID (test NRIC / FIN)<input class="input" id="nric" autocomplete="off" placeholder="e.g. F4440488P"></label>
         <label class="field">Password<input class="input" type="password" placeholder="Any value — not checked, not stored"></label>
         <button class="spbtn" id="pwlogin" type="button">Log in</button>`}
-      <p style="margin:0;font-size:12px;color:var(--sp-3)">In development and UAT this screen is the simulated gateway with Singpass staging test accounts. In production, the customer sees the real Singpass login.</p>
+      <p style="margin:0;font-size:12px;color:var(--sp-3)">In this demo the ValueMax gateway and Singpass are simulated. With the real gateway, the customer sees the Singpass login.</p>
     </div></div>`;
     $app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { ctx.tab = b.dataset.tab; login(); }));
     const doLogin = async (uinfin) => {
@@ -923,18 +937,18 @@ async function gatewayFlow(linkId) {
 
   // Consent
   const consent = () => {
-    const p = ctx.person;
-    const noa = p.noaHistory?.[0];
-    const items = [
-      ["NRIC", p.uinfin], ["Name", p.name], ["Date of birth", p.dob], ["Registered address", p.regAddress],
-      ["Name of employer", p.employer], ["Annual income (NOA)", noa ? `SGD ${noa.amount.toLocaleString("en-SG")}` : "—"],
-      ["CPF contributions", `${p.cpfMonths} months`], ["Type of housing", p.hdbType || p.housingType],
-    ];
+    // singpass-reference/3 and /4: only the names of the requested items; values appear on the review page
+    const items = ["Alias Name", "Country/Place of Birth", "CPF Contribution History (up to 15 months)", "Date of Birth", "Email Address",
+      "Name of Employer", "Employment Sector", "HDB Ownership - Address", "HDB Ownership - Date of Purchase", "HDB Ownership - Type of HDB Dwelling",
+      "HDB Ownership - Lease Commencement Date", "HDB Ownership - Monthly Loan Instalment", "HDB Ownership - Number of Owners",
+      "HDB Ownership - Outstanding HDB Loan Balance", "HDB Ownership - Term of Lease", "Type of HDB", "Type of Housing", "Marital Status",
+      "Mobile Number", "Principal Name", "Nationality/Citizenship", "Notice of Assessment History", "Occupation",
+      "Ownership of Private Residential Property", "Race", "Registered Address", "Residential Status", "Sex", "NRIC/FIN"];
     $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="padding:24px;gap:16px">
-      <div><span class="spsub">Step 2 of 2 · Myinfo</span><h1 style="font-size:22px">VM AutoFinance is requesting your details</h1>
-        <p style="margin:6px 0 0;font-size:14px;color:var(--sp-2)">For: car loan application ${esc(info.applicationRef)}</p></div>
-      <ul class="splist">${items.map(([k, v]) => `<li><span>${k}</span><b>${esc(v)}</b></li>`).join("")}</ul>
-      <p style="margin:0;font-size:12px;color:var(--sp-3)">Sample data only. The real data list is set by the ValueMax gateway.</p>
+      <div><span class="spsub">Step 2 of 3 · Myinfo consent</span><h1 style="font-size:22px">VM AutoFinance is requesting your details</h1>
+        <p style="margin:6px 0 0;font-size:14px;color:var(--sp-2)">For: car loan application ${esc(info.applicationRef)} — credit assessment and loan approval</p></div>
+      <ul class="splist names">${items.map((k) => `<li><span>› ${esc(k)}</span></li>`).join("")}</ul>
+      <p style="margin:0;font-size:12px;color:var(--sp-3)">Clicking "I agree" permits this digital service to retrieve your data. The real list of items is set by the ValueMax gateway.</p>
       <button class="spbtn" id="agree" type="button">I agree, share my details</button>
       <button class="spbtn ghost" id="cancel" type="button">Cancel</button>
     </div></div>`;
@@ -960,6 +974,7 @@ async function gatewayFlow(linkId) {
     };
     const titles = { personal: "Personal Information", employment: "Employment & Education", property: "Property" };
     $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="padding:24px;gap:14px">
+      <span class="spsub" style="text-align:center">Step 3 of 3 · Review</span>
       <h1 style="text-align:center;color:#E0702B;font-size:22px">Review</h1>
       <p style="margin:0;text-align:center;font-size:13px;color:var(--sp-2)">Review your details below and click "Submit Application".</p>
       <div class="rvtabs">${Object.keys(rows).map((k) => `<button type="button" data-rv="${k}" class="${k === tab ? "on" : ""}">${k === "personal" ? "Personal" : k === "employment" ? "Employment &amp; Education" : "Property"}</button>`).join("")}</div>
@@ -991,9 +1006,11 @@ function doneScreen(ref) {
       <h1 style="font-size:24px">Details shared</h1>
       <p class="para" style="font-size:15px;max-width:300px">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application ${esc(ref)}` : ""}. You can close this page.</p>
       <p class="small muted" style="margin:0;max-width:300px">Your dealer will contact you about the next step.</p>
+      <button class="btn" type="button" data-shortcut="dealer-view">Demo: see the dealer's view →</button>
     </div>
-    <div class="foot">The gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
+    <div class="foot">Today the gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
   </div>`;
+  bindShortcuts();
 }
 
 function declinedScreen() {

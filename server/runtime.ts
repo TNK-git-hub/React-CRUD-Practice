@@ -347,7 +347,12 @@ export function createRuntime(opts: RuntimeOptions) {
   });
   route("POST", "/api/demo/seed", async (req, res) => {
     requireUser(req);
-    send(res, 200, { added: service.seedSamples() });
+    send(res, 200, { added: await service.seedSamples() });
+  });
+  route("GET", "/api/demo/shortcut/:kind", async (req, res, [kind]) => {
+    requireUser(req);
+    if (kind !== "hirer-view" && kind !== "ops-view" && kind !== "dealer-view") throw new HttpError(404, "Unknown shortcut");
+    send(res, 200, await service.demoShortcut(kind));
   });
 
   // ---------- static frontend (SPA) ----------

@@ -221,7 +221,7 @@ dl.kv dd { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere
 .qrbox code { font-size: 12px; word-break: break-all; color: var(--muted); max-width: 260px; text-align: center; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
 
-#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1F1F24; color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100vw - 32px); z-index: 10; }
+#toast { position: fixed; right: 24px; bottom: 24px; max-width: min(420px, calc(100vw - 32px)); background: #1F1F24; color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
 #toast.show { opacity: 1; }
 #toast.err { background: var(--red); }
 
@@ -250,3 +250,4 @@ dl.kv dd { margin: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere
 .linkhist { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-left: 3px solid var(--line); }
 .linkhist .old { color: var(--faint); }
 .linkhist .old b { font-weight: 600; }
+.splist.names li { padding: 7px 14px; font-size: 14px; color: var(--sp-ink); }
