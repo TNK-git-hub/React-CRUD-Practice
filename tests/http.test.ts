@@ -218,3 +218,32 @@ test("API step 4: correct NRIC/email (Ops only), expired links list, resend limi
   assert.equal(expired.status, 200);
   assert.deepEqual(expired.json.map((x) => x.partyId).sort(), created.parties.map((p) => p.id).sort());
 });
+
+test("API step 5: IPA works while pending; AA refused with the missing parties (409), then issued", async () => {
+  const s = await start();
+  const dealer = await signIn(s, "u-alex");
+  const ops = await signIn(s, "u-priya");
+  const created = (await call<AppJson>(s, "POST", "/api/applications", dealer, input)).json;
+  const ref = created.ref;
+  assert.equal((await call(s, "POST", `/api/applications/${ref}/ipa`, dealer)).status, 403);
+  const ipa = await call<AppJson & { stage: string }>(s, "POST", `/api/applications/${ref}/ipa`, ops);
+  assert.equal(ipa.status, 200);
+  assert.equal(ipa.json.stage, "IPA");
+
+  const refused = await call<{ error: string; missing: Array<{ label: string; status: string }> }>(s, "POST", `/api/applications/${ref}/aa`, ops);
+  assert.equal(refused.status, 409);
+  assert.deepEqual(refused.json.missing.map((m) => m.label), ["Hirer", "Guarantor"]);
+  const view = (await call<AppJson & { aaCheck: { ready: boolean; missing: unknown[] } }>(s, "GET", `/api/applications/${ref}`, ops)).json;
+  assert.equal(view.aaCheck.ready, false);
+  assert.equal(view.aaCheck.missing.length, 2);
+
+  for (const [i, uinfin] of ["F4440488P", "G4440425M"].entries()) {
+    const tokens = (await portalTokens(s, dealer, ref)).reverse();
+    const open = await call<OpenJson>(s, "POST", `/api/verify/${tokens[i]}/open`);
+    await consentOnGateway(s, open.json.redirectUrl, uinfin);
+  }
+  await call(s, "POST", "/api/demo/run-job", ops);
+  const aa = await call<AppJson & { stage: string }>(s, "POST", `/api/applications/${ref}/aa`, ops);
+  assert.equal(aa.status, 200);
+  assert.equal(aa.json.stage, "AA");
+});

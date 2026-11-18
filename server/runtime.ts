@@ -221,10 +221,16 @@ export function createRuntime(opts: RuntimeOptions) {
     const outcome = await service.retrieveMyInfo(ref ?? "", party ?? "", user);
     send(res, 200, { outcome, application: view(user, ref ?? "") });
   });
-  for (const step of ["ipa", "aa"])
-    route("POST", `/api/applications/:ref/${step}`, async () => {
-      throw new HttpError(501, "Issuing IPA / AA is being rebuilt (plan step 5)");
-    });
+  route("POST", "/api/applications/:ref/ipa", async (req, res, [ref]) => {
+    const user = requireUser(req);
+    service.issueIpa(ref ?? "", user);
+    send(res, 200, view(user, ref ?? ""));
+  });
+  route("POST", "/api/applications/:ref/aa", async (req, res, [ref]) => {
+    const user = requireUser(req);
+    service.issueAa(ref ?? "", user);
+    send(res, 200, view(user, ref ?? ""));
+  });
 
   // ---- customer portal (AutoFinance): /verify/<token> ----
   route("POST", "/api/verify/:token/open", async (_req, res, [token]) => {

@@ -78,8 +78,10 @@ commit. (Cập nhật 2026-11-18: thêm bước 3b, đánh số lại các bư�
 4. ✅ **Resend / sửa NRIC, email / link hết hạn.** Lý do, 3 lần/24 h trượt (D-39), Ops + dealer đã nộp; Ops sửa NRIC/email
    (D-40); gateway tắt (D-46); danh sách link hết hạn (D-47); khoá mã hoá bắt buộc (D-03); dữ liệu mẫu chỉ dùng persona
    (D-29). Test: SC-40, SC-41, SC-42, SC-44, SC-46 + các test D-xx.
-5. **IPA / AA.** Test: SC-60, SC-61, SC-62, SC-63; thêm test: không sửa NRIC/email sau khi AA đã cấp (D-40).
-6. **Giao diện.** Che NRIC + audit xem, nhật ký hoạt động Ops (gồm "kết quả bị từ chối (link cũ)"), danh sách link
+5. ✅ **IPA / AA.** Danh sách điều kiện AA mở rộng được (D-11), audit lần thử AA bị từ chối, chặn sửa/resend sau AA,
+   sửa email khi đã FULFILLED chỉ cập nhật email (D-40). Test: SC-60 … SC-65 + test chặn sau AA.
+6. **Giao diện.** Lịch sử link: link không còn hiện hành (kể cả FULFILLED/MISMATCH cũ) mang nhãn "không còn hiệu
+   lực" để không nhầm với trạng thái hiện tại của party; che NRIC + audit xem, nhật ký hoạt động Ops (gồm "kết quả bị từ chối (link cũ)"), danh sách link
    hết hạn, resend có lý do, sửa NRIC, guarantor thứ 2, Demo Control mới (không thiết kế lại giao diện).
 7. **E2E + tài liệu.** 1 test Playwright cho kịch bản chính (Q8), README, chạy tay 7 kịch bản, báo cáo cuối.
 

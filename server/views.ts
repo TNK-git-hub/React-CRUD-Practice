@@ -1,6 +1,7 @@
 // What the dealer and Ops screens receive. Labels follow D-25 and D-38.
 import { decrypt } from "./crypto.ts";
 import type { MyinfoPerson } from "./personas.ts";
+import { checkAa } from "./verification/approval.ts";
 import { currentLink } from "./verification/model.ts";
 import type { Application, AuditEvent, LinkStatus, Party } from "./verification/model.ts";
 import { DEALERS } from "./verification/users.ts";
@@ -90,6 +91,8 @@ export function applicationView(app: Application, ctx: ViewContext, audit: reado
     aaAt: app.aaAt ?? null,
     opsStatus: opsStatusLabel(app),
     allFulfilled: allFulfilled(app),
+    /** The server's AA check (same as issueAa): Ops show its reasons in "Cannot issue AA yet". */
+    aaCheck: checkAa(app),
     parties: app.parties.map((p) => partyView(p, ctx)),
     /** Activity log for Ops (audit events of this application, newest first). Never a full NRIC (D-41). */
     activity: ctx.user.kind === "ops" ? audit.filter((e) => e.applicationRef === app.ref) : [],

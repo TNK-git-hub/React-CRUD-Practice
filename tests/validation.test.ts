@@ -49,3 +49,12 @@ test("every person on an application needs a different NRIC (D-28); at most 2 gu
   const app = await h.service.submitApplication(three, DEALER);
   assert.deepEqual(app.parties.map((p) => p.label), ["Hirer", "Guarantor 1", "Guarantor 2"]);
 });
+
+test("D-12 all 9 Singpass test personas pass the NRIC/FIN format and checksum, M-series included", () => {
+  const personas = ["F4440488P", "F4440489M", "G4440425M", "G4440427W", "G4440430W", "G4440431T", "G4440432Q", "G4440433N", "M5004553J"];
+  for (const nric of personas) assert.ok(isValidNric(nric), nric);
+  // a wrong check letter fails for every prefix, including M
+  for (const nric of personas) assert.ok(!isValidNric(nric.slice(0, 8) + (nric.endsWith("A") ? "B" : "A")), `${nric} with another check letter`);
+  assert.ok(isValidNric("M5004553J"));
+  assert.ok(!isValidNric("M5004553K"));
+});

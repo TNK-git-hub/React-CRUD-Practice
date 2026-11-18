@@ -565,7 +565,7 @@ async function opsDetail(ref) {
     const canIpa = app.stage === "Submitted";
     const canAaStage = app.stage === "Submitted" || app.stage === "IPA";
     if (selected === "IPA" && !canIpa && canAaStage) selected = "AA";
-    const aaBlocked = !app.allFulfilled;
+    const aaBlocked = !app.aaCheck.ready; // the server's own AA check
     const applyDisabled = selected === "IPA" ? !canIpa : !canAaStage || aaBlocked;
     $app.innerHTML = `${header()}<main class="wrap narrow">
       <a href="/ops" data-go style="font-weight:600;text-decoration:none">← All Applications</a>
@@ -606,7 +606,10 @@ async function opsDetail(ref) {
           </select></label>
         ${selected === "AA" && canAaStage ? `<div class="cond ${aaBlocked ? "" : "ok"}">
           <b style="color:${aaBlocked ? "var(--red-text)" : "var(--green-text)"}">${aaBlocked ? "Cannot issue AA yet" : "Ready to issue AA"}</b>
-          ${app.parties.map((p) => p.status === "Fulfilled" ? `<span class="t-ok">✓ ${esc(p.label)} Singpass fulfilled</span>` : `<span style="color:var(--red-text)">✗ ${esc(p.label)} Singpass ${esc(p.status.toLowerCase())}</span>`).join("")}
+          ${app.parties.map((p) => {
+            const miss = app.aaCheck.missing.find((m) => m.partyId === p.id);
+            return miss ? `<span style="color:var(--red-text)">✗ ${esc(p.label)} Singpass ${esc(p.status.toLowerCase())}</span>` : `<span class="t-ok">✓ ${esc(p.label)} Singpass fulfilled</span>`;
+          }).join("")}
         </div>` : ""}
         ${selected === "IPA" && canIpa && !app.allFulfilled ? `<div class="note-gold" style="padding:12px 16px">An IPA can be issued while Singpass is still pending.</div>` : ""}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="apply" type="button" ${applyDisabled ? "disabled" : ""}>Apply Status Change</button></div>

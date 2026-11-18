@@ -10,6 +10,8 @@ import { isValidEmail, isValidNric, maskNric, normalizeNric, nricMatches } from 
 import { formatSgt } from "../time.ts";
 import { personaFor } from "../personas.ts";
 import type { MyinfoPerson } from "../personas.ts";
+import { checkAa } from "./approval.ts";
+import type { AaUnmet } from "./approval.ts";
 import type { Db } from "./db.ts";
 import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, isCurrent, validateParty } from "./model.ts";
 import type { Application, ApplicationInput, AuditType, IssueReason, Party, PartyInput, Role, VerificationLink } from "./model.ts";
@@ -154,6 +156,7 @@ export class VerificationService {
     if (!(actor.kind === "ops" || (actor.kind === "dealer" && actor.id === app.createdById)))
       throw new ServiceError(403, "Only Ops or the dealer agent who submitted the application can resend");
     if (!reason?.trim()) throw new ServiceError(400, "A reason is required to resend");
+    if (app.stage === "AA") throw new ServiceError(409, "The AA is issued: no more Singpass links for this application");
     if (currentLink(party).status === "FULFILLED")
       throw new ServiceError(409, `Singpass is already fulfilled for the ${party.label.toLowerCase()}; no resend`);
     const now = this.clock.now();
@@ -203,13 +206,22 @@ export class VerificationService {
     const details: Record<string, string> = { reason: reason.trim() };
     if (nric !== party.nric) Object.assign(details, { nricFrom: maskNric(party.nric), nricTo: maskNric(nric) });
     if (email !== party.email) Object.assign(details, { emailFrom: maskEmail(party.email), emailTo: maskEmail(email) });
+
+    // email only, already FULFILLED: the verified result stays valid; just record the new address
+    if (nric === party.nric && currentLink(party).status === "FULFILLED") {
+      party.email = email;
+      this.audit("party.corrected", actor, app, party, { ...details, newLink: "no" });
+      this.db.save();
+      this.onChange(app.ref);
+      return app;
+    }
     party.nric = nric;
     party.email = email;
     delete party.fulfilledAt;
     delete party.myinfoSealed;
     delete party.mismatchUinfin;
     const link = this.newLink(app, party, "nric-correction", actor);
-    this.audit("party.corrected", actor, app, party, { ...details, link: link.id });
+    this.audit("party.corrected", actor, app, party, { ...details, newLink: "yes", link: link.id });
     this.db.save();
     this.onChange(app.ref);
     await this.dispatch(app, party, link);
@@ -227,6 +239,47 @@ export class VerificationService {
         rows.push({ ref: app.ref, partyId: party.id, label: party.label, name: party.name, expiredAt: link.closedAt ?? link.expiresAt ?? 0, resendRetryAt: this.resendRetryAt(party, now) });
       }
     return rows.sort((a, b) => a.expiredAt - b.expiredAt);
+  }
+
+  // ---------------------------------------------------------------- IPA / AA (flow item 12)
+
+  /** IPA: Ops, any time after submission, whatever the Singpass status (SC-60). */
+  issueIpa(ref: string, actor: Actor): Application {
+    if (actor.kind !== "ops") throw new ServiceError(403, "Only Ops can issue an IPA");
+    const app = this.getApplication(ref);
+    if (app.stage !== "Submitted") throw new ServiceError(409, `Cannot issue an IPA at stage ${app.stage}`);
+    app.stage = "IPA";
+    app.ipaAt = this.clock.now();
+    this.audit("ipa.issued", actor, app, null);
+    this.db.save();
+    this.onChange(app.ref);
+    return app;
+  }
+
+  /** What the AA still needs (same check as issueAa; shown to Ops). */
+  aaCheck(app: Application): { ready: boolean; missing: AaUnmet[] } {
+    return checkAa(app);
+  }
+
+  /** AA: locked on the server until every AA condition holds; a refused attempt is audited (SC-61 … SC-65). */
+  issueAa(ref: string, actor: Actor): Application {
+    if (actor.kind !== "ops") throw new ServiceError(403, "Only Ops can issue an AA");
+    const app = this.getApplication(ref);
+    if (app.stage !== "Submitted" && app.stage !== "IPA") throw new ServiceError(409, `Cannot issue an AA at stage ${app.stage}`);
+    const { missing } = checkAa(app);
+    if (missing.length) {
+      const summary = missing.map((m) => `${m.label}: ${m.status}`).join(", ");
+      this.audit("aa.refused", actor, app, null, { missing: summary });
+      this.db.save();
+      this.onChange(app.ref);
+      throw new ServiceError(409, `Cannot issue AA yet — Singpass not fulfilled for ${summary}`, { missing });
+    }
+    app.stage = "AA";
+    app.aaAt = this.clock.now();
+    this.audit("aa.issued", actor, app, null);
+    this.db.save();
+    this.onChange(app.ref);
+    return app;
   }
 
   // ---------------------------------------------------------------- Retrieve MyInfo (flow item 8)

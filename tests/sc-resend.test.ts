@@ -125,14 +125,14 @@ test("D-40 correcting the email → new link sent to the new address", async () 
   assert.equal(emails[0]!.linkRef, currentLink(hirer).id);
 });
 
-test("D-40 correcting a FULFILLED party invalidates the old result", async () => {
+test("D-40 correcting the NRIC of a FULFILLED party invalidates the old result", async () => {
   const { h, app, hirer } = await submitted();
   const first = currentLink(hirer);
   consent(h, first.linkId!, "F4440488P");
   await h.service.runJob();
   assert.ok(hirer.myinfoSealed);
 
-  await h.service.correctParty(app.ref, hirer.id, OPS, { email: "other@example.com" }, "Wrong email on file");
+  await h.service.correctParty(app.ref, hirer.id, OPS, { nric: "F4440489M" }, "Wrong NRIC on file");
 
   assert.equal(first.status, "FULFILLED", "FULFILLED is final; it is only no longer current");
   assert.equal(currentLink(hirer).status, "SENT");
@@ -197,4 +197,28 @@ test("expired links list for Ops (flow item 9): current EXPIRED links, gone once
   assert.equal(list[0]!.expiredAt, T0 + 73 * H);
   await h.service.resend(app.ref, hirer.id, OPS, "expired");
   assert.deepEqual(h.service.expiredLinks().map((x) => x.partyId), [guarantor.id]);
+});
+
+test("D-40 correcting only the email of a FULFILLED party → email updated and audited; result kept, no new link", async () => {
+  const { h, app, hirer } = await submitted();
+  const link = currentLink(hirer);
+  consent(h, link.linkId!, "F4440488P");
+  await h.service.runJob();
+  const sealed = hirer.myinfoSealed;
+  const fulfilledAt = hirer.fulfilledAt;
+  const emails = outboxFor(h, hirer, "email").length;
+
+  await h.service.correctParty(app.ref, hirer.id, OPS, { email: "updated@example.com" }, "Customer changed email");
+
+  assert.equal(hirer.email, "updated@example.com");
+  assert.equal(hirer.links.length, 1);
+  assert.equal(currentLink(hirer), link);
+  assert.equal(link.status, "FULFILLED");
+  assert.equal(hirer.myinfoSealed, sealed);
+  assert.equal(hirer.fulfilledAt, fulfilledAt);
+  assert.equal(outboxFor(h, hirer, "email").length, emails, "no new email");
+  const audit = auditOf(h, "party.corrected", hirer.id);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0]!.details.emailTo, "up***@example.com");
+  assert.equal(audit[0]!.details.newLink, "no");
 });
