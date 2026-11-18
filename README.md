@@ -11,7 +11,9 @@ gap report and plan: `docs/claude-code-demo/GAP_REPORT.md`; screenshots: `docs/c
 
 ## 1. Run it on a new machine
 
-Requires **Node.js ≥ 22.18** (the TypeScript runs directly, no build step) and npm. Nothing else for the demo itself.
+Requires **Node.js ≥ 22.18** and npm (`engines` in `package.json`). 22.18 is the first Node version that runs the
+TypeScript files directly (no build step); it also covers nodemailer 10, which needs Node ≥ 20. Nothing else for the
+demo itself.
 
 ```bash
 git clone <repo-url> singpass-demo && cd singpass-demo
