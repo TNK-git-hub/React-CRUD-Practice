@@ -85,7 +85,7 @@ function connectEvents() {
     if (state.refresh) state.refresh(data);
   };
   es.addEventListener("application", onChange);
-  es.addEventListener("outbox", (e) => state.refresh && state.refresh({ outbox: true }));
+  es.addEventListener("outbox", () => state.refresh && state.refresh({ outbox: true }));
 }
 
 // ---------------- router ----------------

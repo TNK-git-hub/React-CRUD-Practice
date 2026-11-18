@@ -1,0 +1,293 @@
+// Singpass link flow of AutoFinance: issuing links, the auto-verify job, resend, IPA / AA.
+// Every gateway call goes through the GatewayAdapter; every time comes from the injected clock.
+import { randomBytes, randomUUID } from "node:crypto";
+import type { Clock } from "../clock.ts";
+import type { AppConfig } from "../config.ts";
+import { GatewayUnavailable } from "../gateway/adapter.ts";
+import type { GatewayAdapter } from "../gateway/adapter.ts";
+import { renderEmail } from "../mail.ts";
+import { normalizeNric } from "../nric.ts";
+import type { MyinfoPerson } from "../personas.ts";
+import type { Db } from "./db.ts";
+import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, validateParty } from "./model.ts";
+import type { Application, ApplicationInput, AuditType, IssueReason, Party, PartyInput, Role, VerificationLink } from "./model.ts";
+import { DEALERS } from "./users.ts";
+import type { Actor } from "./users.ts";
+
+export interface EmailMessage {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+export interface EmailSender {
+  /** delivered = handed to SMTP; false with no error = no SMTP configured (log / outbox only). */
+  send(message: EmailMessage): Promise<{ delivered: boolean; error?: string }>;
+}
+
+export interface ServiceDeps {
+  db: Db;
+  gateway: GatewayAdapter;
+  clock: Clock;
+  config: AppConfig;
+  email: EmailSender;
+  /** Encrypts a Myinfo person for storage (D-03). */
+  seal: (person: MyinfoPerson) => string;
+  /** Called after a change of an application (SSE). null = many applications. */
+  onChange?: (ref: string | null) => void;
+}
+
+export class ServiceError extends Error {
+  readonly status: number;
+  readonly details: Record<string, unknown> | undefined;
+  constructor(status: number, message: string, details?: Record<string, unknown>) {
+    super(message);
+    this.status = status;
+    this.details = details;
+  }
+}
+
+const SYSTEM = { id: "system", name: "Auto-verify job" } as const;
+
+export class VerificationService {
+  private readonly db: Db;
+  private readonly gateway: GatewayAdapter;
+  private readonly clock: Clock;
+  private readonly config: AppConfig;
+  private readonly email: EmailSender;
+  private readonly seal: (person: MyinfoPerson) => string;
+  private readonly onChange: (ref: string | null) => void;
+  /** Internal ids of links being issued right now: overlapping job runs never issue a link twice. */
+  private readonly issuing = new Set<string>();
+
+  constructor(deps: ServiceDeps) {
+    this.db = deps.db;
+    this.gateway = deps.gateway;
+    this.clock = deps.clock;
+    this.config = deps.config;
+    this.email = deps.email;
+    this.seal = deps.seal;
+    this.onChange = deps.onChange ?? (() => {});
+  }
+
+  // ---------------------------------------------------------------- queries
+
+  getApplication(ref: string): Application {
+    const app = this.db.applications.find((a) => a.ref === ref);
+    if (!app) throw new ServiceError(404, "Application not found");
+    return app;
+  }
+
+  party(app: Application, partyId: string): Party {
+    const p = app.parties.find((x) => x.id === partyId);
+    if (!p) throw new ServiceError(404, "Party not found on this application");
+    return p;
+  }
+
+  /** portal URL put in the email: AutoFinance first, then the gateway (flow item 4). */
+  portalUrl(link: VerificationLink): string {
+    return `${this.config.publicBaseUrl}/verify/${link.portalToken}`;
+  }
+
+  // ---------------------------------------------------------------- submit (flow items 1–3)
+
+  /** D-26 */
+  private nextRef(now: number): string {
+    const year = new Date(now).getUTCFullYear();
+    let max = 5120;
+    for (const a of this.db.applications) {
+      const n = Number(a.ref.split("-")[2]);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    return `VMAF-${year}-${String(max + 1).padStart(5, "0")}`;
+  }
+
+  async submitApplication(input: ApplicationInput, actor: Actor): Promise<Application> {
+    if (actor.kind !== "dealer" || !actor.dealerId) throw new ServiceError(403, "Only dealer users submit applications");
+    const guarantors = input.guarantors ?? [];
+    const errors = validateParty(input.hirer, "Hirer");
+    if (guarantors.length > MAX_GUARANTORS) errors.push(`At most ${MAX_GUARANTORS} guarantors`);
+    guarantors.forEach((g, i) => errors.push(...validateParty(g, guarantorLabel(i, guarantors.length))));
+    if (!errors.length) {
+      const nrics = [input.hirer, ...guarantors].map((p) => normalizeNric(p.nric));
+      if (new Set(nrics).size !== nrics.length) errors.push("Each person needs a different NRIC (D-28)");
+    }
+    if (!input.ltaCode?.trim()) errors.push("LTA Access Code is required");
+    if (errors.length) throw new ServiceError(400, errors.join("; "));
+
+    const now = this.clock.now();
+    const ref = this.nextRef(now);
+    const mk = (role: Role, label: string, p: PartyInput): Party => ({
+      id: `${ref}-${label.replace(/\s+/g, "").toLowerCase()}`,
+      role,
+      label,
+      name: p.name.trim().toUpperCase(),
+      nric: normalizeNric(p.nric),
+      email: p.email.trim(),
+      mobile: p.mobile.replace(/\s+/g, ""),
+      triggerAt: now,
+      resendsAt: [],
+      links: [],
+    });
+    const app: Application = {
+      ref,
+      dealerId: actor.dealerId,
+      createdById: actor.id,
+      createdByName: actor.name,
+      createdAt: now,
+      ltaCode: input.ltaCode.trim(),
+      carPlate: "",
+      stage: "Submitted",
+      parties: [mk("hirer", "Hirer", input.hirer), ...guarantors.map((g, i) => mk("guarantor", guarantorLabel(i, guarantors.length), g))],
+    };
+    this.db.applications.unshift(app);
+    for (const party of app.parties) this.newLink(app, party, "submit", actor);
+    this.db.save();
+    this.onChange(app.ref);
+
+    for (const party of app.parties) await this.dispatch(app, party, currentLink(party));
+    return app;
+  }
+
+  /**
+   * Adds a QUEUED link as the party's current link. Still-active links become REPLACED; EXPIRED and MISMATCH links
+   * keep their status as history (D-19, D-20).
+   */
+  private newLink(app: Application, party: Party, reason: IssueReason, actor: Actor | typeof SYSTEM): VerificationLink {
+    const now = this.clock.now();
+    for (const old of party.links) {
+      if (!ACTIVE_LINK_STATUSES.has(old.status)) continue;
+      old.status = "REPLACED";
+      old.closedAt = now;
+      this.audit("link.replaced", actor, app, party, { link: old.id });
+    }
+    const link: VerificationLink = {
+      id: randomUUID(),
+      portalToken: randomBytes(24).toString("base64url"), // 192 bits
+      status: "QUEUED",
+      reason,
+      createdAt: now,
+    };
+    party.links.push(link);
+    party.triggerAt = now;
+    this.audit("link.queued", actor, app, party, { link: link.id, reason });
+    return link;
+  }
+
+  /**
+   * QUEUED → SENT: GetLinkId through the adapter, then email + SMS. Leaves the link QUEUED when the gateway is
+   * unavailable. Safe when called concurrently or repeatedly for the same link.
+   */
+  private async dispatch(app: Application, party: Party, link: VerificationLink): Promise<boolean> {
+    if (link.status !== "QUEUED" || this.issuing.has(link.id)) return false;
+    this.issuing.add(link.id);
+    try {
+      let issued;
+      try {
+        issued = await this.gateway.issueLink({ applicationRef: app.ref, partyId: party.id, role: party.role });
+      } catch (e) {
+        if (e instanceof GatewayUnavailable) return false;
+        throw e;
+      }
+      if (link.status !== "QUEUED") return false; // replaced while GetLinkId was running
+      const now = this.clock.now();
+      link.linkId = issued.linkId;
+      link.customerUrl = issued.customerUrl;
+      link.status = "SENT";
+      link.sentAt = now;
+      link.expiresAt = now + this.config.linkTtlMs;
+      this.audit("link.sent", SYSTEM, app, party, { link: link.id, expiresAt: link.expiresAt });
+      this.db.save();
+      await this.notify(app, party, link);
+      this.onChange(app.ref);
+      return true;
+    } finally {
+      this.issuing.delete(link.id);
+    }
+  }
+
+  /** Email with the portal link, then an SMS that only says the email was sent (D-13). */
+  private async notify(app: Application, party: Party, link: VerificationLink): Promise<void> {
+    const url = this.portalUrl(link);
+    const mail = renderEmail({
+      to: party.email,
+      name: party.name,
+      role: party.role,
+      ref: app.ref,
+      dealer: DEALERS[app.dealerId] ?? "",
+      url,
+      expiresAt: link.expiresAt ?? 0,
+      ttlHours: Math.round(this.config.linkTtlMs / 3_600_000),
+    });
+    const r = await this.email.send({ to: party.email, subject: mail.subject, html: mail.html, text: mail.text });
+    const base = { applicationRef: app.ref, partyId: party.id, linkRef: link.id };
+    this.db.outbox.unshift({
+      id: randomUUID(),
+      at: this.clock.now(),
+      channel: "email",
+      to: party.email,
+      subject: mail.subject,
+      body: mail.text,
+      status: r.delivered ? "sent" : r.error ? "failed" : "logged",
+      ...(r.error ? { error: r.error } : {}),
+      ...base,
+    });
+    this.db.outbox.unshift({
+      id: randomUUID(),
+      at: this.clock.now(),
+      channel: "sms",
+      to: party.mobile,
+      body: `ValueMax AutoFinance: we have emailed you a Singpass verification request for application ${app.ref}. Please check your inbox (${maskEmail(party.email)}).`,
+      status: "logged",
+      ...base,
+    });
+    this.db.outbox.splice(200);
+    this.db.save();
+  }
+
+  // ---------------------------------------------------------------- job
+
+  /** One run of the auto-verify job. Idempotent; overlapping runs are safe. */
+  async runJob(): Promise<void> {
+    await this.dispatchQueued();
+  }
+
+  private async dispatchQueued(): Promise<void> {
+    for (const app of [...this.db.applications])
+      for (const party of app.parties) {
+        const link = currentLink(party);
+        if (link.status === "QUEUED") await this.dispatch(app, party, link);
+      }
+  }
+
+  // ---------------------------------------------------------------- audit
+
+  private audit(
+    type: AuditType,
+    actor: Actor | typeof SYSTEM,
+    app: Application,
+    party: Party | null,
+    details: Record<string, string | number> = {},
+  ): void {
+    this.db.audit.unshift({
+      id: randomUUID(),
+      at: this.clock.now(),
+      type,
+      actor: actor.id,
+      actorName: actor.name,
+      applicationRef: app.ref,
+      ...(party ? { partyId: party.id } : {}),
+      details,
+    });
+  }
+}
+
+function guarantorLabel(index: number, count: number): string {
+  return count > 1 ? `Guarantor ${index + 1}` : "Guarantor";
+}
+
+function maskEmail(email: string): string {
+  const [user = "", domain = ""] = email.split("@");
+  return `${user.slice(0, 2)}***@${domain}`;
+}

@@ -22,17 +22,12 @@ export type GatewayPersonResult =
   | { kind: "not_ready" };
 
 export interface MyinfoGateway {
-  readonly name: "simulated" | "mockpass";
+  readonly name: "simulated";
   /** GetToken */
   getToken(): Promise<GatewayToken>;
   /** GetLinkId — one Myinfo session per verification link. */
   getLinkId(token: GatewayToken, reference: { applicationRef: string; role: string }): Promise<GatewayLink>;
   /** person/autofin/{LinkId} — the consented Myinfo data. */
   getPerson(token: GatewayToken, linkId: string): Promise<GatewayPersonResult>;
-  /**
-   * Redirect back from an external Myinfo login (OAuth callback). Returns the linkId it belongs to.
-   * Only gateways with an external login implement it.
-   */
-  handleCallback?(query: URLSearchParams): Promise<{ linkId: string; outcome: "agreed" | "declined" }>;
   reset(): void;
 }

@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { isValidEmail, isValidMobile, isValidNric, normalizeNric, nricMatches } from "./nric.ts";
+import { DEALERS, USERS } from "./verification/users.ts";
+import type { User } from "./verification/users.ts";
+
+export { DEALERS, USERS };
+export type { User };
 
 export type Role = "hirer" | "guarantor";
 export type LinkOutcome = "Fulfilled" | "Superseded" | "NRIC mismatch" | "Declined" | "Rejected";
@@ -62,24 +67,6 @@ export interface OutboxMail {
   error?: string;
 }
 
-export interface User {
-  id: string;
-  name: string;
-  initials: string;
-  kind: "dealer" | "ops";
-  dealerId?: string;
-  org: string;
-}
-
-export const DEALERS: Record<string, string> = {
-  "d-demo": "Demo Motors Pte Ltd",
-  "d-sample": "Sample Auto Pte Ltd",
-};
-
-export const USERS: User[] = [
-  { id: "u-alex", name: "Alex Tan", initials: "AT", kind: "dealer", dealerId: "d-demo", org: "Demo Motors Pte Ltd" },
-  { id: "u-priya", name: "Priya Nair", initials: "PN", kind: "ops", org: "VMAF Ops" },
-];
 
 export class AppError extends Error {
   readonly status: number;
