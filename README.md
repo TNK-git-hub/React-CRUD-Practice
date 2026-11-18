@@ -1,82 +1,202 @@
 # ValueMax AutoFinance — Singpass Myinfo Auto Verify (demo)
 
-Demo of the Dealer Portal flow from `docs/requirements/singpass-demo-brief.md`: the dealer submits an application on
-the laptop, the hirer and guarantor each get a link by email, log in and consent to share Myinfo on their phone through
-a **simulated ValueMax Myinfo gateway** (labelled "SIMULATED"), and the dealer and Ops screens switch to **Fulfilled**
-live (Server-Sent Events, no refresh).
+Presale demo of the Dealer Portal "auto verify" flow for ValueMax AutoFinance. The dealer submits an application on a
+laptop; the hirer and up to two guarantors each get their own link by email (plus an SMS notice); each person opens the
+link on their phone, goes through a **simulated** ValueMax Myinfo gateway (Singpass login, consent, review) and shares
+their data; AutoFinance picks the data up by **polling** the gateway, checks the NRIC, and the dealer and Ops screens
+switch to **Fulfilled** by themselves. The AA is locked on the server until every person is Fulfilled.
 
-The real ValueMax gateway (`myinfo-stg.valuemax.com.sg`) is not wired: its API spec (GetToken, GetLinkId,
-person/autofin/{LinkId}) is still pending (Q&A B1.1). `server/gateway/valuemax.ts` is a stub with TODOs.
+Requirements: `docs/requirements/singpass-demo-brief.md`; decisions: `docs/requirements/decisions.md` (D-01 … D-51);
+gap report and plan: `docs/claude-code-demo/GAP_REPORT.md`; screenshots: `docs/claude-code-demo/screens/`.
 
-> Work in progress: everything runs end to end, but the UI is not yet pixel-matched to `docs/claude-code-demo/design/`.
+## 1. Run it on a new machine
 
-## Run
-
-Requires Node.js ≥ 22.18 (runs the TypeScript directly, no build step).
+Requires **Node.js ≥ 22.18** (the TypeScript runs directly, no build step) and npm. Nothing else for the demo itself.
 
 ```bash
-npm install
-npm run dev          # creates .env on first run (with a fresh MYINFO_ENCRYPTION_KEY), then starts on :3000
+git clone <repo-url> singpass-demo && cd singpass-demo
+git checkout singpass-2
+npm ci
+cp .env.example .env
+# put a fresh 256-bit key (64 hex characters) into MYINFO_ENCRYPTION_KEY in .env:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+#   (or: openssl rand -hex 32)
+npm start                     # or: npm run dev (restarts on code changes)
 ```
 
-- Laptop: http://localhost:3000. Pick **Alex Tan (dealer)** or **Priya Nair (Ops)** — "Switch role" in the header.
-- Demo Control: http://localhost:3000/demo (reset data, sample applications, expire a link, outbox, QR codes).
-- Tests: `npm test` · lint: `npm run lint` · type-check: `npm run typecheck`.
+Shortcut: `npm run setup` creates `.env` from `.env.example` with a new key if `.env` does not exist yet; `npm start`
+and `npm run dev` run it first. The server refuses to start without a valid key (D-03) and says why.
 
-### Email
+Then open:
 
-| Option | `.env` |
+| URL | What |
 | --- | --- |
-| No SMTP (default) | leave `SMTP_HOST` empty: links are printed in the server log and listed in Demo Control → Outbox |
-| Mailpit (local inbox) | `docker compose up -d mailpit`, then `SMTP_HOST=localhost`, `SMTP_PORT=1025`; inbox at http://localhost:8025 |
-| Real mailbox (Gmail) | `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<app password>` |
+| http://localhost:3000 | sign in as **Alex Tan — Demo Motors** (dealer) or **Priya Nair — VMAF Ops**; "Switch role" in the header |
+| http://localhost:3000/demo | **Demo Control** (presenter): reset, sample applications, gateway on/off, run job now, clock, outbox, gateway log |
+| printed at start-up | "Phone links" base URL — what the emails contain (see §4) |
 
-### Letting a phone open the link
+### Tests
 
-The link in the email uses `PUBLIC_BASE_URL`.
+```bash
+npm test             # service + HTTP tests (node:test)
+npm run lint         # ESLint
+npm run typecheck    # tsc --noEmit
+# end-to-end (Playwright, one test of the main demo script, D-36) — install Chromium once:
+npx playwright install chromium
+#   on a machine behind a company proxy with its own root CA ("unable to verify the first certificate"):
+NODE_OPTIONS=--use-system-ca npx playwright install chromium
+npm run test:e2e     # starts its own server on :3100 with its own data file; does not touch data/db.json or .env
+npm run screens      # regenerates docs/claude-code-demo/screens/*.png (needs Chromium too)
+```
 
-- **Same Wi-Fi**: leave it empty — the server prints the detected LAN address (`http://192.168.x.x:3000`).
-  Allow incoming connections for Node in the macOS firewall if asked.
-- **Tunnel** (any network): `cloudflared tunnel --url http://localhost:3000` (or `ngrok http 3000`), then set
-  `PUBLIC_BASE_URL=https://<the-tunnel-host>` in `.env` and restart.
-- Fallback: screen 3 ("Show QR of the link") and Demo Control show a QR code of each link.
+## 2. Configuration (`.env`)
 
-## Demo script (~5 minutes)
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MYINFO_ENCRYPTION_KEY` | — (required) | AES-256-GCM key for stored Myinfo data, 64 hex characters (D-03) |
+| `PORT` | 3000 | listens on 0.0.0.0 so phones on the same network can reach it |
+| `PUBLIC_BASE_URL` | LAN address | base URL put in emails and used for the gateway pages; must be reachable from the phone |
+| `LINK_TTL_HOURS` | 72 | link validity, counted from the moment the link is sent (D-24) |
+| `POLL_INTERVAL_MS` | 2000 | how often the auto-verify job polls the gateway (D-01) |
+| `RESEND_LIMIT` / `RESEND_WINDOW_HOURS` | 3 / 24 | resends per person in a sliding window (D-39) |
+| `MYINFO_SHOW_REVIEW` | true | the simulated gateway shows the review screen before "Submit Application" (D-31) |
+| `DATA_FILE` | `data/db.json` | where the demo data is kept |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | empty | real email; see below |
 
-1. Demo Control → **Reset all data**, then **Create sample applications** (fills the Ops list).
-2. Laptop, as **Alex Tan**: Quick Apply → **Fill sample (test personas)** → type the email address of the phone for
-   hirer and guarantor → Next → tick both confirmations → **Send Singpass Request**. Screen 3 shows the reference and
-   link expiry; open **View Application Status** and leave it on screen.
-3. Phone: open the email → **Verify with Singpass** → **Retrieve Myinfo with Singpass** → simulated Singpass: pick
-   **HENG SHI ZHENG (F4440488P)** → **I agree** → review tabs → **Submit Application** → "Details shared".
-   The laptop's hirer chip turns **Fulfilled** within a second.
-4. Second tab as **Priya Nair** (Ops): All Applications shows hirer Fulfilled, guarantor Pending. Open it:
-   Change Status → **Issue AA** shows "Cannot issue AA yet"; **Issue IPA** works while Singpass is pending.
-5. Guarantor link on the phone → persona **G4440425M** → I agree → Submit Application. Both Fulfilled → Issue AA is enabled.
-6. Error cases (Demo Control lists them):
-   - **NRIC mismatch**: log in with a different persona than the NRIC the dealer entered → red on Ops.
-   - **Cancel**: press **Cancel** on the consent screen.
-   - **Old link after Resend**: Ops → **Resend Email**, then open the previous link → "This link is no longer valid".
-   - **Expired link**: Demo Control → **Make link expired**, then open the link.
+**Email.** Without `SMTP_HOST` emails are not sent: each link is printed in the server log and listed in Demo Control →
+Outbox (enough for a demo on one laptop). Local inbox: `docker compose up -d mailpit`, then `SMTP_HOST=localhost`,
+`SMTP_PORT=1025`, inbox at http://localhost:8025. Real mailbox (Gmail): `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`,
+`SMTP_SECURE=true`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<app password>`, `MAIL_FROM=you@gmail.com`.
+SMS is never sent: the SMS notice ("we have emailed you…", no link) appears only in the outbox (D-13).
 
-Test personas: `F4440488P`, `F4440489M`, `G4440425M`, `G4440427W`, `G4440430W`,
-`G4440431T`, `G4440432Q`, `G4440433N`, `M5004553J`. Any other valid NRIC also logs in with generic test data.
+## 3. Reset the data
 
-## Structure
+Demo Control → **Reset all data** hard-deletes every application, link, Myinfo record, message and audit event, clears
+the simulated gateway and puts the clock back to real time (D-02). **Create sample applications** adds
+`VMAF-2026-05114` … `05119` (test personas only, D-29). Stopping the server and deleting `data/db.json` does the same
+as a reset.
+
+## 4. Let a phone open the links
+
+- **Same Wi-Fi:** leave `PUBLIC_BASE_URL` empty; the server prints the LAN address it uses (`http://192.168.x.x:3000`).
+  Allow incoming connections for Node if the macOS firewall asks.
+- **Any network (tunnel):** `cloudflared tunnel --url http://localhost:3000` (or `ngrok http 3000`), set
+  `PUBLIC_BASE_URL=https://<tunnel-host>` in `.env`, restart.
+- **Fallback:** Demo Control → Links → "QR (presenter only)" shows a QR of any link.
+
+## 5. Demo scripts
+
+Before each script: Demo Control → **Reset all data** → **Create sample applications**. Keep two laptop windows: the
+dealer (Alex Tan) and Ops (Priya Nair, private window). "Phone" = a real phone, or a narrow browser window opening the
+link from Demo Control → Outbox. Personas on the simulated Singpass login: `F4440488P` HENG SHI ZHENG (hirer of "Fill
+sample"), `G4440425M` RAJESH KUMAR (its guarantor) and 7 others.
+
+### 5.1 Happy path (~3 min)
+
+| Do | See | Say |
+| --- | --- | --- |
+| Dealer: Quick Apply → **Fill sample** → type the phone's email for hirer and guarantor → Next → tick both boxes → **Send Singpass Request** | "Interest Received", one link per person, expiry in 72 h | "Each person gets their own link, valid 72 hours; only one link per person is active." |
+| Dealer: **View Application Status** | tracker, both chips "Pending" | "The dealer can now leave this screen open." |
+| Phone: open the hirer's email (or Outbox link) → **Continue to Singpass** | AutoFinance first checks the link, then the grey "SIMULATED GATEWAY" pages | "The link opens our portal first: an old or expired link stops here." |
+| Phone: **Retrieve Myinfo with Singpass** → pick **HENG SHI ZHENG** → **I agree** → review tabs → **Submit Application** | "Details shared"; no redirect back | "Like the real ValueMax gateway, it does not send the customer back." |
+| Watch the dealer screen | Hirer chip turns **Fulfilled** within ~2 s, no refresh | "There is no webhook: AutoFinance polls the gateway every 2 seconds, checks the NRIC, stores the data encrypted, and pushes the change to the screens." |
+| Phone: guarantor link → **RAJESH KUMAR** → I agree → Submit | Guarantor **Fulfilled** | |
+| Ops: All Applications → View → Change Status → **Issue AA** → Apply | "Ready to issue AA", then "Approved — AA"; the dealer tracker shows AA | "The AA is locked on the server until everyone is Fulfilled." |
+
+### 5.2 IPA before AA
+
+| Do | See | Say |
+| --- | --- | --- |
+| Submit an application (as in 5.1), nobody verifies yet. Ops → View → **Issue IPA** → Apply | "Approved — IPA" | "An IPA can be issued any time after submission." |
+| Ops: choose **Issue AA** | red box "Cannot issue AA yet ✗ Hirer Singpass pending ✗ Guarantor …", Apply disabled | "The reason comes from the server's own check; an AA attempt that bypasses the screen is refused and audited." |
+| Verify both people (5.1) | the box turns "Ready to issue AA" by itself → Apply | |
+
+### 5.3 Wrong person (NRIC mismatch)
+
+| Do | See | Say |
+| --- | --- | --- |
+| Submit; on the phone, for the hirer, log in as **WANG XIAO LING** (not HENG) → I agree → Submit | Phone: "Details shared". Dealer: "NRIC mismatch — Ops is following up". Ops: red "NRIC mismatch · logged in as F****489M" | "The data came from someone else's Singpass: it is not attached, only the returned NRIC is kept for Ops, masked. The dealer never sees it." |
+| Ops: **Show** next to the NRIC; Activity log | full NRIC; "Priya Nair viewed the full NRIC…" | "Viewing a full NRIC is recorded." |
+| Ops: **Correct NRIC / email** (reason) or **Resend Email** (reason) | new link, person back to Pending | "A correction issues a new link; the old one stops working." |
+
+### 5.4 Old link (blocked at the portal, data on the old LinkId rejected)
+
+| Do | See | Say |
+| --- | --- | --- |
+| Submit. Phone: open the hirer link → **Continue to Singpass** → leave this tab open on the gateway page | gateway landing page | |
+| Ops: **Resend Email (Hirer)** with a reason | new email in Outbox | "Resend replaces the link: one active link per person." |
+| Phone, new tab: open the **first** email's link again | "This link is no longer valid" | "The portal stops an old link before it reaches Singpass." |
+| Phone, the gateway tab left open: Retrieve → HENG → I agree → Submit | "Details shared" (the real gateway cannot cancel a link) | |
+| Ops: Activity | "Result rejected: the customer used an old link (returned NRIC F****488P, matches)"; hirer still Pending | "Data that arrives on an old link is never attached; the new link is still the one that counts." |
+
+### 5.5 Expired link and resend from the expired list
+
+| Do | See | Say |
+| --- | --- | --- |
+| Submit. Demo Control → **+73 h (expire links)** | "Demo time: +73 h" bar; within ~2 s both people **Expired** | "After 72 hours without a result, the link expires." |
+| Phone: open the link | "This link is no longer valid" | |
+| Ops: All Applications → **Expired links (2)** → **Resend link** (reason) | new link in Outbox; the person leaves the list | "Ops (or the dealer who submitted) can resend, with a reason, at most 3 times in 24 hours." |
+| Demo Control → **Back to real time** | the bar disappears | |
+
+### 5.6 Gateway outage and recovery without duplicates
+
+| Do | See | Say |
+| --- | --- | --- |
+| Demo Control → **Switch gateway off** | gateway "unavailable" | |
+| Dealer submits | "Interest Received" with "queued — sent automatically once the Singpass gateway is reachable"; Ops: "Queued"; no email in Outbox | "The application is never lost: the link request is queued." |
+| Demo Control → **Switch gateway on** | within ~2 s each person gets exactly one email + one SMS notice; expiry counts from now | "The job retries; it is safe to run twice or in parallel and never sends a link twice." |
+
+### 5.7 Customer declines consent
+
+| Do | See | Say |
+| --- | --- | --- |
+| Phone: open a link → Retrieve → persona → **Cancel** | "You cancelled" | |
+| Dealer / Ops | still **Pending**, nothing changes | "The real gateway does not tell us about a refusal, so AutoFinance cannot tell it from 'not done yet'." |
+| Demo Control → Gateway log | "declined" recorded on the gateway side | "The link stays valid until it expires; the customer can open it again and agree." |
+
+## 6. What is simulated
+
+- **The ValueMax Myinfo gateway and Singpass** (`server/gateway/simulated.ts`, pages under `/gateway/<LinkId>`):
+  GetToken, GetLinkId and person/autofin/{LinkId} behaviour, Singpass login with the 9 staging test personas (no
+  passwords), consent, review. Myinfo data of the personas is synthetic (`server/personas.ts`). Every page carries
+  "SIMULATED GATEWAY · DEMO ONLY".
+- **SMS**: outbox only. **Email**: real only when SMTP is configured.
+- **Users**: two sample users and a role switch, no passwords (D-08). **IPA / AA**: only the stage changes; no notice
+  contents, no IPA amendment (D-48). **LTA**: the access code is captured only; no LTA or OneMotoring lookup (D-51).
+- **Clock**: Demo Control can move it forward (D-42). **Data**: one JSON file (D-37).
+
+## 7. Connecting the real ValueMax gateway
+
+AutoFinance reaches the gateway only through `GatewayAdapter` (`server/gateway/adapter.ts`: `issueLink`,
+`fetchPerson`, `GatewayUnavailable`). The real one goes in `server/gateway/valuemax.ts` (`ValueMaxGatewayAdapter`, a stub
+with TODOs; it is never called today). Open items before it can be written:
+
+| Item | Needed from ValueMax | Status |
+| --- | --- | --- |
+| **B1.1** API specification of GetToken, GetLinkId, person/autofin/{LinkId} (request / response fields, "not ready yet" response, errors, token lifetime) | spec | pending |
+| **B2.2** staging credentials (client id / secret) for AutoFinance | credentials | pending |
+| **B1.9** IP whitelist of the AutoFinance servers on the gateway | whitelisting | pending |
+| Staging **person** API (`myinfo-api-stg.valuemax.com.sg/person/autofin/{LinkId}`) | fix | currently fails with a port 60201 error |
+
+Then: implement the two adapter methods (map outages and timeouts to `GatewayUnavailable`, "no consent yet" to
+`NOT_READY`, the payload to `MyinfoPerson` with at least `uinfin`); add its settings to `.env.example` (endpoints,
+credentials — secrets only from the environment); construct it instead of `MockGatewayAdapter` in
+`server/runtime.ts`; run `npm test` (the SC-xx tests run against the adapter interface). Reference endpoints:
+`myinfo-stg.valuemax.com.sg/Utilities/AutoFin/GetToken`, `/GetLinkId`, `myinfo-api-stg.valuemax.com.sg/person/autofin/{LinkId}`.
+
+## 8. Structure
 
 ```
 server/index.ts              entry point: environment → runtime
 server/runtime.ts            HTTP API, SSE (/api/events), auto-verify job timer, Demo Control, static files
-server/verification/         service.ts (links, job, Retrieve MyInfo, resend), model.ts, db.ts (JSON file), users.ts
-server/gateway/              adapter.ts (issueLink / fetchPerson / GatewayUnavailable), simulated.ts (simulated
-                             gateway + MockGatewayAdapter), valuemax.ts (stub for the real gateway)
-server/views.ts              what dealer / Ops screens receive (labels D-25, D-38)
-server/nric.ts, crypto.ts    NRIC / FIN checks and masking; AES-256-GCM for stored Myinfo data
+server/verification/         service.ts (links, job, Retrieve MyInfo, resend, corrections, IPA / AA, demo shortcuts),
+                             approval.ts (AA conditions), model.ts, db.ts (JSON file), users.ts
+server/gateway/              adapter.ts, simulated.ts (simulated gateway + MockGatewayAdapter), valuemax.ts (stub)
+server/views.ts, activity.ts what dealer / Ops screens receive; the activity log sentences
+server/nric.ts, crypto.ts    NRIC / FIN checks and masking; AES-256-GCM
 server/mail.ts               email template + SMTP sender
 public/                      frontend (vanilla JS SPA): dealer, Ops, portal /verify/<token>, gateway /gateway/<LinkId>,
                              Demo Control
-tests/                       SC-xx scenario tests (service + HTTP), validation tests
-data/db.json                 demo data (git-ignored); Demo Control → Reset deletes it all
+tests/                       SC-xx scenario tests (service + HTTP), validation, startup; tests/e2e (Playwright)
+scripts/                     setup.ts (.env with a new key), screenshots.ts
 ```
-
-Decisions behind the rules: `docs/requirements/decisions.md` (D-01 … D-32).

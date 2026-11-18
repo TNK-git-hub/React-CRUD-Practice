@@ -26,7 +26,7 @@ const config = loadConfig(process.env, { publicBaseUrl: `http://${lanAddress() ?
 const rt = createRuntime({
   config,
   clock: new AdjustableClock(),
-  dbFile: join(resolve(import.meta.dirname, ".."), "data", "db.json"),
+  dbFile: process.env.DATA_FILE || join(resolve(import.meta.dirname, ".."), "data", "db.json"),
   key,
   email: createEmailSender(process.env),
   smtpConfigured: Boolean(process.env.SMTP_HOST),

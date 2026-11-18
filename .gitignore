@@ -4,3 +4,5 @@ dist/
 .DS_Store
 data/
 *.log
+test-results/
+playwright-report/

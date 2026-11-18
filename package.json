@@ -14,7 +14,8 @@
     "test": "node --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "screens": "node scripts/screenshots.ts"
+    "screens": "node scripts/screenshots.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "nodemailer": "^6.9.16"

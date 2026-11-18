@@ -529,10 +529,14 @@ async function dealerStatus(ref) {
           ${app.ipaAt ? `<button class="btn primary" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">View IPA Notice</button>` : ""}
           <button class="btn" type="button" data-shortcut="ops-view">Demo: see the Ops view →</button>
         </div>
+        ${app.createdById === state.user.id && app.stage !== "AA" && app.parties.some((p) => ["Pending", "Expired", "NRIC mismatch", "Queued"].includes(p.status))
+          ? `<div class="row center" style="gap:8px">${app.parties.filter((p) => p.status !== "Fulfilled").map((p) => `<button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}">Resend link (${esc(p.label)})</button>`).join("")}</div>`
+          : ""}
         <span class="small muted">Updates live — no need to refresh.</span>
       </section>`);
     bindCommon();
     bindShortcuts();
+    bindResend(ref); // D-04: the dealer agent who submitted may resend, with a reason
     prev = sig;
   };
   await load();
