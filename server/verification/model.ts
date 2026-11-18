@@ -47,6 +47,9 @@ export interface Party {
   mismatchUinfin?: string;
   /** Times of resends, for the sliding-window limit (D-39). */
   resendsAt: number[];
+  /** The party's current link: an explicit pointer, never derived from link statuses (D-19). */
+  currentLinkId: string;
+  /** Every link ever issued to the party, oldest first (history). */
   links: VerificationLink[];
 }
 
@@ -128,9 +131,13 @@ export interface AuditEvent {
 export const MAX_GUARANTORS = 2;
 
 export function currentLink(party: Party): VerificationLink {
-  const link = party.links[party.links.length - 1];
-  if (!link) throw new Error("party without link");
+  const link = party.links.find((l) => l.id === party.currentLinkId);
+  if (!link) throw new Error("party without a current link");
   return link;
+}
+
+export function isCurrent(party: Party, link: VerificationLink): boolean {
+  return party.currentLinkId === link.id;
 }
 
 export function validateParty(p: PartyInput | undefined, label: string): string[] {

@@ -9,7 +9,7 @@ import { renderEmail } from "../mail.ts";
 import { normalizeNric } from "../nric.ts";
 import type { MyinfoPerson } from "../personas.ts";
 import type { Db } from "./db.ts";
-import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, validateParty } from "./model.ts";
+import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, isCurrent, validateParty } from "./model.ts";
 import type { Application, ApplicationInput, AuditType, IssueReason, Party, PartyInput, Role, VerificationLink } from "./model.ts";
 import { DEALERS } from "./users.ts";
 import type { Actor } from "./users.ts";
@@ -49,6 +49,10 @@ export class ServiceError extends Error {
 }
 
 const SYSTEM = { id: "system", name: "Auto-verify job" } as const;
+const CUSTOMER = { id: "customer", name: "Customer (link holder)" } as const;
+
+export type BlockReason = "unknown" | "replaced" | "expired" | "not-sent" | "used";
+export type OpenLinkResult = { ok: true; redirectUrl: string } | { ok: false; reason: BlockReason };
 
 export class VerificationService {
   private readonly db: Db;
@@ -90,6 +94,76 @@ export class VerificationService {
     return `${this.config.publicBaseUrl}/verify/${link.portalToken}`;
   }
 
+  findByPortalToken(token: string): { app: Application; party: Party; link: VerificationLink } | null {
+    if (!token) return null;
+    for (const app of this.db.applications)
+      for (const party of app.parties)
+        for (const link of party.links) if (link.portalToken === token) return { app, party, link };
+    return null;
+  }
+
+  // ---------------------------------------------------------------- portal link check (flow item 4)
+
+  /**
+   * /verify/<portalToken>: only the party's current link, sent and not expired, goes on to the gateway.
+   * Anything else stops here (D-17, D-19).
+   */
+  openLink(portalToken: string): OpenLinkResult {
+    const found = this.findByPortalToken(portalToken);
+    if (!found) return { ok: false, reason: "unknown" };
+    const { app, party, link } = found;
+    const block = (reason: BlockReason): OpenLinkResult => {
+      this.audit("link.blocked", CUSTOMER, app, party, { link: link.id, reason });
+      this.db.save();
+      this.onChange(app.ref);
+      return { ok: false, reason };
+    };
+    if (!isCurrent(party, link)) return block("replaced");
+    this.expireIfDue(app, party, link);
+    if (link.status === "QUEUED" || !link.customerUrl) return block("not-sent");
+    if (link.status === "EXPIRED") return block("expired");
+    if (link.status !== "SENT" && link.status !== "OPENED") return block("used");
+    if (link.status === "SENT") {
+      link.status = "OPENED";
+      link.openedAt = this.clock.now();
+      this.audit("link.opened", CUSTOMER, app, party, { link: link.id });
+      this.db.save();
+      this.onChange(app.ref);
+    }
+    return { ok: true, redirectUrl: link.customerUrl };
+  }
+
+  /** SENT / OPENED past expiresAt → EXPIRED (flow item 10). Returns true if it changed. */
+  private expireIfDue(app: Application, party: Party, link: VerificationLink): boolean {
+    if (link.status !== "SENT" && link.status !== "OPENED") return false;
+    if (link.expiresAt === undefined || this.clock.now() < link.expiresAt) return false;
+    link.status = "EXPIRED";
+    link.closedAt = this.clock.now();
+    this.audit("link.expired", SYSTEM, app, party, { link: link.id });
+    this.db.save();
+    this.onChange(app.ref);
+    return true;
+  }
+
+  // ---------------------------------------------------------------- resend (flow item 9)
+
+  /** Ops or the dealer agent who submitted the application (D-04); a reason is required. */
+  async resend(ref: string, partyId: string, actor: Actor, reason: string): Promise<Application> {
+    const app = this.getApplication(ref);
+    const party = this.party(app, partyId);
+    if (!(actor.kind === "ops" || (actor.kind === "dealer" && actor.id === app.createdById)))
+      throw new ServiceError(403, "Only Ops or the dealer agent who submitted the application can resend");
+    if (!reason?.trim()) throw new ServiceError(400, "A reason is required to resend");
+    const now = this.clock.now();
+    party.resendsAt.push(now);
+    const link = this.newLink(app, party, "resend", actor);
+    this.audit("link.resent", actor, app, party, { link: link.id, reason: reason.trim() });
+    this.db.save();
+    this.onChange(app.ref);
+    await this.dispatch(app, party, link);
+    return app;
+  }
+
   // ---------------------------------------------------------------- submit (flow items 1–3)
 
   /** D-26 */
@@ -128,6 +202,7 @@ export class VerificationService {
       mobile: p.mobile.replace(/\s+/g, ""),
       triggerAt: now,
       resendsAt: [],
+      currentLinkId: "",
       links: [],
     });
     const app: Application = {
@@ -170,6 +245,7 @@ export class VerificationService {
       createdAt: now,
     };
     party.links.push(link);
+    party.currentLinkId = link.id;
     party.triggerAt = now;
     this.audit("link.queued", actor, app, party, { link: link.id, reason });
     return link;
@@ -251,6 +327,12 @@ export class VerificationService {
   /** One run of the auto-verify job. Idempotent; overlapping runs are safe. */
   async runJob(): Promise<void> {
     await this.dispatchQueued();
+    this.expireDue();
+  }
+
+  private expireDue(): void {
+    for (const app of this.db.applications)
+      for (const party of app.parties) this.expireIfDue(app, party, currentLink(party));
   }
 
   private async dispatchQueued(): Promise<void> {
@@ -265,7 +347,7 @@ export class VerificationService {
 
   private audit(
     type: AuditType,
-    actor: Actor | typeof SYSTEM,
+    actor: Actor | typeof SYSTEM | typeof CUSTOMER,
     app: Application,
     party: Party | null,
     details: Record<string, string | number> = {},
