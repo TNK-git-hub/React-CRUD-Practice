@@ -24,8 +24,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 npm start                     # or: npm run dev (restarts on code changes)
 ```
 
-Shortcut: `npm run setup` creates `.env` from `.env.example` with a new key if `.env` does not exist yet; `npm start`
-and `npm run dev` run it first. The server refuses to start without a valid key (D-03) and says why.
+Shortcut: instead of `cp` + editing the key by hand, `npm run setup` creates `.env` from `.env.example` with a new key
+(only if `.env` does not exist yet); `npm start` and `npm run dev` run it first. The server refuses to start without a
+valid key (D-03) and says why.
+
+If port 3000 is already used on the machine (an editor or another dev server), set `PORT=3001` (or any free port) in
+`.env`. `npm ci` may print `npm audit` warnings; they do not stop the demo (see the open items in the final report).
 
 Then open:
 
@@ -42,7 +46,7 @@ npm test             # service + HTTP tests (node:test)
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
 # end-to-end (Playwright, one test of the main demo script, D-36) — install Chromium once:
-npx playwright install chromium
+npx playwright install chromium     # downloads ~100 MB once into the user's Playwright cache
 #   on a machine behind a company proxy with its own root CA ("unable to verify the first certificate"):
 NODE_OPTIONS=--use-system-ca npx playwright install chromium
 npm run test:e2e     # starts its own server on :3100 with its own data file; does not touch data/db.json or .env

@@ -83,7 +83,7 @@ commit. (Cập nhật 2026-11-18: thêm bước 3b, đánh số lại các bư�
 6. ✅ **Giao diện** (chờ duyệt ảnh chụp, `docs/claude-code-demo/screens/README.md`). Lịch sử link: link không còn hiện hành (kể cả FULFILLED/MISMATCH cũ) mang nhãn "không còn hiệu
    lực" để không nhầm với trạng thái hiện tại của party; che NRIC + audit xem, nhật ký hoạt động Ops (gồm "kết quả bị từ chối (link cũ)"), danh sách link
    hết hạn, resend có lý do, sửa NRIC, guarantor thứ 2, Demo Control mới (không thiết kế lại giao diện).
-7. **E2E + tài liệu.** 1 test Playwright cho kịch bản chính (Q8), README, chạy tay 7 kịch bản, báo cáo cuối.
+7. ✅ **E2E + tài liệu.** 1 test Playwright cho kịch bản chính (Q8), README, chạy tay 7 kịch bản, báo cáo cuối.
 
 ## 5. Quyết định đã chốt (2026-11-18)
 
@@ -117,3 +117,15 @@ commit. (Cập nhật 2026-11-18: thêm bước 3b, đánh số lại các bư�
 - Trạng thái Singpass của party = trạng thái của link hiện hành; nhãn Dealer/Ops ánh xạ: QUEUED/SENT/OPENED → Pending.
   Ghi ở D-38.
 - Dữ liệu sample `VMAF-2026-05118` có guarantor "Declined": đổi thành EXPIRED (Q1). Ghi ở D-29.
+
+## 7. Kiểm tra chạy từ đầu (2026-11-18)
+
+Clone sạch nhánh `singpass-2` (commit `0581596`) vào thư mục tạm, làm đúng theo README: `npm ci` → `cp .env.example .env`
+→ sinh khoá bằng lệnh `node -e …` và ghi vào `.env` → `npm start` (app chạy, trang chủ 200) → `npm test` (74/74) →
+`npm run lint`, `npm run typecheck` (sạch) → `npx playwright install chromium` → `npm run test:e2e` (1/1 xanh). Bản clone
+không sinh file lạ.
+
+README thiếu (đã bổ sung): cổng 3000 có thể đang bị chiếm trên máy (ở máy kiểm tra là VS Code) → hướng dẫn đổi `PORT`;
+`npm run setup` là cách nhanh nhất để có `.env` với khoá mới; `npm ci` in cảnh báo `npm audit`. Không kiểm được việc
+tải Chromium lần đầu trên bản clone vì trình duyệt đã có trong cache dùng chung của máy; việc tải với
+`NODE_OPTIONS=--use-system-ca` đã được kiểm ở bước 6 trên cùng máy (máy có CA riêng).
