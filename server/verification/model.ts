@@ -112,7 +112,7 @@ export type AuditType =
   | "party.fulfilled"
   | "party.mismatch"
   | "nric.viewed"
-  | "nric.corrected"
+  | "party.corrected"
   | "ipa.issued"
   | "aa.issued"
   | "aa.refused";

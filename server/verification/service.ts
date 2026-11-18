@@ -6,7 +6,8 @@ import type { AppConfig } from "../config.ts";
 import { GatewayUnavailable } from "../gateway/adapter.ts";
 import type { GatewayAdapter } from "../gateway/adapter.ts";
 import { renderEmail } from "../mail.ts";
-import { maskNric, normalizeNric, nricMatches } from "../nric.ts";
+import { isValidEmail, isValidNric, maskNric, normalizeNric, nricMatches } from "../nric.ts";
+import { formatSgt } from "../time.ts";
 import { personaFor } from "../personas.ts";
 import type { MyinfoPerson } from "../personas.ts";
 import type { Db } from "./db.ts";
@@ -143,14 +144,28 @@ export class VerificationService {
 
   // ---------------------------------------------------------------- resend (flow item 9)
 
-  /** Ops or the dealer agent who submitted the application (D-04); a reason is required. */
+  /**
+   * Ops or the dealer agent who submitted the application (D-04); a reason is required; at most `resendLimit`
+   * resends per party in any sliding `resendWindowMs` (D-39); never once FULFILLED (D-18).
+   */
   async resend(ref: string, partyId: string, actor: Actor, reason: string): Promise<Application> {
     const app = this.getApplication(ref);
     const party = this.party(app, partyId);
     if (!(actor.kind === "ops" || (actor.kind === "dealer" && actor.id === app.createdById)))
       throw new ServiceError(403, "Only Ops or the dealer agent who submitted the application can resend");
     if (!reason?.trim()) throw new ServiceError(400, "A reason is required to resend");
+    if (currentLink(party).status === "FULFILLED")
+      throw new ServiceError(409, `Singpass is already fulfilled for the ${party.label.toLowerCase()}; no resend`);
     const now = this.clock.now();
+    const retryAt = this.resendRetryAt(party, now);
+    if (retryAt !== null) {
+      const hours = Math.round(this.config.resendWindowMs / 3_600_000);
+      throw new ServiceError(
+        429,
+        `Resend limit reached: at most ${this.config.resendLimit} resends in ${hours} hours. Next resend possible at ${formatSgt(retryAt)} (SGT).`,
+        { retryAt },
+      );
+    }
     party.resendsAt.push(now);
     const link = this.newLink(app, party, "resend", actor);
     this.audit("link.resent", actor, app, party, { link: link.id, reason: reason.trim() });
@@ -158,6 +173,60 @@ export class VerificationService {
     this.onChange(app.ref);
     await this.dispatch(app, party, link);
     return app;
+  }
+
+  /** null = a resend is allowed now; otherwise the earliest time it will be (sliding window, D-39). */
+  resendRetryAt(party: Party, now: number): number | null {
+    const recent = party.resendsAt.filter((t) => t > now - this.config.resendWindowMs).sort((a, b) => a - b);
+    if (recent.length < this.config.resendLimit) return null;
+    return recent[recent.length - this.config.resendLimit]! + this.config.resendWindowMs;
+  }
+
+  /**
+   * D-40: Ops corrects a party's NRIC and / or email (reason required, audited). The current link stops being current
+   * (an active one becomes REPLACED; FULFILLED / MISMATCH keep their status as history), any previous result stops
+   * counting, and a new link is issued for the new details. Not a resend: it does not count towards the limit.
+   */
+  async correctParty(ref: string, partyId: string, actor: Actor, changes: { nric?: string; email?: string }, reason: string): Promise<Application> {
+    if (actor.kind !== "ops") throw new ServiceError(403, "Only Ops can correct a person's NRIC or email");
+    const app = this.getApplication(ref);
+    const party = this.party(app, partyId);
+    if (app.stage === "AA") throw new ServiceError(409, "The AA is issued: the person's details can no longer be changed");
+    if (!reason?.trim()) throw new ServiceError(400, "A reason is required to correct the details");
+    const nric = changes.nric === undefined ? party.nric : normalizeNric(changes.nric);
+    const email = changes.email === undefined ? party.email : changes.email.trim();
+    if (!isValidNric(nric)) throw new ServiceError(400, "Invalid NRIC / FIN");
+    if (!isValidEmail(email)) throw new ServiceError(400, "Invalid email");
+    if (app.parties.some((p) => p !== party && nricMatches(p.nric, nric))) throw new ServiceError(400, "Each person needs a different NRIC (D-28)");
+    if (nric === party.nric && email === party.email) throw new ServiceError(400, "Nothing to correct: the NRIC and email are unchanged");
+
+    const details: Record<string, string> = { reason: reason.trim() };
+    if (nric !== party.nric) Object.assign(details, { nricFrom: maskNric(party.nric), nricTo: maskNric(nric) });
+    if (email !== party.email) Object.assign(details, { emailFrom: maskEmail(party.email), emailTo: maskEmail(email) });
+    party.nric = nric;
+    party.email = email;
+    delete party.fulfilledAt;
+    delete party.myinfoSealed;
+    delete party.mismatchUinfin;
+    const link = this.newLink(app, party, "nric-correction", actor);
+    this.audit("party.corrected", actor, app, party, { ...details, link: link.id });
+    this.db.save();
+    this.onChange(app.ref);
+    await this.dispatch(app, party, link);
+    return app;
+  }
+
+  /** Parties whose current link is EXPIRED, oldest expiry first (Ops list, flow item 9). */
+  expiredLinks(): Array<{ ref: string; partyId: string; label: string; name: string; expiredAt: number; resendRetryAt: number | null }> {
+    const now = this.clock.now();
+    const rows = [];
+    for (const app of this.db.applications)
+      for (const party of app.parties) {
+        const link = currentLink(party);
+        if (link.status !== "EXPIRED") continue;
+        rows.push({ ref: app.ref, partyId: party.id, label: party.label, name: party.name, expiredAt: link.closedAt ?? link.expiresAt ?? 0, resendRetryAt: this.resendRetryAt(party, now) });
+      }
+    return rows.sort((a, b) => a.expiredAt - b.expiredAt);
   }
 
   // ---------------------------------------------------------------- Retrieve MyInfo (flow item 8)
@@ -444,7 +513,10 @@ export class VerificationService {
 
   // ---------------------------------------------------------------- Demo Control
 
-  /** D-29: the rows of the Ops list design (VMAF-2026-05114 … 05119); existing refs are skipped. */
+  /**
+   * D-29: the rows of the Ops list design (VMAF-2026-05114 … 05119); existing refs are skipped. Only Singpass test
+   * personas are used (names and NRICs), so the stored Myinfo data matches the party.
+   */
   seedSamples(): number {
     const now = this.clock.now();
     const day = 24 * 3_600_000;
@@ -482,12 +554,12 @@ export class VerificationService {
       };
     };
     const rows: Array<{ ref: string; dealerId: string; by: [string, string]; created: number; plate: string; stage: Application["stage"]; ipaAt?: number; aaAt?: number; parties: Sample[] }> = [
-      { ref: "VMAF-2026-05114", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SKS6603L", stage: "Declined", parties: [{ status: "FULFILLED", role: "hirer", name: "CHUA MEI TING", nric: "S8935520F", at: at(15) }] },
-      { ref: "VMAF-2026-05115", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SNA7781B", stage: "AA", aaAt: at(13), parties: [{ status: "FULFILLED", role: "hirer", name: "LEE XIN YI", nric: "S9612083D", at: at(15) }, { status: "FULFILLED", role: "guarantor", name: "LEE KOK WAH", nric: "S6512274Z", at: at(15) }] },
-      { ref: "VMAF-2026-05116", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(14), plate: "SNB9902E", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "MUHAMMAD HAFIZ BIN ISMAIL", nric: "S9023316E", at: at(14) }] },
-      { ref: "VMAF-2026-05117", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(13), plate: "SLA4410K", stage: "IPA", ipaAt: at(12), parties: [{ status: "FULFILLED", role: "hirer", name: "TAN BEE LENG", nric: "S7834562A", at: at(13) }] },
-      { ref: "VMAF-2026-05118", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(12), plate: "SMB2290X", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "ONG CHEE KEONG", nric: "S8101234D", at: at(12) }, { status: "EXPIRED", role: "guarantor", name: "ONG SIEW LAN", nric: "S8302345B", at: at(12) }] },
-      { ref: "VMAF-2026-05119", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(11), plate: "SMF1187D", stage: "Submitted", parties: [{ status: "SENT", role: "hirer", name: "SITI AMINAH BINTE YUSOF", nric: "S8820147G", at: at(11) }] },
+      { ref: "VMAF-2026-05114", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SKS6603L", stage: "Declined", parties: [{ status: "FULFILLED", role: "hirer", name: "WANG XIAO LING", nric: "F4440489M", at: at(15) }] },
+      { ref: "VMAF-2026-05115", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(15), plate: "SNA7781B", stage: "AA", aaAt: at(13), parties: [{ status: "FULFILLED", role: "hirer", name: "MARIA SANTOS REYES", nric: "G4440427W", at: at(15) }, { status: "FULFILLED", role: "guarantor", name: "NGUYEN VAN AN", nric: "G4440430W", at: at(15) }] },
+      { ref: "VMAF-2026-05116", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(14), plate: "SNB9902E", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "KIM MIN JUN", nric: "G4440431T", at: at(14) }] },
+      { ref: "VMAF-2026-05117", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(13), plate: "SLA4410K", stage: "IPA", ipaAt: at(12), parties: [{ status: "FULFILLED", role: "hirer", name: "AISHA BINTE RAHMAN", nric: "G4440432Q", at: at(13) }] },
+      { ref: "VMAF-2026-05118", dealerId: "d-demo", by: ["u-alex", "Alex Tan"], created: at(12), plate: "SMB2290X", stage: "Submitted", parties: [{ status: "FULFILLED", role: "hirer", name: "DAVID TAN JUN HAO", nric: "G4440433N", at: at(12) }, { status: "EXPIRED", role: "guarantor", name: "OLIVIA CHEN YU TING", nric: "M5004553J", at: at(12) }] },
+      { ref: "VMAF-2026-05119", dealerId: "d-sample", by: ["u-sample", "Sam Lee"], created: at(11), plate: "SMF1187D", stage: "Submitted", parties: [{ status: "SENT", role: "hirer", name: "WANG XIAO LING", nric: "F4440489M", at: at(11) }] },
     ];
     let added = 0;
     for (const r of rows) {

@@ -1,11 +1,15 @@
 // AES-256-GCM for stored Myinfo data (D-03). Key: MYINFO_ENCRYPTION_KEY (64 hex chars).
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
+/** D-03: the key comes only from the environment; there is no default. */
 export function loadKey(hex: string | undefined): Buffer {
-  if (!hex || !/^[0-9a-fA-F]{64}$/.test(hex)) {
-    throw new Error("MYINFO_ENCRYPTION_KEY must be 64 hex characters (run `npm run setup`).");
+  if (!hex?.trim()) {
+    throw new Error("MYINFO_ENCRYPTION_KEY is not set. Run `npm run setup` (creates .env with a new key) or set it in the environment.");
   }
-  return Buffer.from(hex, "hex");
+  if (!/^[0-9a-fA-F]{64}$/.test(hex.trim())) {
+    throw new Error("MYINFO_ENCRYPTION_KEY must be 64 hexadecimal characters (a 256-bit AES key). Run `npm run setup` to generate one.");
+  }
+  return Buffer.from(hex.trim(), "hex");
 }
 
 export function encrypt(key: Buffer, plain: unknown): string {

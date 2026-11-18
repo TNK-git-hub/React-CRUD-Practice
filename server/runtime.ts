@@ -203,6 +203,19 @@ export function createRuntime(opts: RuntimeOptions) {
     await service.resend(ref ?? "", party ?? "", user, reason ?? "");
     send(res, 200, view(user, ref ?? ""));
   });
+  route("POST", "/api/applications/:ref/parties/:party/correct", async (req, res, [ref, party]) => {
+    const user = requireUser(req);
+    const body = await readJson<{ nric?: string; email?: string; reason?: string }>(req);
+    const changes: { nric?: string; email?: string } = {};
+    if (typeof body.nric === "string") changes.nric = body.nric;
+    if (typeof body.email === "string") changes.email = body.email;
+    await service.correctParty(ref ?? "", party ?? "", user, changes, body.reason ?? "");
+    send(res, 200, view(user, ref ?? ""));
+  });
+  route("GET", "/api/links/expired", async (req, res) => {
+    requireUser(req, "ops");
+    send(res, 200, service.expiredLinks());
+  });
   route("POST", "/api/applications/:ref/parties/:party/retrieve", async (req, res, [ref, party]) => {
     const user = requireUser(req);
     const outcome = await service.retrieveMyInfo(ref ?? "", party ?? "", user);

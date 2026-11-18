@@ -191,3 +191,30 @@ test("API Demo Control: gateway off → QUEUED; on + run job → sent; clock mov
   const expired = (await call<AppJson>(s, "GET", `/api/applications/${created.ref}`, dealer)).json;
   assert.equal(expired.parties[0]!.status, "Expired");
 });
+
+test("API step 4: correct NRIC/email (Ops only), expired links list, resend limit returns retryAt (429)", async () => {
+  const s = await start();
+  const dealer = await signIn(s, "u-alex");
+  const ops = await signIn(s, "u-priya");
+  const created = (await call<AppJson>(s, "POST", "/api/applications", dealer, input)).json;
+  const hirerId = created.parties[0]!.id;
+  const base = `/api/applications/${created.ref}/parties/${hirerId}`;
+
+  assert.equal((await call(s, "POST", `${base}/correct`, dealer, { email: "x@example.com", reason: "typo" })).status, 403);
+  const corrected = await call<AppJson>(s, "POST", `${base}/correct`, ops, { email: "x@example.com", reason: "typo" });
+  assert.equal(corrected.status, 200);
+  assert.equal(corrected.json.parties[0]!.linkStatus, "SENT");
+
+  for (let i = 0; i < 3; i++) assert.equal((await call(s, "POST", `${base}/resend`, dealer, { reason: `r${i}` })).status, 200);
+  const limited = await call<{ error: string; retryAt: number }>(s, "POST", `${base}/resend`, dealer, { reason: "r4" });
+  assert.equal(limited.status, 429);
+  assert.equal(typeof limited.json.retryAt, "number");
+  assert.match(limited.json.error, /Next resend possible at/);
+
+  assert.equal((await call(s, "GET", "/api/links/expired", dealer)).status, 403);
+  await call(s, "POST", "/api/demo/clock", ops, { advanceHours: 73 });
+  await call(s, "POST", "/api/demo/run-job", ops);
+  const expired = await call<Array<{ ref: string; partyId: string }>>(s, "GET", "/api/links/expired", ops);
+  assert.equal(expired.status, 200);
+  assert.deepEqual(expired.json.map((x) => x.partyId).sort(), created.parties.map((p) => p.id).sort());
+});
