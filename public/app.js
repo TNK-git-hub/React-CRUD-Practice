@@ -932,15 +932,19 @@ async function demoPage() {
 }
 
 // ---------------- customer: AutoFinance portal (screen 5) ----------------
+// Simulated gateway pages: neutral grey, no Singpass / Myinfo identity, and this bar is always shown.
 const simbar = `<div class="simbar">SIMULATED GATEWAY · DEMO ONLY · NOT REAL SINGPASS</div>`;
-const phoneHdr = `<div class="phone-hdr"><span class="dot" style="width:10px;height:10px"></span><div><b>ValueMax AutoFinance</b><small>IDENTITY VERIFICATION</small></div></div>`;
+const phoneHdr = `<header class="phone-hdr"><span class="dot" aria-hidden="true"></span><span class="brand-text"><b>ValueMax AutoFinance</b><small>IDENTITY VERIFICATION</small></span></header>`;
+// a centred result page (invalid link, cancelled, unavailable, done): status icon, short title, one sentence
+const statusMark = (kind, name) => `<div class="status-mark ${kind}">${icon(name, "xl")}</div>`;
 
 function invalidScreen() {
-  $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
-    <span class="chip xs bad" style="align-self:flex-start">Link not valid</span>
-    <h1 style="color:var(--red)">This link is no longer valid</h1>
+  $app.innerHTML = `<div class="phone grey">${phoneHdr}<main class="pbody"><div class="pcard center-card">
+    ${statusMark("bad", "alert-circle")}
+    <span class="chip bad">Link not valid</span>
+    <h1>This link is no longer valid</h1>
     <p class="para">A newer link was sent, or this one expired. Please use the latest email, or ask your dealer to resend.</p>
-  </div></div></div>`;
+  </div></main></div>`;
 }
 
 /** /verify/<token>: the server checks the link (current + not expired), marks it OPENED and gives the gateway URL. */
@@ -952,21 +956,22 @@ async function portalPage(token) {
     if (e.status === 410) return invalidScreen();
     throw e;
   }
-  $app.innerHTML = `<div class="phone grey">${phoneHdr}<div class="pbody"><div class="pcard">
-    <span class="chip xs ok" style="align-self:flex-start">✓ Link valid · expires in ${hoursLeft(info.expiresAt)}</span>
+  $app.innerHTML = `<div class="phone grey">${phoneHdr}<main class="pbody"><div class="pcard">
+    <span class="chip ok">${icon("check-circle")}Link valid · expires in ${hoursLeft(info.expiresAt)}</span>
     <h1>Verify your identity</h1>
-    <dl class="pdl"><dt>Application</dt><dd>${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${esc(info.role)}</dd></dl>
+    <dl class="pdl"><dt>Application</dt><dd class="num">${esc(info.ref)}</dd><dt>Dealer</dt><dd>${esc(info.dealer)}</dd><dt>Your role</dt><dd>${esc(info.role)}</dd></dl>
     <p class="para">You will log in with Singpass and choose to share your MyInfo details. Only the person this request was sent to can complete it.</p>
-    <a class="pbtn" href="${esc(info.redirectUrl)}">Continue to Singpass →</a>
-  </div></div></div>`;
+    <a class="pbtn" href="${esc(info.redirectUrl)}">Continue to Singpass${icon("arrow-right")}</a>
+  </div></main></div>`;
 }
 
 // ---------------- customer: simulated ValueMax Myinfo gateway (screens 6–8) ----------------
 async function gatewayFlow(linkId) {
   const gw = (method, sub = "", body) => api(method, `/gateway-api/${encodeURIComponent(linkId)}${sub}`, body);
   const unavailable = (msg) => {
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
-      <h1>Myinfo is not available</h1><p style="margin:0;color:var(--sp-2)">${esc(msg)}</p></div></div>`;
+    $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp center-card">
+      ${statusMark("neutral", "alert-circle")}
+      <h1>Myinfo is not available</h1><p class="gw-text">${esc(msg)}</p></main></div>`;
   };
   let info;
   try {
@@ -980,30 +985,30 @@ async function gatewayFlow(linkId) {
 
   // Retrieve Myinfo (singpass-reference/1)
   const landing = () => {
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp">
-      <div><span class="spsub">ValueMax Myinfo gateway</span><h1>Retrieve Myinfo with Singpass</h1></div>
-      <p style="margin:0;color:var(--sp-2)">VM AutoFinance would like to retrieve your Myinfo details for car loan application ${esc(info.applicationRef)}. You will log in with Singpass and choose whether to share them.</p>
+    $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp">
+      <div class="gw-head"><span class="spsub">ValueMax Myinfo gateway</span><h1>Retrieve Myinfo with Singpass</h1></div>
+      <p class="gw-text">VM AutoFinance would like to retrieve your Myinfo details for car loan application <span class="num">${esc(info.applicationRef)}</span>. You will log in with Singpass and choose whether to share them.</p>
       <button class="spbtn" id="retrieve" type="button">Retrieve Myinfo with Singpass</button>
-    </div></div>`;
+    </main></div>`;
     document.getElementById("retrieve").addEventListener("click", login);
   };
 
   // Simulated Singpass login
   const login = () => {
     const qrCells = "101101010110110011011001101110110101".split("").map((c) => `<i class="${c === "1" ? "f" : ""}"></i>`).join("");
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp">
-      <div><span class="spsub">Step 1 of 3 · via ValueMax Myinfo gateway</span><h1>Log in with Singpass</h1></div>
-      <div class="sptabs"><button type="button" data-tab="app" class="${ctx.tab === "app" ? "on" : ""}">Singpass app</button><button type="button" data-tab="pw" class="${ctx.tab === "pw" ? "on" : ""}">Password</button></div>
+    $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp">
+      <div class="gw-head"><span class="spsub">Step 1 of 3 · via ValueMax Myinfo gateway</span><h1>Log in with Singpass</h1></div>
+      <div class="sptabs" role="group" aria-label="Login method"><button type="button" data-tab="app" class="${ctx.tab === "app" ? "on" : ""}" aria-pressed="${ctx.tab === "app"}">Singpass app</button><button type="button" data-tab="pw" class="${ctx.tab === "pw" ? "on" : ""}" aria-pressed="${ctx.tab === "pw"}">Password</button></div>
       ${ctx.tab === "app" ? `
         <div class="qr" role="img" aria-label="QR code (decorative)">${qrCells}</div>
-        <p style="margin:0;text-align:center;font-size:14px;color:var(--sp-2)">Scan with the Singpass app on another device, or pick a test persona on this phone.</p>
-        <div style="display:flex;flex-direction:column;gap:8px">${info.personas.map((p) => `<button class="persona" type="button" data-nric="${esc(p.uinfin)}"><b>${esc(p.name)}</b><code>${esc(p.uinfin)}</code></button>`).join("")}</div>`
+        <p class="gw-text center">Scan with the Singpass app on another device, or pick a test persona on this phone.</p>
+        <div class="personas">${info.personas.map((p) => `<button class="persona" type="button" data-nric="${esc(p.uinfin)}"><b>${esc(p.name)}</b><code>${esc(p.uinfin)}</code>${icon("chevron-right")}</button>`).join("")}</div>`
       : `
         <label class="field">Singpass ID (test NRIC / FIN)<input class="input" id="nric" autocomplete="off" placeholder="e.g. F4440488P"></label>
         <label class="field">Password<input class="input" type="password" placeholder="Any value — not checked, not stored"></label>
         <button class="spbtn" id="pwlogin" type="button">Log in</button>`}
-      <p style="margin:0;font-size:12px;color:var(--sp-3)">In this demo the ValueMax gateway and Singpass are simulated. With the real gateway, the customer sees the Singpass login.</p>
-    </div></div>`;
+      <p class="gw-note">In this demo the ValueMax gateway and Singpass are simulated. With the real gateway, the customer sees the Singpass login.</p>
+    </main></div>`;
     $app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { ctx.tab = b.dataset.tab; login(); }));
     const doLogin = async (uinfin) => {
       try {
@@ -1017,20 +1022,23 @@ async function gatewayFlow(linkId) {
 
   // Consent
   const consent = () => {
-    // singpass-reference/3 and /4: only the names of the requested items; values appear on the review page
+    // singpass-reference/3 and /4: only the names of the requested items, in the reference order; values appear on
+    // the review page. The rows are not links, so each has a small tick, not a chevron.
     const items = ["Alias Name", "Country/Place of Birth", "CPF Contribution History (up to 15 months)", "Date of Birth", "Email Address",
       "Name of Employer", "Employment Sector", "HDB Ownership - Address", "HDB Ownership - Date of Purchase", "HDB Ownership - Type of HDB Dwelling",
       "HDB Ownership - Lease Commencement Date", "HDB Ownership - Monthly Loan Instalment", "HDB Ownership - Number of Owners",
       "HDB Ownership - Outstanding HDB Loan Balance", "HDB Ownership - Term of Lease", "Type of HDB", "Type of Housing", "Marital Status",
       "Mobile Number", "Principal Name", "Nationality/Citizenship", "Notice of Assessment History", "Occupation",
       "Ownership of Private Residential Property", "Race", "Registered Address", "Residential Status", "Sex", "NRIC/FIN"];
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="padding:24px;gap:16px">
-      <div><span class="spsub">Step 2 of 3 · Myinfo consent</span><h1 style="font-size:22px">VM AutoFinance is requesting your details</h1>
-        <p style="margin:6px 0 0;font-size:14px;color:var(--sp-2)">For: car loan application ${esc(info.applicationRef)} — credit assessment and loan approval</p></div>
-      <ul class="splist names">${items.map((k) => `<li><span>› ${esc(k)}</span></li>`).join("")}</ul>
-      <p style="margin:0;font-size:12px;color:var(--sp-3)">Clicking "I agree" permits this digital service to retrieve your data. The real list of items is set by the ValueMax gateway.</p>
-      <button class="spbtn" id="agree" type="button">I agree, share my details</button>
+    $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp">
+      <div class="gw-head"><span class="spsub">Step 2 of 3 · Myinfo consent</span><h1>VM AutoFinance is requesting your details</h1>
+        <p class="gw-text">For: car loan application <span class="num">${esc(info.applicationRef)}</span> — credit assessment and loan approval</p></div>
+      <ul class="splist names">${items.map((k) => `<li>${icon("check")}<span>${esc(k)}</span></li>`).join("")}</ul>
+      <p class="gw-note">Clicking "I agree" permits this digital service to retrieve your data. The real list of items is set by the ValueMax gateway.</p>
+    </main>
+    <div class="gw-actions">
       <button class="spbtn ghost" id="cancel" type="button">Cancel</button>
+      <button class="spbtn" id="agree" type="button">I agree, share my details</button>
     </div></div>`;
     document.getElementById("agree").addEventListener("click", async () => {
       try {
@@ -1044,7 +1052,7 @@ async function gatewayFlow(linkId) {
     });
   };
 
-  // Review and submit (singpass-reference/5)
+  // Review and submit (singpass-reference/5, in the gateway's neutral grey)
   const review = (tab = "personal") => {
     const p = ctx.person;
     const rows = {
@@ -1053,15 +1061,14 @@ async function gatewayFlow(linkId) {
       property: [["Type of Housing", p.housingType], ["Type of HDB", p.hdbType || "—"], ["HDB Ownership", p.hdbOwnership || "—"], ["Date of Purchase", p.hdbPurchaseDate || "—"], ["Monthly Loan Instalment", p.hdbMonthlyInstalment ? `SGD ${p.hdbMonthlyInstalment.toLocaleString("en-SG")}` : "—"], ["Outstanding HDB Loan", p.hdbOutstandingLoan ? `SGD ${p.hdbOutstandingLoan.toLocaleString("en-SG")}` : "—"]],
     };
     const titles = { personal: "Personal Information", employment: "Employment & Education", property: "Property" };
-    $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="padding:24px;gap:14px">
-      <span class="spsub" style="text-align:center">Step 3 of 3 · Review</span>
-      <h1 style="text-align:center;color:#E0702B;font-size:22px">Review</h1>
-      <p style="margin:0;text-align:center;font-size:13px;color:var(--sp-2)">Review your details below and click "Submit Application".</p>
-      <div class="rvtabs">${Object.keys(rows).map((k) => `<button type="button" data-rv="${k}" class="${k === tab ? "on" : ""}">${k === "personal" ? "Personal" : k === "employment" ? "Employment &amp; Education" : "Property"}</button>`).join("")}</div>
-      <div class="rvhead">${titles[tab]}</div>
+    $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp">
+      <div class="gw-head center"><span class="spsub">Step 3 of 3 · Review</span><h1>Review</h1>
+        <p class="gw-text">Review your details below and click "Submit Application".</p></div>
+      <div class="rvtabs" role="group" aria-label="Sections">${Object.keys(rows).map((k) => `<button type="button" data-rv="${k}" class="${k === tab ? "on" : ""}" aria-pressed="${k === tab}">${k === "personal" ? "Personal" : k === "employment" ? "Employment &amp; Education" : "Property"}</button>`).join("")}</div>
+      <h2 class="rvhead">${titles[tab]}</h2>
       <ul class="splist">${rows[tab].map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v || "—")}</b></li>`).join("")}</ul>
-      <button class="spbtn" id="submit" type="button" style="background:#E0702B">Submit Application</button>
-    </div></div>`;
+    </main>
+    <div class="gw-actions"><button class="spbtn" id="submit" type="button">Submit Application</button></div></div>`;
     $app.querySelectorAll("[data-rv]").forEach((b) => b.addEventListener("click", () => review(b.dataset.rv)));
     document.getElementById("submit").addEventListener("click", submit);
   };
@@ -1080,24 +1087,25 @@ async function gatewayFlow(linkId) {
 
 // Done — the gateway does not redirect back to AutoFinance
 function doneScreen(ref) {
-  $app.innerHTML = `<div class="phone">${simbar.replace("var(--sp-bar)", "#3A3A44")}
-    <div style="flex:1;padding:32px 24px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;justify-content:center">
-      <div class="okcircle">${icon("check", "xl")}</div>
-      <h1 style="font-size:24px">Details shared</h1>
-      <p class="para" style="font-size:15px;max-width:300px">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application ${esc(ref)}` : ""}. You can close this page.</p>
-      <p class="small muted" style="margin:0;max-width:300px">Your dealer will contact you about the next step.</p>
-      <button class="btn" type="button" data-shortcut="dealer-view">Demo: see the dealer's view →</button>
-    </div>
+  $app.innerHTML = `<div class="phone gw">${simbar}
+    <main class="pbody sp center-card grow">
+      ${statusMark("ok", "check")}
+      <h1>Details shared</h1>
+      <p class="gw-text">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application <span class="num">${esc(ref)}</span>` : ""}. You can close this page.</p>
+      <p class="gw-note">Your dealer will contact you about the next step.</p>
+      <button class="btn" type="button" data-shortcut="dealer-view">Demo: see the dealer's view${icon("arrow-right")}</button>
+    </main>
     <div class="foot">Today the gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
   </div>`;
   bindShortcuts();
 }
 
 function declinedScreen() {
-  $app.innerHTML = `<div class="phone">${simbar}<div class="pbody sp" style="text-align:center;padding-top:64px">
+  $app.innerHTML = `<div class="phone gw">${simbar}<main class="pbody sp center-card">
+    ${statusMark("neutral", "x-circle")}
     <h1>You cancelled</h1>
-    <p style="margin:0;color:var(--sp-2)">No details were shared with ValueMax AutoFinance. You can open the link in your email again while it is valid.</p>
-  </div></div>`;
+    <p class="gw-text">No details were shared with ValueMax AutoFinance. You can open the link in your email again while it is valid.</p>
+  </main></div>`;
 }
 
 // ---------------- boot ----------------
