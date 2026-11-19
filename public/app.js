@@ -868,50 +868,58 @@ async function demoPage() {
     const [apps, outbox, demo] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox"), api("GET", "/api/demo/state")]);
     const cfg = state.config;
     const hours = Math.round(demo.offsetMs / 3_600_000);
-    $app.innerHTML = `${header()}<main class="wrap narrow">
-      <div class="row between"><div><h1 style="font-size:28px">Demo Control</h1><span class="muted">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "SMTP configured" : "SMTP not configured (links only in the log and below)"}</span></div>
-        <a class="btn" href="/" data-go>Back to portal</a></div>
-      <section class="card" style="gap:14px">
-        <h2>Data</h2>
-        <div class="row">
-          <button class="btn danger" id="reset" type="button">Reset all data</button>
-          <button class="btn" id="seed" type="button">Create sample applications</button>
-        </div>
-        <p class="small muted" style="margin:0">Reset hard-deletes every application, link, MyInfo record and message, and puts the clock back. Sample applications are VMAF-2026-05114 to 05119.</p>
-      </section>
-      <section class="card" style="gap:14px">
-        <h2>Gateway, job and clock</h2>
-        <div class="row" style="align-items:center">
-          <span>Simulated Myinfo gateway: ${demo.gatewayAvailable ? '<b class="t-ok">available</b>' : '<b class="t-bad">unavailable</b>'}</span>
-          <button class="btn sm" id="gw" type="button">${demo.gatewayAvailable ? "Switch gateway off" : "Switch gateway on"}</button>
-          <button class="btn sm" id="runjob" type="button">Run job now</button>
-          <span class="small muted">The auto-verify job also runs every ${(demo.pollIntervalMs / 1000).toFixed(1)} s.</span>
-        </div>
-        <div class="row" style="align-items:center">
-          <span>Clock: ${fmt(demo.now)}${hours ? ` <b class="t-wait">(+${hours} h)</b>` : ""}</span>
-          <button class="btn sm" data-advance="1" type="button">+1 h</button>
-          <button class="btn sm" data-advance="24" type="button">+24 h</button>
-          <button class="btn sm" data-advance="73" type="button">+73 h (expire links)</button>
-          ${demo.offsetMs ? '<button class="btn sm" id="realtime2" type="button">Back to real time</button>' : ""}
-        </div>
-      </section>
-      <section class="card" style="gap:14px">
-        <h2>Links</h2>
-        ${apps.length ? `<div style="overflow-x:auto"><table class="cmp"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
-        ${apps.flatMap((a) => a.parties.map((p) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(p.label)} · ${esc(p.name)}<br><span class="small muted">${esc(p.nricMasked)}</span></td><td>${partyStatusText(p)}</td>
-          <td>${p.linkUrl ? `<a href="${esc(p.linkUrl)}" target="_blank" rel="noopener">Open</a> · <button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button" title="Presenter fallback to open the link on a phone; showroom QR is an option after Release 1, not in scope">QR (presenter only)</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
-        </tbody></table></div>` : `<p class="muted" style="margin:0">No applications yet.</p>`}
-        <div id="qrdemo" class="row center"></div>
-      </section>
-      <section class="card" style="gap:14px">
-        <h2>Outbox (email + SMS)</h2>
-        ${outbox.length ? outbox.slice(0, 30).map((m) => `<div class="sumbox"><span class="lbl">${fmt(m.at)} · ${esc(m.applicationRef)} · ${m.channel === "sms" ? "SMS" : "Email"} → ${esc(m.to)} · ${m.status === "sent" ? '<span class="t-ok">sent</span>' : m.status === "failed" ? `<span class="t-bad">${esc(m.error || "failed")}</span>` : '<span class="t-wait">outbox only</span>'}</span>${m.channel === "sms" ? `<span class="small">${esc(m.body)}</span>` : (() => { const u = /https?:\/\/\S+/.exec(m.body)?.[0] ?? ""; return `<a class="mono" href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`; })()}</div>`).join("") : `<p class="muted" style="margin:0">No messages yet.</p>`}
-      </section>
-      <section class="card" style="gap:14px">
-        <h2>Gateway log (simulated gateway side)</h2>
-        <p class="small muted" style="margin:0">What the gateway knows. AutoFinance never sees refusals (D-33).</p>
-        ${demo.gatewayLog.length ? demo.gatewayLog.slice(0, 20).map((g) => `<div class="small">${fmt(g.at)} · ${esc(g.applicationRef)} · <code>${esc(g.linkId)}</code> · <b class="${g.event === "declined" ? "t-bad" : ""}">${esc(g.event)}</b>${g.who ? ` · ${esc(g.who)}` : ""}</div>`).join("") : `<p class="muted" style="margin:0">Nothing yet.</p>`}
-      </section>
+    const outStatus = (m) => (m.status === "sent" ? '<span class="st ok">sent</span>' : m.status === "failed" ? `<span class="st bad">${esc(m.error || "failed")}</span>` : '<span class="st wait">outbox only</span>');
+    $app.innerHTML = `${header()}<main class="wrap">
+      <div class="page-head">
+        <div><h1 class="page-title">Demo Control</h1><p class="page-sub">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "SMTP configured" : "SMTP not configured (links only in the log and below)"}</p></div>
+        <a class="btn" href="/" data-go>${icon("arrow-left")}Back to portal</a>
+      </div>
+      <div class="demo-grid">
+        <section class="card">
+          <h2>Data</h2>
+          <div class="row">
+            <button class="btn danger" id="reset" type="button">${icon("trash")}Reset all data</button>
+            <button class="btn" id="seed" type="button">${icon("database")}Create sample applications</button>
+          </div>
+          <p class="small muted">Reset hard-deletes every application, link, MyInfo record and message, and puts the clock back. Sample applications are <span class="num nowrap">VMAF-2026-05114</span> to <span class="num">05119</span>.</p>
+        </section>
+        <section class="card">
+          <h2>Gateway, job and clock</h2>
+          <div class="ctl-row">
+            <span>Simulated Myinfo gateway: ${demo.gatewayAvailable ? '<span class="st ok">available</span>' : '<span class="st bad">unavailable</span>'}</span>
+            <div class="row"><button class="btn sm" id="gw" type="button">${demo.gatewayAvailable ? "Switch gateway off" : "Switch gateway on"}</button>
+            <button class="btn sm" id="runjob" type="button">${icon("play")}Run job now</button></div>
+            <span class="small muted">The auto-verify job also runs every ${(demo.pollIntervalMs / 1000).toFixed(1)} s.</span>
+          </div>
+          <hr class="divider">
+          <div class="ctl-row">
+            <span>${icon("clock")} Clock: <span class="num">${fmt(demo.now)}</span>${hours ? ` <span class="chip wait">(+${hours} h)</span>` : ""}</span>
+            <div class="row">
+              <button class="btn sm" data-advance="1" type="button">+1 h</button>
+              <button class="btn sm" data-advance="24" type="button">+24 h</button>
+              <button class="btn sm" data-advance="73" type="button">+73 h (expire links)</button>
+              ${demo.offsetMs ? '<button class="btn sm" id="realtime2" type="button">Back to real time</button>' : ""}
+            </div>
+          </div>
+        </section>
+        <section class="card span-all">
+          <h2>Links</h2>
+          ${apps.length ? `<div class="tablebox flat"><table class="list list-links"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
+          ${apps.flatMap((a) => a.parties.map((p) => `<tr><td class="ref">${esc(a.ref)}</td><td>${esc(p.label)} · ${esc(p.name)}<span class="sub">${esc(p.nricMasked)}</span></td><td>${partyStatusText(p)}</td>
+            <td class="nowrap">${p.linkUrl ? `<a class="inline-link" href="${esc(p.linkUrl)}" target="_blank" rel="noopener">${icon("external")}Open</a><span class="sep" aria-hidden="true">·</span><button class="link-btn" data-qr="${esc(p.linkUrl)}" type="button" title="Presenter fallback to open the link on a phone; showroom QR is an option after Release 1, not in scope">${icon("qr")} QR (presenter only)</button>` : '<span class="muted">queued</span>'}</td></tr>`)).join("")}
+          </tbody></table></div>` : `<p class="muted">No applications yet.</p>`}
+          <div id="qrdemo" class="row center"></div>
+        </section>
+        <section class="card">
+          <h2>Outbox (email + SMS)</h2>
+          ${outbox.length ? `<ul class="loglist">${outbox.slice(0, 30).map((m) => `<li><span class="log-meta"><span class="num">${fmt(m.at)}</span> · <span class="num">${esc(m.applicationRef)}</span> · ${icon(m.channel === "sms" ? "send" : "mail")}${m.channel === "sms" ? "SMS" : "Email"} → ${esc(m.to)} · ${outStatus(m)}</span>${m.channel === "sms" ? `<span class="small">${esc(m.body)}</span>` : (() => { const u = /https?:\/\/\S+/.exec(m.body)?.[0] ?? ""; return `<a class="mono" href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>`; })()}</li>`).join("")}</ul>` : `<p class="muted">No messages yet.</p>`}
+        </section>
+        <section class="card">
+          <h2>Gateway log (simulated gateway side)</h2>
+          <p class="small muted">What the gateway knows. AutoFinance never sees refusals (D-33).</p>
+          ${demo.gatewayLog.length ? `<ul class="loglist">${demo.gatewayLog.slice(0, 20).map((g) => `<li class="log-line"><span class="num">${fmt(g.at)}</span> · <span class="num">${esc(g.applicationRef)}</span> · <code>${esc(g.linkId)}</code> · <b class="${g.event === "declined" ? "t-bad" : ""}">${esc(g.event)}</b>${g.who ? ` · <span class="num">${esc(g.who)}</span>` : ""}</li>`).join("")}</ul>` : `<p class="muted">Nothing yet.</p>`}
+        </section>
+      </div>
     </main>`;
     bindCommon();
     const act = async (fn, msg) => { try { await fn(); if (msg) toast(msg); } catch (e) { toast(e.message, true); } load(); };
