@@ -1,0 +1,39 @@
+# Render Blueprint (free plan): Dashboard → New → Blueprint → this repo, branch singpass-2-k-deploy.
+# Free plan: sleeps after 15 idle minutes (~1 min to wake), data/ resets on every restart/deploy,
+# and outbound SMTP on ports 25/465/587 is blocked (use a relay on port 2525, e.g. Brevo, or no SMTP).
+services:
+  - type: web
+    name: vmaf-singpass-demo
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: singpass-2-k-deploy
+    healthCheckPath: /api/config
+    envVars:
+      - key: MYINFO_ENCRYPTION_KEY   # 64 hex chars: `openssl rand -hex 32`
+        sync: false
+      # PUBLIC_BASE_URL is not needed: the app falls back to Render's RENDER_EXTERNAL_URL.
+      - key: MYINFO_SHOW_REVIEW
+        value: "true"
+      - key: LINK_TTL_HOURS
+        value: "72"
+      - key: POLL_INTERVAL_MS
+        value: "2000"
+      - key: RESEND_LIMIT
+        value: "3"
+      - key: RESEND_WINDOW_HOURS
+        value: "24"
+      # Optional email. Leave SMTP_HOST empty = links only in Demo Control → Outbox / QR codes.
+      # Brevo: SMTP_HOST=smtp-relay.brevo.com, SMTP_USER=<Brevo SMTP login>, SMTP_PASS=<SMTP key>
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "2525"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false

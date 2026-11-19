@@ -22,7 +22,9 @@ try {
 }
 
 const port = Number(process.env.PORT || 3000);
-const config = loadConfig(process.env, { publicBaseUrl: `http://${lanAddress() ?? "localhost"}:${port}` });
+const config = loadConfig(process.env, {
+  publicBaseUrl: process.env.RENDER_EXTERNAL_URL || `http://${lanAddress() ?? "localhost"}:${port}`,
+});
 const rt = createRuntime({
   config,
   clock: new AdjustableClock(),

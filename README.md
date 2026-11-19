@@ -97,6 +97,22 @@ as a reset.
 - **Any network (tunnel):** `cloudflared tunnel --url http://localhost:3000` (or `ngrok http 3000`), set
   `PUBLIC_BASE_URL=https://<tunnel-host>` in `.env`, restart.
 - **Fallback:** Demo Control → Links → "QR (presenter only)" shows a QR of any link.
+- **Hosted (Render):** see §4.1; links use the `https://<service>.onrender.com` URL.
+
+### 4.1 Deploy on Render (free plan)
+
+Needs a long-running Node process (SSE, auto-verify job), so serverless hosts (Vercel, Netlify) will not work. The
+repo ships a `Dockerfile` and a Render Blueprint (`render.yaml`, free plan).
+
+1. Render Dashboard → **New → Blueprint** → choose this repo, branch `singpass-2-k-deploy`.
+2. Fill `MYINFO_ENCRYPTION_KEY` (`openssl rand -hex 32`). Email is optional (see below). `PUBLIC_BASE_URL` is not
+   needed: the app falls back to Render's `RENDER_EXTERNAL_URL`.
+3. Deploy, then open `https://<service>.onrender.com` (and `/demo` for Demo Control).
+
+Free-plan limits: the service sleeps after 15 idle minutes (first request takes ~1 min, so open it before a demo),
+`data/` resets on every restart/deploy (use Demo Control to create sample applications), and outbound SMTP on ports
+25/465/587 is blocked. For real email use a relay on port 2525 (e.g. Brevo: `SMTP_HOST=smtp-relay.brevo.com`,
+`SMTP_PORT=2525`), or leave `SMTP_HOST` empty and open links from Demo Control → Outbox / the QR codes.
 
 ## 5. Demo scripts
 
