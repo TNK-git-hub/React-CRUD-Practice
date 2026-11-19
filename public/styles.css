@@ -94,6 +94,8 @@
   --radius-full: 999px;
   --shadow-sm: 0 1px 2px rgb(16 24 40 / .06);
   --ring: 0 0 0 3px rgb(163 32 58 / .16);
+  --ring-danger: 0 0 0 3px rgb(180 35 24 / .14);
+  --ring-gw: 0 0 0 3px rgb(24 32 43 / .14);
 
   /* controls */
   --control-h: 40px;
@@ -229,6 +231,9 @@ code { font-family: var(--font-mono); font-size: .92em; }
 /* touch screens (showroom tablet): every control is at least 44 px high */
 @media (pointer: coarse) {
   .btn, .btn.sm { min-height: var(--touch); }
+  /* text buttons keep their line height; the touch area is extended to 44 px around them */
+  .link-btn { position: relative; }
+  .link-btn::after { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: var(--touch); transform: translateY(-50%); }
 }
 
 /* ======================================================================================
@@ -251,7 +256,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .input:hover, .select:hover { border-color: var(--border-strong); }
 .input:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .input.bad { border-color: var(--danger-fg); }
-.input.bad:focus { box-shadow: 0 0 0 3px rgb(180 35 24 / .14); }
+.input.bad:focus { box-shadow: var(--ring-danger); }
 .hint { display: inline-flex; align-items: flex-start; gap: 6px; font-size: var(--fs-sm); font-weight: 400; color: var(--text-muted); min-height: 20px; }
 .hint .ic { margin-top: 2px; }
 .hint.ok { color: var(--success-fg); }
@@ -663,7 +668,7 @@ table.cmp td.muted { color: var(--text-muted); }
 .persona code { font-size: var(--fs-sm); color: var(--gw-3); }
 .persona .ic { color: var(--gw-3); }
 .phone.gw .input { border-color: var(--gw-input); }
-.phone.gw .input:focus { border-color: var(--gw-ink); box-shadow: 0 0 0 3px rgb(24 32 43 / .14); }
+.phone.gw .input:focus { border-color: var(--gw-ink); box-shadow: var(--ring-gw); }
 
 /* consent and review lists */
 .splist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--gw-line); border-radius: var(--radius-lg); }
