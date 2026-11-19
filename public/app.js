@@ -306,33 +306,33 @@ async function signIn() {
 // ---------------- screen 1: Quick Apply ----------------
 function stepsBar(n) {
   const names = ["Application Details", "Documents", "Review &amp; Submit"];
-  return `<ol class="steps">${names
+  return `<ol class="steps" aria-label="Application steps">${names
     .map((nm, i) => {
       const cls = i + 1 < n ? "done" : i + 1 === n ? "on" : "";
-      return `<li class="${cls}"><i>${i + 1 < n ? "✓" : i + 1}</i>${nm}</li>`;
+      return `<li class="${cls}"${i + 1 === n ? ' aria-current="step"' : ""}><span class="step-mark">${i + 1 < n ? `${icon("check")}<span class="visually-hidden">Done:</span>` : i + 1}</span><span class="step-name">${nm}</span></li>`;
     })
     .join("")}</ol>`;
 }
 
-function partyFields(prefix, p, label, boxed) {
-  const bg = boxed ? ' style="background:#fff"' : "";
-  return `<div class="grid3">
-    <label class="field span2">Name of ${label} *<input class="input" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"${bg}></label>
-    <label class="field">NRIC of ${label} *<input class="input" data-f="${prefix}.nric" value="${esc(p.nric)}" autocomplete="off"${bg}><span class="hint" data-h="${prefix}.nric"></span></label>
-    <label class="field">Email Address *${prefix === "hirer" ? " (to send Singpass request)" : ""}<input class="input" type="email" data-f="${prefix}.email" value="${esc(p.email)}"${bg}><span class="hint" data-h="${prefix}.email"></span></label>
-    <label class="field">Phone Number *<input class="input" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(p.mobile)}"${bg}><span class="hint" data-h="${prefix}.mobile"></span></label>
+function partyFields(prefix, p, label) {
+  const hint = (key) => `<span class="hint" id="h-${prefix}-${key}" data-h="${prefix}.${key}"></span>`;
+  return `<div class="fgrid">
+    <label class="field c-name">Name of ${label} *<input class="input" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"></label>
+    <label class="field c-nric">NRIC of ${label} *<input class="input num" data-f="${prefix}.nric" value="${esc(p.nric)}" autocomplete="off" aria-describedby="h-${prefix}-nric">${hint("nric")}</label>
+    <label class="field c-email">Email Address *${prefix === "hirer" ? " (to send Singpass request)" : ""}<input class="input" type="email" data-f="${prefix}.email" value="${esc(p.email)}" aria-describedby="h-${prefix}-email">${hint("email")}</label>
+    <label class="field c-phone">Phone Number *<input class="input num" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(p.mobile)}" aria-describedby="h-${prefix}-mobile">${hint("mobile")}</label>
   </div>`;
 }
 
 function fieldState(prefix, key, value, others = []) {
   if (!value) return { cls: "", msg: "" };
   if (key === "nric") {
-    if (!validNric(value)) return { cls: "err", msg: "✗ Invalid NRIC / FIN" };
-    if (others.some((o) => o && value.trim().toUpperCase() === o.trim().toUpperCase())) return { cls: "err", msg: "✗ Each person needs a different NRIC" };
-    return { cls: "ok", msg: "✓ Valid NRIC / FIN" };
+    if (!validNric(value)) return { cls: "err", msg: "Invalid NRIC / FIN" };
+    if (others.some((o) => o && value.trim().toUpperCase() === o.trim().toUpperCase())) return { cls: "err", msg: "Each person needs a different NRIC" };
+    return { cls: "ok", msg: "Valid NRIC / FIN" };
   }
-  if (key === "email") return validEmail(value) ? { cls: "ok", msg: "✓ Looks good" } : { cls: "err", msg: "✗ Invalid email" };
-  if (key === "mobile") return validMobile(value) ? { cls: "ok", msg: "✓ Valid Singapore mobile number" } : { cls: "err", msg: "✗ 8 digits, starting with 8 or 9" };
+  if (key === "email") return validEmail(value) ? { cls: "ok", msg: "Looks good" } : { cls: "err", msg: "Invalid email" };
+  if (key === "mobile") return validMobile(value) ? { cls: "ok", msg: "Valid Singapore mobile number" } : { cls: "err", msg: "8 digits, starting with 8 or 9" };
   return { cls: "", msg: "" };
 }
 
@@ -349,23 +349,29 @@ function dealerApply() {
   const d = state.draft;
   $app.innerHTML = dealerShell("apply", `
     ${stepsBar(1)}
-    <section class="card">
-      <div class="row between" style="align-items:flex-start">
-        <div><h2>Section A — Applicant Details</h2><span class="muted" style="font-size:14px">Used to send the hirer their Singpass verification request.</span></div>
-        <button class="btn sm" id="sample" type="button">Fill sample (test personas)</button>
+    <section class="card form-card">
+      <div class="card-head">
+        <div><h2>Section A — Applicant Details</h2><p class="muted">Used to send the hirer their Singpass verification request.</p></div>
+        <button class="btn sm" id="sample" type="button">${icon("file")}Fill sample (test personas)</button>
       </div>
-      ${partyFields("hirer", d.hirer, "Applicant", false)}
+      ${partyFields("hirer", d.hirer, "Applicant")}
+      <hr class="divider">
       <button class="toggle" id="gtoggle" type="button" aria-pressed="${d.guarantorOn}"><span class="sw"></span>
         <span><b>Add Guarantor Info</b><span class="muted">Optional — if added, the guarantor's NRIC and an income document will also be required</span></span></button>
-      ${d.guarantorOn ? `<div class="gbox"><b style="font-size:16px">Guarantor Details</b>${partyFields("guarantor", d.guarantor, "Guarantor", true)}
+      ${d.guarantorOn ? `<div class="subcard">
+        <h3 class="subcard-title">Guarantor Details</h3>
+        ${partyFields("guarantor", d.guarantor, "Guarantor")}
+        <hr class="divider">
         <button class="toggle" id="g2toggle" type="button" aria-pressed="${d.guarantor2On}"><span class="sw"></span>
           <span><b>Add a second guarantor</b><span class="muted">Optional — at most two guarantors per application</span></span></button>
-        ${d.guarantor2On ? `<b style="font-size:16px">Second Guarantor Details</b>${partyFields("guarantor2", d.guarantor2, "Second Guarantor", true)}` : ""}</div>` : ""}
-      <label class="field" style="max-width:360px">LTA Access Code *<input class="input" data-f="ltaCode" value="${esc(d.ltaCode)}"><span class="hint">The rest of the form unlocks once this is entered.</span></label>
+      </div>
+      ${d.guarantor2On ? `<div class="subcard"><h3 class="subcard-title">Second Guarantor Details</h3>${partyFields("guarantor2", d.guarantor2, "Second Guarantor")}</div>` : ""}` : ""}
+      <hr class="divider">
+      <div class="fgrid"><label class="field c-lta">LTA Access Code *<input class="input" data-f="ltaCode" value="${esc(d.ltaCode)}" aria-describedby="h-lta"><span class="hint" id="h-lta">The rest of the form unlocks once this is entered.</span></label></div>
     </section>
-    <div class="row between">
+    <div class="actionbar">
       <button class="btn" id="clear" type="button">Cancel</button>
-      <button class="btn primary" id="next" type="button">Next: Documents →</button>
+      <button class="btn primary" id="next" type="button">Next: Documents${icon("arrow-right")}</button>
     </div>`);
   bindCommon();
 
@@ -376,8 +382,11 @@ function dealerApply() {
         if (!h) continue;
         const s = fieldState(prefix, key, d[prefix][key], otherNrics(d, prefix));
         h.className = `hint ${s.cls}`;
-        h.textContent = s.msg;
-        $app.querySelector(`[data-f="${prefix}.${key}"]`)?.classList.toggle("bad", s.cls === "err");
+        h.innerHTML = s.msg ? `${icon(s.cls === "ok" ? "check-circle" : "alert-circle")}<span>${esc(s.msg)}</span>` : "";
+        const inp = $app.querySelector(`[data-f="${prefix}.${key}"]`);
+        inp?.classList.toggle("bad", s.cls === "err");
+        if (s.cls === "err") inp?.setAttribute("aria-invalid", "true");
+        else inp?.removeAttribute("aria-invalid");
       }
     }
   };
@@ -428,21 +437,23 @@ function dealerReview() {
   state.draft ??= loadDraft();
   const d = state.draft;
   if (!draftValid(d)) return go("/dealer/apply");
-  const box = (lbl, p) => `<div class="sumbox"><span class="lbl">${lbl}</span><b style="font-size:15px">${esc(p.name.toUpperCase())} · ${esc(p.nric.toUpperCase())}</b><span class="muted small">${esc(p.email)}</span></div>`;
+  const box = (lbl, p) => `<div class="sumbox"><span class="overline">${lbl}</span><b class="num">${esc(p.name.toUpperCase())} · ${esc(p.nric.toUpperCase())}</b><span class="muted small">${icon("mail")} ${esc(p.email)}</span></div>`;
+  const sendLabel = `Send Singpass Request${icon("arrow-right")}`;
   $app.innerHTML = dealerShell("apply", `
     ${stepsBar(3)}
-    <section class="card" style="gap:16px">
+    <section class="card">
       <h2>Singpass requests</h2>
-      <div class="grid2">${box("HIRER", d.hirer)}${d.guarantorOn ? box(d.guarantor2On ? "GUARANTOR 1" : "GUARANTOR", d.guarantor) : ""}${d.guarantorOn && d.guarantor2On ? box("GUARANTOR 2", d.guarantor2) : ""}</div>
-      <label class="check"><input type="checkbox" id="c1" ${d.c1 ? "checked" : ""}>I confirm that the Applicant and Guarantor(s) have been shown the declarations above, have read and understood them in a language they understand, and have agreed to them — including consent to identity, employment and credit bureau verification.</label>
-      <div class="band">DEALER'S ATTESTATION</div>
+      <div class="sumgrid">${box("HIRER", d.hirer)}${d.guarantorOn ? box(d.guarantor2On ? "GUARANTOR 1" : "GUARANTOR", d.guarantor) : ""}${d.guarantorOn && d.guarantor2On ? box("GUARANTOR 2", d.guarantor2) : ""}</div>
+      <label class="check"><input type="checkbox" id="c1" ${d.c1 ? "checked" : ""}><span>I confirm that the Applicant and Guarantor(s) have been shown the declarations above, have read and understood them in a language they understand, and have agreed to them — including consent to identity, employment and credit bureau verification.</span></label>
+      <hr class="divider">
+      <h3 class="overline-title">DEALER'S ATTESTATION</h3>
       <p class="para">By submitting this application, I, as an authorised representative of the Dealer named in this application, confirm that: (a) all information was provided by the Applicant / Guarantor(s) and is accurate and complete; (b) I have verified the identity of the Applicant / Guarantor(s) against their original supporting documents; (c) the Applicant / Guarantor(s) have consented to … receiving a Singpass verification request to authorise MyInfo retrieval; and (d) I understand the Dealer is not an agent of VMAF.</p>
-      <label class="check"><input type="checkbox" id="c2" ${d.c2 ? "checked" : ""}>I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.</label>
+      <label class="check"><input type="checkbox" id="c2" ${d.c2 ? "checked" : ""}><span>I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.</span></label>
     </section>
-    <div class="note-gold">On submit, a Singpass verification link is emailed to each person (one active link each, valid ${state.config.ttlHours} hours).</div>
-    <div class="row between">
-      <a class="btn" href="/dealer/apply" data-go>← Back</a>
-      <div class="row"><a class="btn" href="/dealer/apply" data-go>Cancel</a><button class="btn primary" id="send" type="button">Send Singpass Request →</button></div>
+    <div class="note">${icon("mail")}<span>On submit, a Singpass verification link is emailed to each person (one active link each, valid ${state.config.ttlHours} hours).</span></div>
+    <div class="actionbar">
+      <a class="btn" href="/dealer/apply" data-go>${icon("arrow-left")}Back</a>
+      <div class="row"><a class="btn" href="/dealer/apply" data-go>Cancel</a><button class="btn primary" id="send" type="button">${sendLabel}</button></div>
     </div>`);
   bindCommon();
   const btn = document.getElementById("send");
@@ -468,7 +479,7 @@ function dealerReview() {
       go(`/dealer/received/${app.ref}`);
     } catch (e) {
       toast(e.message, true);
-      btn.textContent = "Send Singpass Request →";
+      btn.innerHTML = sendLabel;
       sync();
     }
   });
@@ -478,23 +489,26 @@ function dealerReview() {
 async function dealerReceived(ref) {
   const app = await api("GET", `/api/applications/${ref}`);
   const hirer = app.parties.find((p) => p.role === "hirer");
-  $app.innerHTML = `${header()}<main style="max-width:980px;margin:0 auto;padding:48px 16px">
+  $app.innerHTML = dealerShell("apply", `
     <section class="card hero">
       <div class="okcircle">${icon("check", "xl")}</div>
-      <h1 style="font-size:28px;color:var(--red-deep)">Interest Received</h1>
-      <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}.</p>
-      <span class="pill">Application Ref: ${esc(app.ref)}</span>
-      <div class="grid2" style="width:100%;max-width:560px;text-align:left">
-        ${app.parties.map((p) => `<div class="sumbox"><span class="muted small">${esc(p.label)} · ${p.linkStatus === "QUEUED" ? "queued — sent automatically once the Singpass gateway is reachable" : "link sent"}</span><b style="font-size:14px">${p.expiresAt ? `Expires ${fmt(p.expiresAt)}` : "Expiry starts when the link is sent"}</b></div>`).join("")}
-      </div>
-      <p class="para" style="font-size:15px">Keep an eye on the <b>My Applications</b> page for updates — this application now shows as <b>Pending</b>.</p>
+      <h1 class="page-title">Interest Received</h1>
+      <p class="para hero-text">Thanks — we've received your interest for <b>${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}.</p>
+      <span class="ref-badge">Application Ref: <b class="num">${esc(app.ref)}</b></span>
+      <ul class="linklist">
+        ${app.parties.map((p) => `<li>
+          <span class="linklist-icon">${icon(p.linkStatus === "QUEUED" ? "clock" : "mail")}</span>
+          <span class="linklist-main"><b>${esc(p.label)}</b><span class="chip ${p.linkStatus === "QUEUED" ? "wait" : "neutral"}">${p.linkStatus === "QUEUED" ? "queued — sent automatically once the Singpass gateway is reachable" : "link sent"}</span></span>
+          <span class="linklist-meta num">${icon("clock")} ${p.expiresAt ? `Expires ${fmt(p.expiresAt)}` : "Expiry starts when the link is sent"}</span>
+        </li>`).join("")}
+      </ul>
+      <p class="para">Keep an eye on the <b>My Applications</b> page for updates — this application now shows as <b>Pending</b>.</p>
       <div class="row center">
         <a class="btn" href="/dealer/apply" data-go>Submit Another</a>
         <a class="btn" href="/dealer/applications/${esc(app.ref)}" data-go>View Application Status</a>
-        <button class="btn primary" type="button" data-shortcut="hirer-view">Demo: see what the hirer gets →</button>
+        <button class="btn primary" type="button" data-shortcut="hirer-view">Demo: see what the hirer gets${icon("external")}</button>
       </div>
-    </section>
-  </main>`;
+    </section>`);
   bindCommon();
   bindShortcuts();
 }
@@ -504,11 +518,11 @@ async function dealerList() {
   const load = async () => {
     const apps = await api("GET", "/api/applications");
     $app.innerHTML = dealerShell("list", `
-      <div><h1 style="font-size:28px">My Applications</h1><span class="muted">Applications submitted by ${esc(state.user.org)}.</span></div>
-      <div class="tablebox"><table class="list" style="min-width:720px"><thead><tr><th>APPLICATION NO.</th><th>HIRER</th><th>GUARANTOR</th><th>SINGPASS</th><th>SUBMITTED</th><th>STATUS</th><th></th></tr></thead><tbody>
-      ${apps.length ? apps.map((a) => `<tr><td><b>${esc(a.ref)}</b></td><td>${esc(a.parties[0].name)}</td><td>${esc(a.parties[1]?.name ?? "—")}</td>
-        <td>${singpassCount(a)}</td><td>${fmt(a.createdAt)}</td><td>${statusChip(a.opsStatus)}</td>
-        <td><a href="/dealer/applications/${esc(a.ref)}" data-go style="font-weight:600">View</a></td></tr>`).join("") : `<tr><td colspan="7" class="muted">No applications yet. Use Quick Apply.</td></tr>`}
+      <div><h1 class="page-title">My Applications</h1><p class="page-sub">Applications submitted by ${esc(state.user.org)}.</p></div>
+      <div class="tablebox"><table class="list list-dealer"><thead><tr><th>APPLICATION NO.</th><th>HIRER</th><th>GUARANTOR</th><th>SINGPASS</th><th>SUBMITTED</th><th>STATUS</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
+      ${apps.length ? apps.map((a) => `<tr><td class="ref">${esc(a.ref)}</td><td>${esc(a.parties[0].name)}</td><td>${esc(a.parties[1]?.name ?? "—")}</td>
+        <td>${singpassCount(a)}</td><td class="nowrap num">${fmt(a.createdAt)}</td><td>${statusChip(a.opsStatus)}</td>
+        <td class="actions"><a class="btn sm" href="/dealer/applications/${esc(a.ref)}" data-go aria-label="View ${esc(a.ref)}">${icon("eye")}View</a></td></tr>`).join("") : `<tr><td colspan="7" class="empty">No applications yet. Use Quick Apply.</td></tr>`}
       </tbody></table></div>`);
     bindCommon();
   };
@@ -517,60 +531,63 @@ async function dealerList() {
 }
 
 // ---------------- screen 9: Application Status ----------------
-function partyChip(p) {
+function partyChip(p, flash = false) {
   const r = esc(p.label);
+  const f = flash ? " flash" : "";
   switch (p.status) {
-    case "Fulfilled": return `<span class="chip ok">${r} · Fulfilled ${fmt(p.fulfilledAt)}</span>`;
-    case "Pending": return `<span class="chip wait">${r} · Pending · link expires in ${hoursLeft(p.expiresAt)}</span>`;
-    case "Expired": return `<span class="chip bad">${r} · Link expired</span>`;
-    case "NRIC mismatch": return `<span class="chip bad">${r} · NRIC mismatch — Ops is following up</span>`;
-    case "Queued": return `<span class="chip wait">${r} · Link queued · sent once the gateway is reachable</span>`;
-    default: return `<span class="chip bad">${r} · ${esc(p.status)}</span>`;
+    case "Fulfilled": return `<span class="chip ok${f}">${icon("check-circle")}${r} · Fulfilled ${fmt(p.fulfilledAt)}</span>`;
+    case "Pending": return `<span class="chip wait${f}">${icon("clock")}${r} · Pending · link expires in ${hoursLeft(p.expiresAt)}</span>`;
+    case "Expired": return `<span class="chip bad${f}">${icon("alert-circle")}${r} · Link expired</span>`;
+    case "NRIC mismatch": return `<span class="chip bad${f}">${icon("alert-circle")}${r} · NRIC mismatch — Ops is following up</span>`;
+    case "Queued": return `<span class="chip wait${f}">${icon("clock")}${r} · Link queued · sent once the gateway is reachable</span>`;
+    default: return `<span class="chip bad${f}">${icon("alert-circle")}${r} · ${esc(p.status)}</span>`;
   }
 }
 
-function trackerSteps(app) {
+function trackerSteps(app, changed = new Set()) {
   const issued = Boolean(app.ipaAt || app.aaAt);
+  const mark = { done: icon("check"), current: icon("clock"), todo: "" };
+  const said = { done: "Done", current: "In progress", todo: "Not started" };
   const step = (cls, title, desc, extra = "") =>
-    `<li class="${cls}"><span class="bullet">${cls === "done" ? "✓" : cls === "current" ? "…" : ""}</span><div><b>${title}</b><span class="desc">${desc}</span>${extra}</div></li>`;
+    `<li class="${cls}"${cls === "current" ? ' aria-current="step"' : ""}><span class="bullet">${mark[cls]}</span><div class="tk-body"><b><span class="visually-hidden">${said[cls]}: </span>${title}</b><span class="desc">${desc}</span>${extra}</div></li>`;
   return [
     step("done", "Application Submitted", "Application details submitted by the dealer"),
     step(app.allFulfilled ? "done" : "current", "Pending Singpass Verification", app.allFulfilled ? "Every person has completed Singpass" : "An AA (final approval) needs every person to complete Singpass first.",
-      `<div class="row" style="gap:8px">${app.parties.map(partyChip).join("")}</div>`),
+      `<div class="chips">${app.parties.map((p) => partyChip(p, changed.has(p.id))).join("")}</div>`),
     step(issued ? "done" : app.allFulfilled ? "current" : "todo", "Credit Review", issued ? "ValueMax Ops has completed its review" : "ValueMax Ops reviews the application"),
-    step(app.ipaAt || app.aaAt ? "done" : "todo", "IPA Issued", app.ipaAt ? `In-Principle Approval issued ${fmt(app.ipaAt)}` : app.aaAt ? "No IPA — the AA was issued directly" : "In-Principle Approval"),
-    step(app.aaAt ? "done" : "todo", "AA", app.aaAt ? `Approval Advice issued ${fmt(app.aaAt)}` : "Approval Advice (final approval)"),
+    step(app.ipaAt || app.aaAt ? "done" : "todo", "IPA Issued", app.ipaAt ? `In-Principle Approval issued <span class="num">${fmt(app.ipaAt)}</span>` : app.aaAt ? "No IPA — the AA was issued directly" : "In-Principle Approval"),
+    step(app.aaAt ? "done" : "todo", "AA", app.aaAt ? `Approval Advice issued <span class="num">${fmt(app.aaAt)}</span>` : "Approval Advice (final approval)"),
   ].join("");
 }
 
 async function dealerStatus(ref) {
-  let prev = null;
+  let prev = null; // status of each person at the last render, to flash the chips that changed
   const load = async () => {
     const app = await api("GET", `/api/applications/${ref}`);
-    const sig = JSON.stringify(app.parties.map((p) => p.status)) + app.stage;
+    const changed = new Set(prev ? app.parties.filter((p) => prev[p.id] !== undefined && prev[p.id] !== p.status).map((p) => p.id) : []);
+    const resendable = app.createdById === state.user.id && app.stage !== "AA" && app.parties.some((p) => ["Pending", "Expired", "NRIC mismatch", "Queued"].includes(p.status));
     $app.innerHTML = dealerShell("apply", `
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <h1 style="font-size:30px"><a href="/dealer/applications" data-go style="text-decoration:none;color:inherit">← Application Details</a></h1>
-        <span style="font-size:16px;color:var(--text-2)">${esc(app.ref)} · Submitted ${fmtDay(app.createdAt)} · Personal — Hire Purchase Loan (PARF / COE) — Quick Apply</span>
+      <div>
+        <h1 class="page-title"><a class="title-link" href="/dealer/applications" data-go>${icon("arrow-left", "lg")}Application Details</a></h1>
+        <p class="page-sub num">${esc(app.ref)} · Submitted ${fmtDay(app.createdAt)} · Personal — Hire Purchase Loan (PARF / COE) — Quick Apply</p>
       </div>
       <div class="tabs"><span class="on">Status</span><span>Submitted Details</span></div>
-      <section class="card hero" style="padding:36px 28px;gap:20px">
-        <h2 style="font-size:26px">Application Status</h2>
-        <span class="pill">Application Ref: ${esc(app.ref)}</span>
-        <ol class="tracker ${prev && prev !== sig ? "flash" : ""}" style="text-align:left">${trackerSteps(app)}</ol>
-        <div class="row center">
-          ${app.ipaAt ? `<button class="btn primary" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">View IPA Notice</button>` : ""}
-          <button class="btn" type="button" data-shortcut="ops-view">Demo: see the Ops view →</button>
+      <section class="card">
+        <div class="card-head"><h2>Application Status</h2><span class="ref-badge">Application Ref: <b class="num">${esc(app.ref)}</b></span></div>
+        <ol class="tracker">${trackerSteps(app, changed)}</ol>
+        <div class="card-foot">
+          <div class="row">
+            ${app.ipaAt ? `<button class="btn primary" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">View IPA Notice</button>` : ""}
+            ${resendable ? app.parties.filter((p) => p.status !== "Fulfilled").map((p) => `<button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}">${icon("refresh")}Resend link (${esc(p.label)})</button>`).join("") : ""}
+            <button class="btn sm quiet" type="button" data-shortcut="ops-view">Demo: see the Ops view${icon("arrow-right")}</button>
+          </div>
+          <span class="live small">Updates live — no need to refresh.</span>
         </div>
-        ${app.createdById === state.user.id && app.stage !== "AA" && app.parties.some((p) => ["Pending", "Expired", "NRIC mismatch", "Queued"].includes(p.status))
-          ? `<div class="row center" style="gap:8px">${app.parties.filter((p) => p.status !== "Fulfilled").map((p) => `<button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}">Resend link (${esc(p.label)})</button>`).join("")}</div>`
-          : ""}
-        <span class="small muted">Updates live — no need to refresh.</span>
       </section>`);
     bindCommon();
     bindShortcuts();
     bindResend(ref); // D-04: the dealer agent who submitted may resend, with a reason
-    prev = sig;
+    prev = Object.fromEntries(app.parties.map((p) => [p.id, p.status]));
   };
   await load();
   state.refresh = (d) => (!d.ref || d.ref === ref) && load();
@@ -579,13 +596,14 @@ async function dealerStatus(ref) {
 // ---------------- screen 10: Ops list ----------------
 function statusChip(label) {
   const cls = { Pending: "wait", "Credit Review": "blue", "Approved — IPA": "wait", "Approved — AA": "ok", Declined: "bad" }[label] || "wait";
-  return `<span class="chip xs ${cls}">${esc(label)}</span>`;
+  return `<span class="chip ${cls}">${esc(label)}</span>`;
 }
+// "Yes" / "1 of 2" / "No": dot + text, never colour alone
 function singpassCount(a) {
   const n = a.parties.filter((p) => p.status === "Fulfilled").length;
-  if (n === a.parties.length) return `<b class="t-ok">Yes</b>`;
-  if (a.parties.some((p) => ["NRIC mismatch", "Expired"].includes(p.status))) return `<b class="t-bad">${n ? `${n} of ${a.parties.length}` : "No"}</b>`;
-  return `<b class="${n ? "t-wait" : "t-bad"}">${n ? `${n} of ${a.parties.length}` : "No"}</b>`;
+  if (n === a.parties.length) return `<span class="st ok">Yes</span>`;
+  if (a.parties.some((p) => ["NRIC mismatch", "Expired"].includes(p.status))) return `<span class="st bad">${n ? `${n} of ${a.parties.length}` : "No"}</span>`;
+  return `<span class="st ${n ? "wait" : "bad"}">${n ? `${n} of ${a.parties.length}` : "No"}</span>`;
 }
 function partyStatusText(p) {
   const cls = p.status === "Fulfilled" ? "t-ok" : p.status === "Pending" ? "t-wait" : "t-bad";
