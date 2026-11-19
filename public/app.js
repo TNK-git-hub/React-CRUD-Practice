@@ -137,18 +137,43 @@ function saveDraft() {
 
 // ---------------- realtime ----------------
 function connectEvents() {
-  const es = new EventSource("/api/events");
-  const onChange = (e) => {
-    let data = {};
-    try { data = JSON.parse(e.data); } catch {}
-    if (state.refresh) state.refresh(data);
+  // SSE is the fast path. Behind a hosting proxy it can be delayed or silently dropped, so: refresh after every
+  // (re)connect, when the tab becomes visible again, and fall back to polling while the stream looks dead.
+  let es = null;
+  let lastMsg = Date.now();
+  let opened = false;
+  const refresh = (data = {}) => { if (state.refresh) state.refresh(data); };
+  const open = () => {
+    es?.close();
+    es = new EventSource("/api/events");
+    es.onopen = () => {
+      lastMsg = Date.now();
+      if (opened) refresh(); // catch up on anything missed while disconnected
+      opened = true;
+    };
+    es.addEventListener("ping", () => { lastMsg = Date.now(); });
+    es.addEventListener("application", (e) => {
+      lastMsg = Date.now();
+      let data = {};
+      try { data = JSON.parse(e.data); } catch {}
+      refresh(data);
+    });
+    es.addEventListener("demo", async () => {
+      lastMsg = Date.now();
+      await loadDemoClock();
+      if (state.refresh) state.refresh({});
+      else if (state.user) render();
+    });
   };
-  es.addEventListener("application", onChange);
-  es.addEventListener("demo", async () => {
-    await loadDemoClock();
-    if (state.refresh) state.refresh({});
-    else if (state.user) render();
-  });
+  open();
+  setInterval(() => {
+    if (document.hidden) return;
+    if (Date.now() - lastMsg > 35_000) { // no ping for 2 intervals: stream is stuck
+      refresh();
+      open();
+    }
+  }, 5_000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 }
 
 async function loadDemoClock() {

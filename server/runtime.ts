@@ -68,9 +68,11 @@ export function createRuntime(opts: RuntimeOptions) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const res of clients) res.write(payload);
   };
+  // Named "ping" event (not a comment) so the browser can tell the stream is alive; frequent enough that
+  // hosting proxies (Render/Cloudflare) neither time out nor sit on a half-full buffer.
   const ping = setInterval(() => {
-    for (const res of clients) res.write(": ping\n\n");
-  }, 25_000);
+    for (const res of clients) res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+  }, 15_000);
   ping.unref();
 
   const service = new VerificationService({
@@ -177,8 +179,17 @@ export function createRuntime(opts: RuntimeOptions) {
     send(res, 200, { ok: true }, { "set-cookie": "sid=; Path=/; Max-Age=0" });
   });
   route("GET", "/api/events", async (req, res) => {
-    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive", "x-accel-buffering": "no" });
-    res.write("retry: 1500\n\n");
+    // no-transform: stops edge proxies (Cloudflare in front of Render) from compressing, i.e. buffering, the stream.
+    res.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-store, no-transform",
+      "content-encoding": "identity",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    res.socket?.setNoDelay(true);
+    // 2 KB padding comment pushes the headers and first bytes through any proxy buffer.
+    res.write(`: ${" ".repeat(2048)}\nretry: 1500\n\nevent: ping\ndata: ${Date.now()}\n\n`);
     clients.add(res);
     req.on("close", () => clients.delete(res));
   });
