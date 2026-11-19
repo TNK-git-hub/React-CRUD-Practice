@@ -6,6 +6,10 @@ const $toast = document.getElementById("toast");
 // ---------------- utilities ----------------
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+// Outline icon from the sprite in index.html. Decorative by default (next to visible text): aria-hidden.
+// For an icon-only button, put aria-label on the button itself.
+const icon = (name, cls = "") => `<svg class="ic${cls ? ` ${cls}` : ""}" aria-hidden="true" focusable="false"><use href="#i-${name}"></use></svg>`;
+
 async function api(method, path, body) {
   const res = await fetch(path, {
     method,
@@ -472,7 +476,7 @@ async function dealerReceived(ref) {
   const hirer = app.parties.find((p) => p.role === "hirer");
   $app.innerHTML = `${header()}<main style="max-width:980px;margin:0 auto;padding:48px 16px">
     <section class="card hero">
-      <div class="okcircle"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
+      <div class="okcircle">${icon("check", "xl")}</div>
       <h1 style="font-size:28px;color:var(--red-deep)">Interest Received</h1>
       <p class="para" style="font-size:16px;max-width:560px">Thanks — we've received your interest for <b style="color:var(--text)">${esc(hirer.name)}</b>. We're now sending Singpass verification links to the ${app.parties.length > 2 ? "hirer and both guarantors" : app.parties.length > 1 ? "hirer and guarantor" : "hirer"}.</p>
       <span class="pill">Application Ref: ${esc(app.ref)}</span>
@@ -1031,7 +1035,7 @@ async function gatewayFlow(linkId) {
 function doneScreen(ref) {
   $app.innerHTML = `<div class="phone">${simbar.replace("var(--sp-bar)", "#3A3A44")}
     <div style="flex:1;padding:32px 24px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center;justify-content:center">
-      <div class="okcircle" style="width:80px;height:80px"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1F8A5B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div>
+      <div class="okcircle">${icon("check", "xl")}</div>
       <h1 style="font-size:24px">Details shared</h1>
       <p class="para" style="font-size:15px;max-width:300px">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application ${esc(ref)}` : ""}. You can close this page.</p>
       <p class="small muted" style="margin:0;max-width:300px">Your dealer will contact you about the next step.</p>
