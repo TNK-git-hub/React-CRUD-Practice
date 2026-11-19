@@ -27,9 +27,14 @@ async function api(method, path, body) {
 }
 
 let toastTimer;
-function toast(msg, isErr = false) {
-  $toast.textContent = msg;
-  $toast.className = `show${isErr ? " err" : ""}`;
+// kind: true or "err" (error), "info", or "ok" (default). Shown top right, just below the header / demo banner, so it
+// never covers the form's own buttons.
+function toast(msg, kind = "ok") {
+  const type = kind === true || kind === "err" ? "err" : kind === "info" ? "info" : "ok";
+  const edge = Math.max(0, ...[".hdr", ".demo-time", ".phone-hdr", ".simbar"].map((sel) => document.querySelector(sel)?.getBoundingClientRect().bottom ?? 0));
+  $toast.style.top = `${Math.round(edge) + 12}px`;
+  $toast.innerHTML = `${icon(type === "err" ? "alert-circle" : type === "info" ? "info" : "check-circle", "lg")}<span>${esc(msg)}</span>`;
+  $toast.className = `show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => ($toast.className = ""), 3200);
 }
@@ -227,7 +232,7 @@ async function render() {
       state.user = null;
       return signIn();
     }
-    $app.innerHTML = `${header()}<div class="wrap"><div class="note-red">${esc(e.message)}</div><a class="btn" href="/" data-go>Home</a></div>`;
+    $app.innerHTML = `${header()}<main class="wrap"><div class="note-red" role="alert">${icon("alert-circle")}<span>${esc(e.message)}</span></div><div><a class="btn" href="/" data-go>Home</a></div></main>`;
   }
 }
 
@@ -236,30 +241,30 @@ function demoBanner() {
   const off = state.demo?.offsetMs ?? 0;
   if (!state.user || off <= 0) return "";
   const h = Math.round(off / 3_600_000);
-  return `<div class="demo-time" role="status"><b>Demo time: +${h} h</b><span>The clock is moved forward for the demo (now ${fmt(state.demo.now)} SGT).</span><button class="btn sm" id="realtime" type="button">Back to real time</button></div>`;
+  return `<div class="demo-time" role="status">${icon("clock")}<b>Demo time: +${h} h</b><span>The clock is moved forward for the demo (now <span class="num">${fmt(state.demo.now)}</span> SGT).</span><button class="btn sm" id="realtime" type="button">Back to real time</button></div>`;
 }
 
 function header() {
   const u = state.user;
   const area = u?.kind === "ops" ? "OPERATIONS" : "DEALER PORTAL";
   return `${demoBanner()}<header class="hdr">
-    <a class="brand" href="/" data-go><span class="dot"></span><div><b>ValueMax AutoFinance</b><small>${area}</small></div></a>
-    <div class="who">${u ? `${esc(u.org)} — ${esc(u.name)}<span class="avatar">${esc(u.initials)}</span>
-      <button class="hdr-btn" id="signout" type="button">Switch role</button>` : ""}</div>
+    <a class="brand" href="/" data-go><span class="dot" aria-hidden="true"></span><span class="brand-text"><b>ValueMax AutoFinance</b><small>${area}</small></span></a>
+    ${u ? `<div class="who"><span class="who-text"><b>${esc(u.name)}</b><small>${esc(u.org)}</small></span><span class="avatar" aria-hidden="true">${esc(u.initials)}</span>
+      <button class="hdr-btn" id="signout" type="button">${icon("switch")}<span>Switch role</span></button></div>` : ""}
   </header>`;
 }
 
 function dealerShell(active, inner) {
-  const item = (href, label, key) => `<a href="${href}" data-go class="${active === key ? "on" : ""}">${label}</a>`;
+  const item = (href, label, key) => `<a href="${href}" data-go${active === key ? ' class="on" aria-current="page"' : ""}>${label}</a>`;
   return `${header()}<div class="layout">
     <nav class="side" aria-label="Dealer menu">
       <span class="cap">FINANCE</span>
       ${item("/dealer/applications", "Home", "list")}
       ${item("/dealer/apply", "Application", "apply")}
-      <span class="item muted">Account</span>
-      <span class="cap mt">SUPPORT</span>
-      <span class="item muted">Document Centre</span>
-      <span class="item muted">Contact Us</span>
+      <span class="item off" aria-disabled="true">Account</span>
+      <span class="cap">SUPPORT</span>
+      <span class="item off" aria-disabled="true">Document Centre</span>
+      <span class="item off" aria-disabled="true">Contact Us</span>
     </nav>
     <main class="main">${inner}</main>
   </div>`;
@@ -280,13 +285,12 @@ function bindCommon() {
 async function signIn() {
   if (location.pathname !== "/login" && location.pathname !== "/demo") history.replaceState({}, "", "/login");
   const users = await api("GET", "/api/users");
-  $app.innerHTML = `${header()}<div class="signin">
-    <h1 style="font-size:26px;color:var(--red-deep)">Sign in to the demo</h1>
-    <p class="muted" style="margin:0">Pick a role. No password in this demo.</p>
-    ${users.map((u) => `<button class="rolecard" data-user="${u.id}" type="button"><span class="avatar">${esc(u.initials)}</span>
-      <span><b>${esc(u.name)} — ${esc(u.org)}</b><span class="muted small">${u.kind === "ops" ? "VMAF Ops · all applications, IPA / AA" : "Dealer user · Quick Apply, own applications"}</span></span></button>`).join("")}
-    <p class="small muted">Customers do not sign in: they open the link from their email on their phone.</p>
-  </div>`;
+  $app.innerHTML = `${header()}<main class="signin">
+    <div><h1 class="page-title">Sign in to the demo</h1><p class="page-sub">Pick a role. No password in this demo.</p></div>
+    <div class="stack-sm">${users.map((u) => `<button class="rolecard" data-user="${u.id}" type="button"><span class="avatar" aria-hidden="true">${esc(u.initials)}</span>
+      <span class="rolecard-text"><b>${esc(u.name)} — ${esc(u.org)}</b><span class="muted small">${u.kind === "ops" ? "VMAF Ops · all applications, IPA / AA" : "Dealer user · Quick Apply, own applications"}</span></span>${icon("chevron-right", "lg")}</button>`).join("")}</div>
+    <p class="small muted">${icon("info")} Customers do not sign in: they open the link from their email on their phone.</p>
+  </main>`;
   $app.querySelectorAll("[data-user]").forEach((b) =>
     b.addEventListener("click", async () => {
       const { user } = await api("POST", "/api/session", { userId: b.dataset.user });
@@ -406,7 +410,7 @@ function dealerApply() {
     d.ltaCode = "A7K29Q";
     saveDraft();
     dealerApply();
-    toast("Sample filled — type the email address(es) that should receive the Singpass link");
+    toast("Sample filled — type the email address(es) that should receive the Singpass link", "info");
   });
   document.getElementById("clear").addEventListener("click", () => {
     state.draft = emptyDraft();
@@ -802,7 +806,7 @@ async function opsDetail(ref) {
       b.disabled = true;
       try {
         const r = await api("POST", `/api/applications/${ref}/parties/${b.dataset.retrieve}/retrieve`);
-        toast({ fulfilled: "MyInfo retrieved — NRIC matched", mismatch: "MyInfo retrieved — NRIC mismatch", expired: "The link has expired", sent: "Link sent", unchanged: "No MyInfo data yet — the customer has not shared it" }[r.outcome] || r.outcome);
+        toast({ fulfilled: "MyInfo retrieved — NRIC matched", mismatch: "MyInfo retrieved — NRIC mismatch", expired: "The link has expired", sent: "Link sent", unchanged: "No MyInfo data yet — the customer has not shared it" }[r.outcome] || r.outcome, r.outcome === "fulfilled" ? "ok" : r.outcome === "mismatch" || r.outcome === "expired" ? "err" : "info");
       } catch (e) { toast(e.message, true); }
       b.disabled = false;
     }));
