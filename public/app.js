@@ -76,11 +76,12 @@ function openDialog({ title, intro = "", fields, submit }) {
     const bg = document.createElement("div");
     bg.className = "modal-bg";
     bg.innerHTML = `<form class="modal card" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-      <h2 style="font-size:21px">${esc(title)}</h2>${intro ? `<p class="para" style="margin:0">${intro}</p>` : ""}
+      <h2>${esc(title)}</h2>${intro ? `<p class="para">${intro}</p>` : ""}
       ${fields.map((f) => `<label class="field">${esc(f.label)}<input class="input" name="${f.name}" value="${esc(f.value ?? "")}" placeholder="${esc(f.placeholder ?? "")}" autocomplete="off"></label>`).join("")}
-      <div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit">${esc(submit)}</button></div>
+      <div class="row end"><button class="btn" type="button" data-cancel>Cancel</button><button class="btn primary" type="submit">${esc(submit)}</button></div>
     </form>`;
     const close = (v) => { bg.remove(); resolve(v); };
+    bg.addEventListener("keydown", (e) => e.key === "Escape" && close(null));
     bg.querySelector("[data-cancel]").addEventListener("click", () => close(null));
     bg.addEventListener("click", (e) => e.target === bg && close(null));
     bg.querySelector("form").addEventListener("submit", (e) => {
@@ -606,33 +607,35 @@ function singpassCount(a) {
   return `<span class="st ${n ? "wait" : "bad"}">${n ? `${n} of ${a.parties.length}` : "No"}</span>`;
 }
 function partyStatusText(p) {
-  const cls = p.status === "Fulfilled" ? "t-ok" : p.status === "Pending" ? "t-wait" : "t-bad";
-  return `<b class="${cls}">${esc(p.status)}</b>`;
+  const cls = p.status === "Fulfilled" ? "ok" : p.status === "Pending" ? "wait" : "bad";
+  return `<span class="st ${cls}">${esc(p.status)}</span>`;
 }
+// a person in a list cell: name, then masked NRIC and Singpass status (each kept on one line)
+const partyCell = (p) => `<div class="pcell"><span class="pname">${esc(p.name)}</span><span class="pmeta"><span class="num nowrap">${esc(p.nricMasked)}</span>${partyStatusText(p)}</span></div>`;
 
 async function opsList() {
   let flashRef = null;
   const load = async () => {
     const [apps, expired] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/links/expired")]);
     $app.innerHTML = `${header()}<main class="wrap">
-      <div class="row between" style="align-items:flex-start">
-        <div><h1 style="font-size:28px">Ops — All Applications</h1><span style="font-size:15px;color:var(--text-2)">All loan applications across every dealer — Ops review queue.</span></div>
-        <div class="row"><a class="btn${expired.length ? " danger" : ""}" href="/ops/expired" data-go>Expired links (${expired.length})</a><a class="btn" href="/demo" data-go>Demo Control</a></div>
+      <div class="page-head">
+        <div><h1 class="page-title">Ops — All Applications</h1><p class="page-sub">All loan applications across every dealer — Ops review queue.</p></div>
+        <div class="row"><a class="btn" href="/ops/expired" data-go>${expired.length ? icon("alert-triangle", "t-bad") : icon("clock")}Expired links (${expired.length})</a><a class="btn quiet" href="/demo" data-go>${icon("play")}Demo Control</a></div>
       </div>
-      <div class="tablebox"><table class="list"><thead><tr><th>APPLICATION NO.</th><th>DEALER</th><th>HIRER</th><th>GUARANTOR</th><th>CAR PLATE</th><th>SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>
+      <div class="tablebox"><table class="list list-ops"><thead><tr><th>APPLICATION NO.</th><th>DEALER</th><th>HIRER</th><th>GUARANTOR</th><th>CAR PLATE</th><th class="wrap-th">SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th class="actions">ACTIONS</th></tr></thead><tbody>
       ${apps.length ? apps.map((a) => {
         const h = a.parties.find((p) => p.role === "hirer");
         const gs = a.parties.filter((p) => p.role === "guarantor");
-        return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td><b>${esc(a.ref)}</b></td><td>${esc(a.dealer)}</td>
-          <td>${esc(h.name)}<br><span class="sub">${esc(h.nricMasked)} · ${partyStatusText(h)}</span></td>
-          <td>${gs.length ? gs.map((g) => `${esc(g.name)}<br><span class="sub">${esc(g.nricMasked)} · ${partyStatusText(g)}</span>`).join("<br>") : "—"}</td>
-          <td>${esc(a.carPlate || "—")}</td><td>${singpassCount(a)}</td>
-          <td>${esc(a.createdBy)}<br><span class="sub">${fmt(a.createdAt)}</span></td>
+        return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td class="ref">${esc(a.ref)}</td><td class="dealer">${esc(a.dealer)}</td>
+          <td>${partyCell(h)}</td>
+          <td>${gs.length ? gs.map(partyCell).join("") : '<span class="muted">—</span>'}</td>
+          <td class="nowrap">${a.carPlate ? esc(a.carPlate) : '<span class="muted">—</span>'}</td><td>${singpassCount(a)}</td>
+          <td class="nowrap">${esc(a.createdBy)}<span class="sub">${fmt(a.createdAt)}</span></td>
           <td>${statusChip(a.opsStatus)}</td>
-          <td><a href="/ops/applications/${esc(a.ref)}" data-go style="font-weight:600">View</a></td></tr>`;
-      }).join("") : `<tr><td colspan="9" class="muted">No applications. Submit one as the dealer, or create sample applications in Demo Control.</td></tr>`}
+          <td class="actions"><a class="btn sm" href="/ops/applications/${esc(a.ref)}" data-go aria-label="View ${esc(a.ref)}">${icon("eye")}View</a></td></tr>`;
+      }).join("") : `<tr><td colspan="9" class="empty">No applications. Submit one as the dealer, or create sample applications in Demo Control.</td></tr>`}
       </tbody></table></div>
-      <p class="small muted" style="margin:0">The hirer and guarantor each show their own Singpass status, updated live.</p>
+      <p class="live small">The hirer and guarantor each show their own Singpass status, updated live.</p>
     </main>`;
     bindCommon();
   };
@@ -643,52 +646,52 @@ async function opsList() {
 // ---------------- screen 11: Ops detail ----------------
 function opsPartyStatus(p, ref) {
   switch (p.status) {
-    case "Fulfilled": return `<dd class="t-ok">Fulfilled · NRIC matched</dd>`;
-    case "Pending": return `<dd class="t-wait">Pending${p.linkStatus === "OPENED" ? " · opened by the customer" : ""} · link expires in ${hoursLeft(p.expiresAt)}</dd>`;
-    case "NRIC mismatch": return `<dd class="t-bad">NRIC mismatch · logged in as ${nricWithReveal(ref, p, "returned", p.mismatchUinfin)}</dd>`;
-    case "Expired": return `<dd class="t-bad">Expired · resend to send a new link</dd>`;
-    case "Queued": return `<dd class="t-wait">Queued · waiting for the Singpass gateway</dd>`;
-    default: return `<dd class="t-bad">${esc(p.status)}</dd>`;
+    case "Fulfilled": return `<dd><span class="st ok">Fulfilled · NRIC matched</span></dd>`;
+    case "Pending": return `<dd><span class="st wait">Pending${p.linkStatus === "OPENED" ? " · opened by the customer" : ""} · link expires in ${hoursLeft(p.expiresAt)}</span></dd>`;
+    case "NRIC mismatch": return `<dd><span class="st bad">NRIC mismatch · logged in as ${nricWithReveal(ref, p, "returned", p.mismatchUinfin)}</span></dd>`;
+    case "Expired": return `<dd><span class="st bad">Expired · resend to send a new link</span></dd>`;
+    case "Queued": return `<dd><span class="st wait">Queued · waiting for the Singpass gateway</span></dd>`;
+    default: return `<dd><span class="st bad">${esc(p.status)}</span></dd>`;
   }
 }
 
 function myinfoTable(p) {
   const mi = p.myinfo;
   if (p.status === "NRIC mismatch") {
-    return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
-      <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
-      <tr><td>NRIC</td><td>${esc(p.nricMasked)}</td><td class="t-bad" style="font-weight:600">${esc(p.mismatchUinfin)} ✗ mismatch</td></tr>
-      </tbody></table></div><p class="small muted" style="margin:0">Only the returned NRIC is kept; the rest of the MyInfo data was discarded.</p>`;
+    return `<section class="card d-myinfo"><h2>MyInfo Data — ${esc(p.label)}</h2>
+      <div class="scroll-x"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
+      <tr><td>NRIC</td><td class="num">${esc(p.nricMasked)}</td><td class="t-bad strong num">${esc(p.mismatchUinfin)} ${icon("x-circle")} mismatch</td></tr>
+      </tbody></table></div><p class="small muted">Only the returned NRIC is kept; the rest of the MyInfo data was discarded.</p></section>`;
   }
   if (!mi) return "";
   const noa = mi.noaHistory?.[0];
-  const row = (f, dealer, myinfo, cls = "") => `<tr><td>${f}</td><td${dealer ? "" : ' style="color:var(--faint)"'}>${dealer ? esc(dealer) : "—"}</td><td class="${cls}">${myinfo}</td></tr>`;
-  return `<h2 style="font-size:24px">MyInfo Data — ${esc(p.label)}</h2>
-    <div style="overflow-x:auto"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
-    ${row("NRIC", p.nricMasked, `${esc(mi.uinfin)} ✓ match`, "t-ok")}
+  const row = (f, dealer, myinfo, cls = "") => `<tr><td>${f}</td><td${dealer ? "" : ' class="muted"'}>${dealer ? esc(dealer) : "—"}</td><td class="${cls}">${myinfo}</td></tr>`;
+  return `<section class="card d-myinfo"><h2>MyInfo Data — ${esc(p.label)}</h2>
+    <div class="scroll-x"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
+    <tr><td>NRIC</td><td class="num">${esc(p.nricMasked)}</td><td class="t-ok num">${esc(mi.uinfin)} ${icon("check-circle")} match</td></tr>
     ${row("Name", p.name, esc(mi.name))}
-    ${row("Date of birth", "", esc(mi.dob))}
+    ${row("Date of birth", "", `<span class="num">${esc(mi.dob)}</span>`)}
     ${row("Registered address", "", esc(mi.regAddress))}
     ${row("Employer", "", esc(mi.employer))}
-    ${row("Annual income (NOA)", "", noa ? `SGD ${noa.amount.toLocaleString("en-SG")} (${noa.year})` : "—")}
-    ${row("CPF contributions", "", `${mi.cpfMonths} months`)}
+    ${row("Annual income (NOA)", "", noa ? `<span class="num">SGD ${noa.amount.toLocaleString("en-SG")} (${noa.year})</span>` : "—")}
+    ${row("CPF contributions", "", `<span class="num">${mi.cpfMonths} months</span>`)}
     ${row("Housing", "", esc(mi.hdbType || mi.housingType))}
-    </tbody></table></div>`;
+    </tbody></table></div></section>`;
 }
 
-// Activity log: the server writes the sentences (SGT, no internal codes, no full NRIC).
+// Activity log as a vertical timeline. The server writes the sentences (SGT, no internal codes, no full NRIC).
 function activityLog(app) {
   if (!app.activity?.length) return "";
-  return `<h2 style="font-size:24px">Activity</h2><div class="activity">${app.activity
+  return `<section class="card d-activity"><h2>Activity</h2><ol class="timeline">${app.activity
     .slice(0, 40)
-    .map((e) => `<div class="act ${e.tone}"><span class="when">${esc(e.time)}</span>${e.party ? `<b>${esc(e.party)}</b>` : ""}<span>${esc(e.text)}</span></div>`)
-    .join("")}</div>`;
+    .map((e) => `<li class="${esc(e.tone || "")}"><span class="tl-dot" aria-hidden="true"></span><div class="tl-body"><span class="tl-meta"><span class="num">${esc(e.time)}</span>${e.party ? ` · <b>${esc(e.party)}</b>` : ""}</span><span class="tl-text">${esc(e.text)}</span></div></li>`)
+    .join("")}</ol></section>`;
 }
 
 function linkHistory(p) {
   if (p.history.length < 2) return "";
   return `<div class="linkhist"><span class="muted small">Links sent to the ${esc(p.label.toLowerCase())}:</span>${p.history
-    .map((l, i) => `<span class="small ${l.current ? "" : "old"}">#${i + 1}${l.sentAt ? ` · sent ${fmt(l.sentAt)}` : " · not sent"} · <b>${esc(l.label)}</b>${l.current ? " (current)" : ""}</span>`)
+    .map((l, i) => `<span class="small num ${l.current ? "" : "old"}">#${i + 1}${l.sentAt ? ` · sent ${fmt(l.sentAt)}` : " · not sent"} · <b>${esc(l.label)}</b>${l.current ? " (current)" : ""}</span>`)
     .join("")}</div>`;
 }
 
@@ -717,12 +720,12 @@ async function opsExpired() {
   const load = async () => {
     const rows = await api("GET", "/api/links/expired");
     $app.innerHTML = `${header()}<main class="wrap">
-      <a href="/ops" data-go style="font-weight:600;text-decoration:none">← All Applications</a>
-      <div><h1 style="font-size:28px">Expired Singpass links</h1><span style="font-size:15px;color:var(--text-2)">People whose current link expired without a result. Resend to issue a new link.</span></div>
-      <div class="tablebox"><table class="list"><thead><tr><th>APPLICATION NO.</th><th>PERSON</th><th>EXPIRED</th><th>NEXT RESEND</th><th>ACTIONS</th></tr></thead><tbody>
-      ${rows.length ? rows.map((r) => `<tr><td><a href="/ops/applications/${esc(r.ref)}" data-go><b>${esc(r.ref)}</b></a></td><td>${esc(r.label)} · ${esc(r.name)}</td><td>${fmt(r.expiredAt)}</td>
-        <td>${r.resendRetryAt ? `<span class="t-wait">from ${fmt(r.resendRetryAt)}</span>` : '<span class="t-ok">now</span>'}</td>
-        <td><button class="btn sm" type="button" data-resend="${esc(r.partyId)}" data-ref="${esc(r.ref)}" data-label="${esc(r.label)}" ${r.resendRetryAt ? "disabled" : ""}>Resend link</button></td></tr>`).join("") : `<tr><td colspan="5" class="muted">No expired links.</td></tr>`}
+      <a class="back-link" href="/ops" data-go>${icon("arrow-left")}All Applications</a>
+      <div><h1 class="page-title">Expired Singpass links</h1><p class="page-sub">People whose current link expired without a result. Resend to issue a new link.</p></div>
+      <div class="tablebox"><table class="list list-expired"><thead><tr><th>APPLICATION NO.</th><th>PERSON</th><th>EXPIRED</th><th>NEXT RESEND</th><th class="actions">ACTIONS</th></tr></thead><tbody>
+      ${rows.length ? rows.map((r) => `<tr><td class="ref"><a href="/ops/applications/${esc(r.ref)}" data-go>${esc(r.ref)}</a></td><td>${esc(r.label)} · ${esc(r.name)}</td><td class="nowrap num">${fmt(r.expiredAt)}</td>
+        <td>${r.resendRetryAt ? `<span class="st wait">from ${fmt(r.resendRetryAt)}</span>` : '<span class="st ok">now</span>'}</td>
+        <td class="actions"><button class="btn sm" type="button" data-resend="${esc(r.partyId)}" data-ref="${esc(r.ref)}" data-label="${esc(r.label)}" ${r.resendRetryAt ? "disabled" : ""}>${icon("send")}Resend link</button></td></tr>`).join("") : `<tr><td colspan="5" class="empty">No expired links.</td></tr>`}
       </tbody></table></div>
     </main>`;
     bindCommon();
@@ -731,6 +734,17 @@ async function opsExpired() {
   await load();
   state.refresh = () => load();
 }
+
+// The right column of the Ops details (Singpass Status + Change Status) sticks only when it fits in the window;
+// otherwise it scrolls with the page so "Apply Status Change" is always reachable.
+function fitDetailSide() {
+  const side = $app.querySelector(".detail-side");
+  if (!side) return;
+  const top = (document.querySelector(".demo-time")?.offsetHeight ?? 0) + 16;
+  side.style.setProperty("--side-top", `${top}px`);
+  side.classList.toggle("stick", side.offsetHeight + top + 16 <= window.innerHeight);
+}
+window.addEventListener("resize", fitDetailSide);
 
 async function opsDetail(ref) {
   let selected = "IPA";
@@ -742,55 +756,66 @@ async function opsDetail(ref) {
     if (selected === "IPA" && !canIpa && canAaStage) selected = "AA";
     const aaBlocked = !app.aaCheck.ready; // the server's own AA check
     const applyDisabled = selected === "IPA" ? !canIpa : !canAaStage || aaBlocked;
-    $app.innerHTML = `${header()}<main class="wrap narrow">
-      <a href="/ops" data-go style="font-weight:600;text-decoration:none">← All Applications</a>
-      <section class="card" style="padding:32px;gap:22px">
-        <div class="row" style="align-items:center;gap:14px"><h1 style="font-size:28px">Application Details</h1><span class="chip wait" style="font-size:14px">${esc(app.ref)}</span>${statusChip(app.opsStatus)}</div>
-        <dl class="kv">
-          <div><dt>Applicant Name</dt><dd>${esc(h.name)}</dd></div>
-          <div><dt>Applicant NRIC</dt><dd>${nricWithReveal(app.ref, h, "entered", h.nricMasked)}</dd></div>
-          <div><dt>Applicant Email</dt><dd>${esc(h.email)}</dd></div>
-          <div><dt>Dealer</dt><dd>${esc(app.dealer)}</dd></div>
-          <div><dt>Created by</dt><dd>${esc(app.createdBy)} · ${fmt(app.createdAt)}</dd></div>
-          <div><dt>LTA Access Code</dt><dd>${esc(app.ltaCode)}</dd></div>
-        </dl>
-        <h2 style="font-size:24px">Singpass Status</h2>
-        ${app.parties.map((p) => `<div class="partyblock">
-          <dl class="kv">
-            <div><dt>${esc(p.label)} — Status</dt>${opsPartyStatus(p, app.ref)}</div>
-            <div><dt>${esc(p.label)} — Trigger Date</dt><dd>${fmt(p.triggerAt)}</dd></div>
-            <div><dt>${esc(p.label)} — Fulfilled Date</dt><dd${p.fulfilledAt ? "" : ' style="color:var(--faint)"'}>${fmt(p.fulfilledAt)}</dd></div>
-          </dl>
-          <div class="row" style="gap:10px">
-            <button class="btn sm" type="button" data-retrieve="${esc(p.id)}" ${["Pending", "Queued"].includes(p.status) ? "" : "disabled"}>Retrieve MyInfo (${esc(p.label)})</button>
-            <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" || app.stage === "AA" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
-            <button class="btn sm" type="button" data-correct="${esc(p.id)}" data-label="${esc(p.label)}" data-email="${esc(p.email)}" ${app.stage === "AA" ? "disabled" : ""}>Correct NRIC / email</button>
-          </div>
-          ${linkHistory(p)}
-        </div>`).join("")}
-        ${activityLog(app)}
-        ${app.parties.map(myinfoTable).join("")}
-        <h2 style="font-size:24px">Vehicle Info</h2>
-        <dl class="kv"><div><dt>Car Plate</dt><dd>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd style="color:var(--faint)">—</dd></div><div><dt>Model</dt><dd style="color:var(--faint)">—</dd></div></dl>
-      </section>
-      <section class="card" style="gap:14px">
-        <div class="row" style="align-items:center"><h2 style="font-size:21px">Change Status</h2><span class="ops-tag">OPS ONLY</span></div>
-        <label class="field" style="font-size:15px">New Status
-          <select class="select" id="newstatus">
-            <option value="IPA" ${selected === "IPA" ? "selected" : ""} ${canIpa ? "" : "disabled"}>Issue IPA${app.ipaAt ? " (issued)" : ""}</option>
-            <option value="AA" ${selected === "AA" ? "selected" : ""} ${canAaStage ? "" : "disabled"}>Issue AA${app.aaAt ? " (issued)" : ""}</option>
-          </select></label>
-        ${selected === "AA" && canAaStage ? `<div class="cond ${aaBlocked ? "" : "ok"}">
-          <b style="color:${aaBlocked ? "var(--red-text)" : "var(--green-text)"}">${aaBlocked ? "Cannot issue AA yet" : "Ready to issue AA"}</b>
-          ${app.parties.map((p) => {
-            const miss = app.aaCheck.missing.find((m) => m.partyId === p.id);
-            return miss ? `<span style="color:var(--red-text)">✗ ${esc(p.label)} Singpass ${esc(p.status.toLowerCase())}</span>` : `<span class="t-ok">✓ ${esc(p.label)} Singpass fulfilled</span>`;
-          }).join("")}
-        </div>` : ""}
-        ${selected === "IPA" && canIpa && !app.allFulfilled ? `<div class="note-gold" style="padding:12px 16px">An IPA can be issued while Singpass is still pending.</div>` : ""}
-        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="apply" type="button" ${applyDisabled ? "disabled" : ""}>Apply Status Change</button></div>
-      </section>
+    $app.innerHTML = `${header()}<main class="wrap">
+      <a class="back-link" href="/ops" data-go>${icon("arrow-left")}All Applications</a>
+      <div class="detail-head"><h1 class="page-title">Application Details</h1><span class="ref-badge"><b class="num">${esc(app.ref)}</b></span>${statusChip(app.opsStatus)}</div>
+      <div class="detail">
+        <div class="detail-main">
+          <section class="card d-info">
+            <dl class="kv">
+              <div><dt>Applicant Name</dt><dd>${esc(h.name)}</dd></div>
+              <div><dt>Applicant NRIC</dt><dd class="num nowrap">${nricWithReveal(app.ref, h, "entered", h.nricMasked)}</dd></div>
+              <div><dt>Applicant Email</dt><dd>${esc(h.email)}</dd></div>
+              <div><dt>Dealer</dt><dd>${esc(app.dealer)}</dd></div>
+              <div><dt>Created by</dt><dd>${esc(app.createdBy)} · <span class="num nowrap">${fmt(app.createdAt)}</span></dd></div>
+              <div><dt>LTA Access Code</dt><dd class="num">${esc(app.ltaCode)}</dd></div>
+            </dl>
+          </section>
+          ${activityLog(app)}
+          ${app.parties.map(myinfoTable).join("")}
+          <section class="card d-vehicle">
+            <h2>Vehicle Info</h2>
+            <dl class="kv"><div><dt>Car Plate</dt><dd${app.carPlate ? "" : ' class="muted"'}>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd class="muted">—</dd></div><div><dt>Model</dt><dd class="muted">—</dd></div></dl>
+          </section>
+        </div>
+        <aside class="detail-side">
+          <section class="card d-singpass">
+            <h2>Singpass Status</h2>
+            ${app.parties.map((p) => `<div class="party">
+              <dl class="party-dl">
+                <div class="full"><dt>${esc(p.label)} — Status</dt>${opsPartyStatus(p, app.ref)}</div>
+                <div><dt>${esc(p.label)} — Trigger Date</dt><dd class="num">${fmt(p.triggerAt)}</dd></div>
+                <div><dt>${esc(p.label)} — Fulfilled Date</dt><dd class="num${p.fulfilledAt ? "" : " muted"}">${fmt(p.fulfilledAt)}</dd></div>
+              </dl>
+              <div class="row party-actions">
+                <button class="btn sm" type="button" data-retrieve="${esc(p.id)}" ${["Pending", "Queued"].includes(p.status) ? "" : "disabled"}>Retrieve MyInfo (${esc(p.label)})</button>
+                <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" || app.stage === "AA" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
+                <button class="btn sm" type="button" data-correct="${esc(p.id)}" data-label="${esc(p.label)}" data-email="${esc(p.email)}" ${app.stage === "AA" ? "disabled" : ""}>Correct NRIC / email</button>
+              </div>
+              ${linkHistory(p)}
+            </div>`).join("")}
+          </section>
+          <section class="card d-change">
+            <div class="row"><h2>Change Status</h2><span class="chip neutral">${icon("lock")}OPS ONLY</span></div>
+            <label class="field">New Status
+              <select class="select" id="newstatus">
+                <option value="IPA" ${selected === "IPA" ? "selected" : ""} ${canIpa ? "" : "disabled"}>Issue IPA${app.ipaAt ? " (issued)" : ""}</option>
+                <option value="AA" ${selected === "AA" ? "selected" : ""} ${canAaStage ? "" : "disabled"}>Issue AA${app.aaAt ? " (issued)" : ""}</option>
+              </select></label>
+            ${selected === "AA" && canAaStage ? `<div class="checklist ${aaBlocked ? "bad" : "ok"}">
+              <div class="checklist-title">${icon(aaBlocked ? "lock" : "check-circle", "lg")}<b>${aaBlocked ? "Cannot issue AA yet" : "Ready to issue AA"}</b></div>
+              <ul>${app.parties.map((p) => {
+                const miss = app.aaCheck.missing.find((m) => m.partyId === p.id);
+                return miss ? `<li class="bad">${icon("x-circle")}<span>${esc(p.label)} Singpass ${esc(p.status.toLowerCase())}</span></li>` : `<li class="ok">${icon("check-circle")}<span>${esc(p.label)} Singpass fulfilled</span></li>`;
+              }).join("")}</ul>
+            </div>` : ""}
+            ${selected === "IPA" && canIpa && !app.allFulfilled ? `<div class="note">${icon("info")}<span>An IPA can be issued while Singpass is still pending.</span></div>` : ""}
+            <button class="btn primary block" id="apply" type="button" ${applyDisabled ? "disabled" : ""}>Apply Status Change</button>
+          </section>
+        </aside>
+      </div>
     </main>`;
+    fitDetailSide();
     bindCommon();
     document.getElementById("newstatus").addEventListener("change", (e) => { selected = e.target.value; load(); });
     document.getElementById("apply").addEventListener("click", async () => {
