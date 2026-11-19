@@ -23,7 +23,10 @@ services:
         value: "3"
       - key: RESEND_WINDOW_HOURS
         value: "24"
-      # Optional email. Leave SMTP_HOST empty = links only in Demo Control → Outbox / QR codes.
+      # Optional email, preferred: Brevo HTTP API (HTTPS, not blocked). MAIL_FROM = a sender verified in Brevo.
+      - key: BREVO_API_KEY
+        sync: false
+      # Fallback: SMTP relay. Leave SMTP_HOST and BREVO_API_KEY empty = links only in Demo Control → Outbox / QR codes.
       # Brevo: SMTP_HOST=smtp-relay.brevo.com, SMTP_USER=<Brevo SMTP login>, SMTP_PASS=<SMTP key>
       - key: SMTP_HOST
         sync: false

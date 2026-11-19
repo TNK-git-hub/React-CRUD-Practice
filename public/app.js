@@ -818,7 +818,7 @@ async function demoPage() {
     const cfg = state.config;
     const hours = Math.round(demo.offsetMs / 3_600_000);
     $app.innerHTML = `${header()}<main class="wrap narrow">
-      <div class="row between"><div><h1 style="font-size:28px">Demo Control</h1><span class="muted">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "SMTP configured" : "SMTP not configured (links only in the log and below)"}</span></div>
+      <div class="row between"><div><h1 style="font-size:28px">Demo Control</h1><span class="muted">Hidden page for the presenter. Phone links use <code>${esc(cfg.baseUrl)}</code> · email: ${cfg.smtp ? "configured" : "not configured (links only in the log and below)"}</span></div>
         <a class="btn" href="/" data-go>Back to portal</a></div>
       <section class="card" style="gap:14px">
         <h2>Data</h2>

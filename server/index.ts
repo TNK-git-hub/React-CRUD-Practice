@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { AdjustableClock } from "./clock.ts";
 import { loadConfig } from "./config.ts";
 import { loadKey } from "./crypto.ts";
-import { createEmailSender } from "./mail.ts";
+import { createEmailSender, emailTransport } from "./mail.ts";
 import { createRuntime } from "./runtime.ts";
 
 function lanAddress(): string | null {
@@ -31,7 +31,7 @@ const rt = createRuntime({
   dbFile: process.env.DATA_FILE || join(resolve(import.meta.dirname, ".."), "data", "db.json"),
   key,
   email: createEmailSender(process.env),
-  smtpConfigured: Boolean(process.env.SMTP_HOST),
+  smtpConfigured: emailTransport(process.env) !== "none",
 });
 
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => void rt.close().then(() => process.exit(0)));
@@ -44,5 +44,5 @@ rt.server.listen(config.port, "0.0.0.0", () => {
   console.log(`  Demo Control: http://localhost:${config.port}/demo`);
   console.log(`  Gateway:      simulated ValueMax Myinfo gateway (/gateway/<LinkId>)`);
   console.log(`  Auto-verify:  every ${config.pollIntervalMs} ms`);
-  console.log(`  Email:        ${process.env.SMTP_HOST ? `SMTP ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}` : "SMTP not configured — links printed below"}\n`);
+  console.log(`  Email:        ${{ brevo: "Brevo HTTP API", smtp: `SMTP ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}`, none: "not configured — links printed below" }[emailTransport(process.env)]}\n`);
 });

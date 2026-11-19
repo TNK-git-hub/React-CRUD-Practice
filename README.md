@@ -75,12 +75,15 @@ npm run screens      # regenerates docs/claude-code-demo/screens/*.png (needs Ch
 | `RESEND_LIMIT` / `RESEND_WINDOW_HOURS` | 3 / 24 | resends per person in a sliding window (D-39) |
 | `MYINFO_SHOW_REVIEW` | true | the simulated gateway shows the review screen before "Submit Application" (D-31) |
 | `DATA_FILE` | `data/db.json` | where the demo data is kept |
+| `BREVO_API_KEY` | empty | real email through the Brevo HTTP API (takes priority over SMTP); see below |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | empty | real email; see below |
 
-**Email.** Without `SMTP_HOST` emails are not sent: each link is printed in the server log and listed in Demo Control →
+**Email.** Without `BREVO_API_KEY` or `SMTP_HOST` emails are not sent: each link is printed in the server log and listed in Demo Control →
 Outbox (enough for a demo on one laptop). Local inbox: `docker compose up -d mailpit`, then `SMTP_HOST=localhost`,
 `SMTP_PORT=1025`, inbox at http://localhost:8025. Real mailbox (Gmail): `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`,
 `SMTP_SECURE=true`, `SMTP_USER=you@gmail.com`, `SMTP_PASS=<app password>`, `MAIL_FROM=you@gmail.com`.
+Brevo over HTTPS (also works where SMTP ports are blocked): `BREVO_API_KEY=<Brevo → SMTP & API → API keys>`,
+`MAIL_FROM=you@gmail.com` (verified under Brevo → Senders); when set it is used instead of SMTP.
 SMS is never sent: the SMS notice ("we have emailed you…", no link) appears only in the outbox (D-13).
 
 ## 3. Reset the data
@@ -111,8 +114,9 @@ repo ships a `Dockerfile` and a Render Blueprint (`render.yaml`, free plan).
 
 Free-plan limits: the service sleeps after 15 idle minutes (first request takes ~1 min, so open it before a demo),
 `data/` resets on every restart/deploy (use Demo Control to create sample applications), and outbound SMTP on ports
-25/465/587 is blocked. For real email use a relay on port 2525 (e.g. Brevo: `SMTP_HOST=smtp-relay.brevo.com`,
-`SMTP_PORT=2525`), or leave `SMTP_HOST` empty and open links from Demo Control → Outbox / the QR codes.
+25/465/587 is blocked. For real email set `BREVO_API_KEY` and `MAIL_FROM` (HTTPS, not blocked), or use an SMTP relay
+on port 2525 (e.g. `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=2525`), or leave both empty and open links from Demo
+Control → Outbox / the QR codes.
 
 ## 5. Demo scripts
 
@@ -224,7 +228,7 @@ server/verification/         service.ts (links, job, Retrieve MyInfo, resend, co
 server/gateway/              adapter.ts, simulated.ts (simulated gateway + MockGatewayAdapter), valuemax.ts (stub)
 server/views.ts, activity.ts what dealer / Ops screens receive; the activity log sentences
 server/nric.ts, crypto.ts    NRIC / FIN checks and masking; AES-256-GCM
-server/mail.ts               email template + SMTP sender
+server/mail.ts               email template + Brevo / SMTP sender
 public/                      frontend (vanilla JS SPA): dealer, Ops, portal /verify/<token>, gateway /gateway/<LinkId>,
                              Demo Control
 tests/                       SC-xx scenario tests (service + HTTP), validation, startup; tests/e2e (Playwright)

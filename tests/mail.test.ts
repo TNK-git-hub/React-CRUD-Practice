@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import type { AddressInfo, Server } from "node:net";
-import { createEmailSender, renderEmail } from "../server/mail.ts";
+import { createEmailSender, emailTransport, parseAddress, renderEmail } from "../server/mail.ts";
 
 function smtpSink(): Promise<{ server: Server; port: number; received: Array<{ from: string; to: string[]; data: string }> }> {
   const received: Array<{ from: string; to: string[]; data: string }> = [];
@@ -72,4 +72,73 @@ test("SMTP sender reports a failure instead of throwing when the server is unrea
   assert.ok(r.error);
 
   assert.deepEqual(await createEmailSender({}).send({ to: "x@example.com", subject: "s", html: "h", text: "t" }), { delivered: false });
+});
+
+test("parseAddress splits a display name from the address", () => {
+  assert.deepEqual(parseAddress("VMAF Demo <no-reply@example.com>"), { name: "VMAF Demo", email: "no-reply@example.com" });
+  assert.deepEqual(parseAddress('"VMAF Demo" <no-reply@example.com>'), { name: "VMAF Demo", email: "no-reply@example.com" });
+  assert.deepEqual(parseAddress("<no-reply@example.com>"), { email: "no-reply@example.com" });
+  assert.deepEqual(parseAddress(" no-reply@example.com "), { email: "no-reply@example.com" });
+});
+
+test("BREVO_API_KEY takes priority over SMTP_HOST", () => {
+  assert.equal(emailTransport({ BREVO_API_KEY: "k", SMTP_HOST: "smtp.example.com" }), "brevo");
+  assert.equal(emailTransport({ SMTP_HOST: "smtp.example.com" }), "smtp");
+  assert.equal(emailTransport({}), "none");
+});
+
+async function withFetch<T>(fake: typeof fetch, fn: () => Promise<T>): Promise<T> {
+  const real = globalThis.fetch;
+  globalThis.fetch = fake;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = real;
+  }
+}
+
+test("Brevo sender posts the Singpass email to the Brevo HTTP API", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const r = await withFetch(
+    (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({ messageId: "<m1>" }), { status: 201 });
+    }) as typeof fetch,
+    () =>
+      createEmailSender({ BREVO_API_KEY: "test-key", SMTP_HOST: "127.0.0.1", MAIL_FROM: "VMAF Demo <sender@example.com>" }).send({
+        to: "hirer@example.com",
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+      }),
+  );
+  assert.deepEqual(r, { delivered: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.url, "https://api.brevo.com/v3/smtp/email");
+  assert.equal(calls[0]!.init.method, "POST");
+  assert.equal((calls[0]!.init.headers as Record<string, string>)["api-key"], "test-key");
+  const body = JSON.parse(String(calls[0]!.init.body));
+  assert.deepEqual(body.sender, { name: "VMAF Demo", email: "sender@example.com" });
+  assert.deepEqual(body.to, [{ email: "hirer@example.com" }]);
+  assert.equal(body.subject, "Verify your identity for your car loan application");
+  assert.match(body.htmlContent, /demo\.test\/verify\/abc/);
+  assert.match(body.textContent, /demo\.test\/verify\/abc/);
+});
+
+test("Brevo sender reports an API error or network failure instead of throwing", async () => {
+  const msg = { to: "hirer@example.com", subject: mail.subject, html: mail.html, text: mail.text };
+  const rejected = await withFetch(
+    (async () => new Response('{"code":"unauthorized","message":"Key not found"}', { status: 401 })) as typeof fetch,
+    () => createEmailSender({ BREVO_API_KEY: "bad" }).send(msg),
+  );
+  assert.equal(rejected.delivered, false);
+  assert.match(rejected.error ?? "", /Brevo 401: .*Key not found/);
+
+  const down = await withFetch(
+    (async () => {
+      throw new TypeError("fetch failed");
+    }) as typeof fetch,
+    () => createEmailSender({ BREVO_API_KEY: "k" }).send(msg),
+  );
+  assert.deepEqual(down, { delivered: false, error: "fetch failed" });
 });

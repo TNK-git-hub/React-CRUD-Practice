@@ -26,7 +26,7 @@ export interface EmailMessage {
 }
 
 export interface EmailSender {
-  /** delivered = handed to SMTP; false with no error = no SMTP configured (log / outbox only). */
+  /** delivered = handed to Brevo / SMTP; false with no error = no email configured (log / outbox only). */
   send(message: EmailMessage): Promise<{ delivered: boolean; error?: string }>;
 }
 

@@ -1,4 +1,4 @@
-// Email of screen 4 (template) and the SMTP sender.
+// Email of screen 4 (template) and the sender: Brevo HTTP API (BREVO_API_KEY) or SMTP.
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { formatSgt } from "./time.ts";
@@ -35,13 +35,45 @@ export function renderEmail(m: SingpassEmail): { subject: string; html: string; 
   return { subject, html, text };
 }
 
-/** SMTP from the environment; without SMTP_HOST the email is only logged (with its link) and kept in the outbox. */
+/** "Name <a@b.c>" or "a@b.c" -> { name?, email } */
+export function parseAddress(from: string): { name?: string; email: string } {
+  const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(from);
+  if (!m) return { email: from.trim() };
+  const name = m[1]?.trim();
+  const email = (m[2] ?? "").trim();
+  return name ? { name, email } : { email };
+}
+
+/**
+ * Brevo transactional email over HTTPS (port 443). Hosts such as Render's free plan block outbound SMTP ports.
+ * MAIL_FROM must be a sender verified in Brevo.
+ */
+async function sendViaBrevo(apiKey: string, from: string, m: { to: string; subject: string; html: string; text: string }): Promise<void> {
+  const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ sender: parseAddress(from), to: [{ email: m.to }], subject: m.subject, htmlContent: m.html, textContent: m.text }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) throw new Error(`Brevo ${r.status}: ${(await r.text()).slice(0, 300)}`);
+}
+
+/** Which transport createEmailSender uses for this environment. */
+export function emailTransport(env: Record<string, string | undefined>): "brevo" | "smtp" | "none" {
+  return env.BREVO_API_KEY ? "brevo" : env.SMTP_HOST ? "smtp" : "none";
+}
+
+/**
+ * Brevo HTTP API when BREVO_API_KEY is set, else SMTP when SMTP_HOST is set; with neither the email is only logged
+ * (with its link) and kept in the outbox.
+ */
 export function createEmailSender(env: Record<string, string | undefined>): EmailSender {
-  const host = env.SMTP_HOST;
+  const transport = emailTransport(env);
+  const brevoKey = env.BREVO_API_KEY ?? "";
   let transporter: Transporter | null = null;
-  if (host) {
+  if (transport === "smtp") {
     transporter = nodemailer.createTransport({
-      host,
+      host: env.SMTP_HOST,
       port: Number(env.SMTP_PORT || 587),
       secure: env.SMTP_SECURE === "true",
       ...(env.SMTP_USER ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS ?? "" } } : {}),
@@ -51,10 +83,11 @@ export function createEmailSender(env: Record<string, string | undefined>): Emai
   return {
     async send(m) {
       const link = /https?:\/\/\S+/.exec(m.text)?.[0] ?? "";
-      console.log(`[mail] → ${m.to}${transporter ? "" : ` (SMTP not configured) ${link}`}`);
-      if (!transporter) return { delivered: false };
+      console.log(`[mail] → ${m.to}${transport === "none" ? ` (email not configured) ${link}` : ` (${transport})`}`);
+      if (transport === "none") return { delivered: false };
       try {
-        await transporter.sendMail({ from, to: m.to, subject: m.subject, html: m.html, text: m.text });
+        if (transport === "brevo") await sendViaBrevo(brevoKey, from, m);
+        else await transporter!.sendMail({ from, to: m.to, subject: m.subject, html: m.html, text: m.text });
         return { delivered: true };
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
