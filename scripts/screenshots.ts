@@ -89,11 +89,23 @@ const dealer = await (await signedIn(dealerCookie)).newPage();
 const ops = await (await signedIn(opsCookie)).newPage();
 const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true })).newPage();
 
+// Full-page screenshots: bars that stick to the bottom of the window (form actions, customer consent / review) would be
+// drawn in the middle of a full-page image, so they are put back in the flow for the capture only (the app is unchanged).
+const STATIC_BARS = ".actionbar, .gw-actions { position: static !important; }";
+
 async function shot(page: Page, name: string, waitFor?: string): Promise<void> {
   if (waitFor) await page.getByText(waitFor, { exact: false }).first().waitFor({ timeout: 10_000 });
   await page.waitForTimeout(250);
-  await page.waitForFunction(() => !document.querySelector("#toast.show"), undefined, { timeout: 5_000 }).catch(() => {});
+  // wait until any toast has fully faded out (not only lost its "show" class)
+  await page
+    .waitForFunction(() => {
+      const t = document.querySelector("#toast");
+      return !t || (!t.classList.contains("show") && getComputedStyle(t).opacity === "0");
+    }, undefined, { timeout: 6_000 })
+    .catch(() => {});
+  const tag = await page.addStyleTag({ content: STATIC_BARS });
   await page.screenshot({ path: join(OUT, `${name}.png`), fullPage: true });
+  await tag.evaluate((el) => (el as Element).remove());
   console.log(`  ${name}.png`);
 }
 async function opsDetail(ref: string, name: string, waitFor: string, issue?: "AA"): Promise<void> {

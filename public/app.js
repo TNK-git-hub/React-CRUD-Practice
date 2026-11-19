@@ -27,13 +27,45 @@ async function api(method, path, body) {
 }
 
 let toastTimer;
-// kind: true or "err" (error), "info", or "ok" (default). Shown top right, just below the header / demo banner, so it
-// never covers the form's own buttons.
+// Put the toast where the page has no content, so it never covers the stepper, the form or a button:
+// 1. the empty middle of the header (between the brand and the user), when it is wide enough;
+// 2. below 1024 px on dealer pages, the empty right part of the tab bar;
+// 3. otherwise just below the header / demo bar, on the right.
+function placeToast() {
+  const st = $toast.style;
+  st.top = st.left = st.right = st.maxWidth = "";
+  const h = $toast.offsetHeight;
+  const hdr = document.querySelector(".hdr")?.getBoundingClientRect();
+  if (hdr && hdr.top >= 0) {
+    const brand = document.querySelector(".hdr .brand")?.getBoundingClientRect();
+    const who = document.querySelector(".hdr .who")?.getBoundingClientRect();
+    const from = (brand?.right ?? hdr.left) + 24;
+    const to = (who?.left ?? hdr.right) - 24;
+    if (to - from >= 360) {
+      const w = Math.min(420, to - from);
+      Object.assign(st, { left: `${Math.round(from + (to - from - w) / 2)}px`, right: "auto", maxWidth: `${w}px`, top: `${Math.round(hdr.top + Math.max(6, (hdr.height - h) / 2))}px` });
+      return;
+    }
+    const side = document.querySelector(".side");
+    if (side && getComputedStyle(side).flexDirection === "row") {
+      const bar = side.getBoundingClientRect();
+      const lastTab = [...side.querySelectorAll("a")].pop()?.getBoundingClientRect();
+      const room = bar.right - 16 - ((lastTab?.right ?? bar.left) + 24);
+      if (room >= 280) {
+        Object.assign(st, { left: "auto", right: `${Math.round(window.innerWidth - bar.right + 16)}px`, maxWidth: `${Math.min(420, room)}px`, top: `${Math.round(bar.top + 2)}px` });
+        return;
+      }
+    }
+  }
+  const edge = Math.max(0, ...[".hdr", ".demo-time", ".phone-hdr", ".simbar"].map((sel) => document.querySelector(sel)?.getBoundingClientRect().bottom ?? 0));
+  st.top = `${Math.round(edge) + 12}px`;
+}
+// kind: true or "err" (error), "info", or "ok" (default)
 function toast(msg, kind = "ok") {
   const type = kind === true || kind === "err" ? "err" : kind === "info" ? "info" : "ok";
-  const edge = Math.max(0, ...[".hdr", ".demo-time", ".phone-hdr", ".simbar"].map((sel) => document.querySelector(sel)?.getBoundingClientRect().bottom ?? 0));
-  $toast.style.top = `${Math.round(edge) + 12}px`;
   $toast.innerHTML = `${icon(type === "err" ? "alert-circle" : type === "info" ? "info" : "check-circle", "lg")}<span>${esc(msg)}</span>`;
+  $toast.className = type;
+  placeToast();
   $toast.className = `show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => ($toast.className = ""), 3200);
@@ -787,7 +819,7 @@ async function opsDetail(ref) {
                 <div><dt>${esc(p.label)} — Trigger Date</dt><dd class="num">${fmt(p.triggerAt)}</dd></div>
                 <div><dt>${esc(p.label)} — Fulfilled Date</dt><dd class="num${p.fulfilledAt ? "" : " muted"}">${fmt(p.fulfilledAt)}</dd></div>
               </dl>
-              <div class="row party-actions">
+              <div class="party-actions">
                 <button class="btn sm" type="button" data-retrieve="${esc(p.id)}" ${["Pending", "Queued"].includes(p.status) ? "" : "disabled"}>Retrieve MyInfo (${esc(p.label)})</button>
                 <button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}" ${p.status === "Fulfilled" || app.stage === "AA" ? "disabled" : ""}>Resend Email (${esc(p.label)})</button>
                 <button class="btn sm" type="button" data-correct="${esc(p.id)}" data-label="${esc(p.label)}" data-email="${esc(p.email)}" ${app.stage === "AA" ? "disabled" : ""}>Correct NRIC / email</button>

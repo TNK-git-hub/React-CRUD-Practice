@@ -3,8 +3,9 @@
 Goal: a calm, trustworthy B2B fintech look for the presale demo (Head of AutoFinance, Head of IT, business users),
 consistent from the customer's phone to the Ops back-office. "Beautiful, not flashy."
 
-- **Scope:** `public/styles.css`, `public/index.html`, the markup / display helpers of `public/app.js`, and
-  `design-system/vmaf-dealer-portal/MASTER.md`. No change to `server/`, `tests/`, logic, API, router or SSE.
+- **Scope:** `public/styles.css`, `public/index.html`, the markup / display helpers of `public/app.js`,
+  `design-system/vmaf-dealer-portal/MASTER.md`, plus (review round) `eslint.config.js` and `scripts/screenshots.ts`.
+  No change to `server/`, `tests/`, logic, API, router or SSE.
 - **Stack:** still vanilla JS + CSS, no new dependency, no build step, no new font.
 - **Wording:** every visible label, title, status chip and message is kept (Playwright and `tests/http-views.test.ts`
   rely on them). Only text glyphs used as icons were replaced by SVG icons (✓ ✗ → ← › …).
@@ -23,6 +24,7 @@ consistent from the customer's phone to the Ops back-office. "Beautiful, not fla
 | 5 | `ui: customer phone pages — portal, simulated gateway, result pages` | `/verify/<token>`, `/gateway/<LinkId>` (login, consent, review), done, cancelled, invalid |
 | 6 | `ui: Demo Control — grouped cards, danger reset, compact logs` | `/demo` |
 | 7 | `docs: UI_CHANGES` + final checks | This file, last accessibility fixes |
+| 8 | `ui: review fixes — lint, toast placement, clean screenshots, Singpass actions` | `.claude/**` ignored by ESLint; toast never over the stepper; screenshots without toasts or floating bars; same action layout per person |
 
 ## Final tokens (`public/styles.css` → `:root`)
 
@@ -54,7 +56,7 @@ disabled text (3.0:1), green text `#1F8A5B` (4.3:1) and the white-on-orange revi
 | Screen | Files | Before → after |
 |---|---|---|
 | Shell (all signed-in pages) | every desktop file | Tall header with "Org — Name" text → compact header: name + organisation, avatar, icon "Switch role". Sidebar with a heavy left bar → inset items with a clear active state; **below 1024 px a tab bar** (before: the menu disappeared below 860 px). "Demo time" bar → calm amber with a clock icon |
-| Toast | (transient) | Bottom right, over the form's buttons → top right just below the header / demo bar; icon per kind (ok, info, error) |
+| Toast | (transient) | Bottom right, over the form's buttons → placed where the page has no content: the empty middle of the header (≥ 1024 px), the empty right of the dealer tab bar (< 1024 px), otherwise just below the header. Solid white card, `--shadow-sm`, icon per kind (ok, info, error); never over the stepper or a button |
 | Sign-in | — | Plain cards, all-burgundy title → clean role cards with a chevron, neutral title |
 | Quick Apply | `01-main-quick-apply` | Big underline stepper → compact stepper with check marks. 3-column grid with an empty cell → 12-column grid (name 8 / NRIC 4, email 6 / phone 6), holds at 1024 and 768 px. "✓ Valid…" text → icon hints under each field (`aria-describedby`, `aria-invalid`). Pink guarantor box → neutral white card. Cancel / Next → sticky action bar |
 | Review & Submit | `02-dealer-submit` | Solid burgundy "DEALER'S ATTESTATION" band → section label; confirmations in bordered rows; amber note → neutral info note; sticky actions |
@@ -67,16 +69,20 @@ disabled text (3.0:1), green text `#1F8A5B` (4.3:1) and the white-on-orange revi
 | Done | `08b-customer-done` | Kept the message; status icon; no raw colour override |
 | Dealer status | `09a`…`09e` | Centred card, bullets with "…" → left-aligned vertical tracker with a connecting line (done / in progress / not started), chips with icons that flash softly when they change live; resend and demo actions in the card footer |
 | Ops list | `10-ops-list` | Numbers, dates, chips and "NRIC mismatch" wrapped; "View" as an underlined link; status by colour only → nothing of that wraps; dot + text status; row hover; "View" button; **no horizontal scroll at 1280 px**, own scroll box below; neutral "Expired links (n)" button with a warning icon |
-| Ops details | `11a`…`11f` | One long column, amber reference chip, boxed activity lines, glyph checklist → **two columns from 1200 px** (left: details, activity, MyInfo, vehicle; right: Singpass Status per person + Change Status). The right column is sticky **only when it fits the window** (measured in JS after each render and on resize); otherwise it scrolls with the page, so "Apply Status Change" is always reachable (checked at 1280 × 800 with two guarantors). Below 1200 px: one column in the previous order. Activity as a timeline; neutral reference badge; AA conditions as an icon checklist; disabled buttons readable |
+| Ops details | `11a`…`11f` | One long column, amber reference chip, boxed activity lines, glyph checklist → **two columns from 1200 px** (left: details, activity, MyInfo, vehicle; right: Singpass Status per person + Change Status). The right column is sticky **only when it fits the window** (measured in JS after each render and on resize); otherwise it scrolls with the page, so "Apply Status Change" is always reachable (checked at 1280 × 800 with two guarantors). Below 1200 px: one column in the previous order. Activity as a timeline; neutral reference badge; AA conditions as an icon checklist; disabled buttons readable. Singpass actions: the same layout for every person — one full-width button per row (three equal columns in the one-column layout) |
 | Expired links | `12-ops-expired-links` | Same table style; "Resend link" with icon |
 | Demo Control | `13-demo-control` | Stacked plain cards, red-text reset → grouped cards (two columns from 1024 px); "Reset all data" as a danger button; links table like the Ops lists; outbox and gateway log as compact lists in their own scroll box. Headings kept as they were ("Gateway, job and clock" stays one card, split in two rows; "Links" kept), so no wording changed |
 
 ## Checks run
 
-- After each step: `npx eslint . --ignore-pattern ".claude/**"`, `npm run typecheck`, `npm test` (76/76), `npm run screens`; `npm run test:e2e` after steps 3, 4, 5, 6 and at the end — all green.
-- **`npm run lint` itself fails before and after this branch** with the same 147 errors, all in
-  `.claude/skills/*/scripts/*.cjs` (CommonJS skill scripts added in `0302d71`). `eslint.config.js` is outside this
-  task's scope; adding `.claude/**` to its ignores would fix it.
+- After each step: `npm run lint` (with `--ignore-pattern ".claude/**"` until the review round), `npm run typecheck`, `npm test` (76/76), `npm run screens`; `npm run test:e2e` after steps 3, 4, 5, 6 and at the end — all green.
+- `npm run lint` failed before this branch (147 errors, all in the CommonJS skill scripts `.claude/skills/*/scripts/*.cjs`
+  added in `0302d71`). Fixed in the review round: `.claude/**` is in the ESLint ignores; `npm run lint` is green.
+- `npm run screens` (`scripts/screenshots.ts`): waits until a toast has fully faded out before each capture, and puts
+  the bottom sticky bars (`.actionbar`, `.gw-actions`) back in the flow for full-page captures only, so the images in
+  `screens/` show no toast and no bar floating mid-page. The app itself keeps the sticky bars.
+- Ops details at 1280 × 800 (one and two guarantors), scrolled to Change Status: the right column is taller than the
+  window, so it scrolls with the page and "Apply Status Change" is fully visible.
 - Extra screenshots and an audit script (not committed) at 1280, 1024, 768 and 375 px:
   - no horizontal page scroll on any screen at any width (the Ops tables scroll inside their box below 1280 px);
   - keyboard: tabbing through every page always shows a focus indicator;

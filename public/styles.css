@@ -383,8 +383,8 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .demo-time .btn { margin-left: auto; }
 
 /* toast: top right, just below the header (top is set by toast() in app.js) */
-#toast { position: fixed; top: 68px; right: var(--space-5); z-index: 60; display: flex; align-items: flex-start; gap: var(--space-3); max-width: min(400px, calc(100vw - 32px)); padding: var(--space-3) var(--space-4); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); font-size: var(--fs-base); line-height: 1.45; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
-#toast.show { opacity: 1; transform: none; }
+#toast { position: fixed; top: 68px; right: var(--space-5); z-index: 60; display: flex; align-items: flex-start; gap: var(--space-3); max-width: min(420px, calc(100vw - 32px)); padding: 10px var(--space-4); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); font-size: var(--fs-sm); line-height: 1.45; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease); }
+#toast.show { opacity: 1; }
 #toast .ic { margin-top: 0; }
 #toast.ok .ic { color: var(--success-fg); }
 #toast.info .ic { color: var(--info-fg); }
@@ -556,10 +556,13 @@ dl.kv dd.muted { color: var(--text-muted); font-weight: 400; }
 .party-dl dd.muted { color: var(--text-muted); font-weight: 400; }
 .party .st { white-space: normal; align-items: flex-start; font-size: var(--fs-base); }
 .party .st::before { margin-top: 7px; }
-.party-actions { gap: var(--space-2); }
+/* the same action layout for every person: one full-width button per row; three equal columns when the card is wide */
+.party-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.party-actions .btn { width: 100%; }
 @media (min-width: 700px) and (max-width: 1199px) {
   .party-dl { grid-template-columns: 2fr 1fr 1fr; }
   .party-dl .full { grid-column: auto; }
+  .party-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .linkhist { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border-left: 2px solid var(--border); background: var(--surface-2); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .linkhist .old { color: var(--text-muted); }
