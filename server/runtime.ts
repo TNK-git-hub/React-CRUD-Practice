@@ -154,6 +154,12 @@ export function createRuntime(opts: RuntimeOptions) {
   const route = (method: string, pattern: string, h: Handler) =>
     routes.push([method, new RegExp(`^${pattern.replace(/:[a-zA-Z]+/g, "([^/]+)")}$`), h]);
 
+  /** "Fill sample" people, taken from the persona list so the name always belongs to the NRIC. */
+  const sample = (nric: string) => {
+    const p = PERSONAS.find((x) => x.uinfin === nric);
+    if (!p) throw new Error(`no persona ${nric}`);
+    return { name: p.name, nric: p.uinfin };
+  };
   route("GET", "/api/config", async (_req, res) =>
     send(res, 200, {
       baseUrl: config.publicBaseUrl,
@@ -161,7 +167,9 @@ export function createRuntime(opts: RuntimeOptions) {
       pollIntervalMs: config.pollIntervalMs,
       showReview: config.showReview,
       smtp: opts.smtpConfigured,
-      samples: { hirer: { name: "HENG SHI ZHENG", nric: "F4440488P" }, guarantor: { name: "RAJESH KUMAR S/O MURUGAN", nric: "G4440425M" } },
+      // D-61: the simulated gateway's own test personas (name + NRIC only), for the Quick Apply name combobox
+      personas: PERSONAS.map((p) => ({ name: p.name, nric: p.uinfin })),
+      samples: { hirer: sample("F4440488P"), guarantor: sample("G4440425M"), guarantor2: sample("G4440427W") },
     }),
   );
   route("GET", "/api/users", async (_req, res) => send(res, 200, USERS));

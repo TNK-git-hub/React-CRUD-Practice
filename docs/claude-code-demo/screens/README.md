@@ -30,6 +30,10 @@ phone 390 px. The design screens are `../design/*.dc.html`.
 | 13-demo-control | (new) | clock moved +73 h |
 | 14-menu-dealer-1280 / -1440 | left menu, dealer | My Applications: "Application" is the current item (D-60) |
 | 14-menu-ops-1280 / -1440 | left menu, Ops | Ops — All Applications with the menu |
+| 15a-combobox-open | Quick Apply | guarantor name list open; the hirer's persona greyed "used for the hirer" (D-61) |
+| 15b-name-field-hover | Quick Apply | name field hovered: the arrow appears (D-61) |
+| 16-quick-apply-top-1280 | Quick Apply | top of the form in a 1280 × 800 window: no button bar over the fields (D-63) |
+| before-combobox/*.png | (kept) | before D-61 … D-63: menu without groups, sticky form bar over the form, plain name field |
 | menu-before/*.png | (kept) | the menu before D-60 (rounded inset item, "Home" lit on My Applications, no Ops menu) |
 
 ## Differences from the design

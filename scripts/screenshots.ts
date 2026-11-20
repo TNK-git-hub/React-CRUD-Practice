@@ -89,9 +89,10 @@ const dealer = await (await signedIn(dealerCookie)).newPage();
 const ops = await (await signedIn(opsCookie)).newPage();
 const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true })).newPage();
 
-// Full-page screenshots: bars that stick to the bottom of the window (form actions, customer consent / review) would be
-// drawn in the middle of a full-page image, so they are put back in the flow for the capture only (the app is unchanged).
-const STATIC_BARS = ".actionbar, .gw-actions { position: static !important; }";
+// Full-page screenshots: bars that stick to the bottom of the window (customer consent / review) would be drawn in the
+// middle of a full-page image, so they are put back in the flow for the capture only (the app is unchanged). The dealer
+// form's action bar is not sticky (D-63).
+const STATIC_BARS = ".gw-actions { position: static !important; }";
 
 async function shot(page: Page, name: string, waitFor?: string): Promise<void> {
   if (waitFor) await page.getByText(waitFor, { exact: false }).first().waitFor({ timeout: 10_000 });
@@ -123,6 +124,32 @@ await dealer.getByText("Fill sample").click();
 await dealer.locator('[data-f="hirer.email"]').fill("hirer@example.com");
 await dealer.locator('[data-f="guarantor.email"]').fill("guarantor@example.com");
 await shot(dealer, "01-main-quick-apply", "Valid NRIC");
+// D-61: the name combobox — arrow on hover; the open list (the hirer's persona is shown as used)
+{
+  const card = (await dealer.locator(".form-card").boundingBox())!;
+  await dealer.locator('[data-f="hirer.name"]').hover();
+  await dealer.waitForTimeout(150);
+  await dealer.screenshot({ path: join(OUT, "15b-name-field-hover.png"), clip: { x: card.x, y: card.y, width: card.width, height: 200 } });
+  console.log("  15b-name-field-hover.png");
+  await dealer.evaluate(() => { document.querySelector('[data-combo="guarantor"]')!.scrollIntoView({ block: "start" }); window.scrollBy(0, -120); });
+  await dealer.locator('[data-f="guarantor.name"]').click();
+  await dealer.locator("#lb-guarantor").waitFor();
+  const box = (await dealer.locator('[data-combo="guarantor"]').boundingBox())!;
+  const list = (await dealer.locator("#lb-guarantor").boundingBox())!;
+  await dealer.screenshot({ path: join(OUT, "15a-combobox-open.png"), clip: { x: card.x, y: box.y - 60, width: card.width, height: list.y + list.height - box.y + 80 } });
+  console.log("  15a-combobox-open.png");
+  await dealer.keyboard.press("Escape");
+  await dealer.mouse.move(5, 5);
+}
+// D-63: same window as before-combobox/quick-apply-top-1280.png: the form buttons no longer cover the form
+{
+  await dealer.setViewportSize({ width: 1280, height: 800 });
+  await dealer.evaluate(() => window.scrollTo(0, 0));
+  await dealer.waitForTimeout(150);
+  await dealer.screenshot({ path: join(OUT, "16-quick-apply-top-1280.png") });
+  console.log("  16-quick-apply-top-1280.png");
+  await dealer.setViewportSize({ width: 1280, height: 900 });
+}
 await dealer.getByText("Next: Documents").click();
 await dealer.locator("#c1").check();
 await dealer.locator("#c2").check();

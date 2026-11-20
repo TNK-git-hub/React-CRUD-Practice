@@ -330,13 +330,13 @@ function menuShell(kind, inner) {
   const off = (label) => `<span class="item off" aria-disabled="true" title="Not in this demo">${label}</span>`;
   return `${header()}<div class="layout">
     <nav class="side" aria-label="${kind === "ops" ? "Ops" : "Dealer"} menu">
-      <span class="cap">FINANCE</span>
-      ${off("Home")}
-      <a href="${href}" data-go class="on" aria-current="page">Application</a>
-      ${off("Account")}
-      <span class="cap">SUPPORT</span>
-      ${off("Document Centre")}
-      ${off("Contact Us")}
+      <div class="side-group" role="group" aria-labelledby="menu-finance"><span class="cap" id="menu-finance">FINANCE</span>
+        ${off("Home")}
+        <a href="${href}" data-go class="on" aria-current="page">Application</a>
+        ${off("Account")}</div>
+      <div class="side-group" role="group" aria-labelledby="menu-support"><span class="cap" id="menu-support">SUPPORT</span>
+        ${off("Document Centre")}
+        ${off("Contact Us")}</div>
     </nav>
     <main class="main${kind === "ops" ? " wide" : ""}">${inner}</main>
   </div>`;
@@ -391,7 +391,12 @@ function stepsBar(n) {
 function partyFields(prefix, p, label) {
   const hint = (key) => `<span class="hint" id="h-${prefix}-${key}" data-h="${prefix}.${key}"></span>`;
   return `<div class="fgrid">
-    <label class="field c-name">Name of ${label} *<input class="input upper" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"></label>
+    <div class="field c-name"><label for="in-${prefix}-name">Name of ${label} *</label>
+      <div class="combo" data-combo="${prefix}">
+        <input id="in-${prefix}-name" class="input upper" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="lb-${prefix}">
+        <span class="combo-caret" data-caret="${prefix}" aria-hidden="true">${icon("chevron-down")}</span>
+        <div class="combo-list" id="lb-${prefix}" role="listbox" aria-label="Singpass test personas" hidden></div>
+      </div></div>
     <label class="field c-nric">NRIC of ${label} *<input class="input num" data-f="${prefix}.nric" value="${esc(p.nric)}" autocomplete="off" aria-describedby="h-${prefix}-nric">${hint("nric")}</label>
     <label class="field c-email">Email Address *${prefix === "hirer" ? " (to send Singpass request)" : ""}<input class="input" type="email" data-f="${prefix}.email" value="${esc(p.email)}" aria-describedby="h-${prefix}-email">${hint("email")}</label>
     <label class="field c-phone">Phone Number *<input class="input num" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(fmtPhone(p.mobile))}" placeholder="e.g. 9123 4567" aria-describedby="h-${prefix}-mobile">${hint("mobile")}</label>
@@ -413,6 +418,86 @@ function fieldState(prefix, key, value, others = []) {
 function partyValid(p, others = []) {
   return p.name.trim() && validNric(p.nric) && validEmail(p.email) && validMobile(p.mobile) && !others.some((o) => p.nric.trim().toUpperCase() === o.trim().toUpperCase());
 }
+// The people of the draft that are shown, as [prefix, label] (the second guarantor only inside the guarantor box).
+const draftPeople = (d) => [["hirer", "Hirer"], ...(d.guarantorOn ? [["guarantor", d.guarantor2On ? "Guarantor 1" : "Guarantor"]] : []), ...(d.guarantorOn && d.guarantor2On ? [["guarantor2", "Guarantor 2"]] : [])];
+
+// D-61: the name field is a combobox over the simulated gateway's Singpass test personas (state.config.personas, from
+// server/personas.ts). Picking one fills the name and the NRIC of the same person (email and phone untouched); typing
+// filters by name or NRIC and a free name is kept; a persona already used for another person cannot be picked (D-28).
+// ARIA 1.2 combobox: focus stays on the input, aria-activedescendant points at the active option.
+function bindCombos(d, refreshHints) {
+  const personas = state.config.personas ?? [];
+  $app.querySelectorAll("[data-combo]").forEach((wrap) => {
+    const who = wrap.dataset.combo;
+    const input = wrap.querySelector("input");
+    const list = wrap.querySelector('[role="listbox"]');
+    let items = [];
+    let active = -1;
+    const isOpen = () => !list.hidden;
+    const render = (q) => {
+      const term = q.trim().toLowerCase();
+      const used = new Map(draftPeople(d).filter(([k]) => k !== who).map(([k, label]) => [d[k].nric.trim().toUpperCase(), label]));
+      items = personas
+        .filter((p) => !term || p.name.toLowerCase().includes(term) || p.nric.toLowerCase().includes(term))
+        .map((p) => ({ ...p, usedBy: used.get(p.nric) }));
+      active = -1;
+      input.removeAttribute("aria-activedescendant");
+      list.innerHTML = `<div class="combo-head" role="presentation">Singpass test personas</div>${items.length
+        ? items.map((p, i) => `<div class="combo-opt" role="option" id="opt-${who}-${i}" data-i="${i}" aria-selected="false"${p.usedBy ? ' aria-disabled="true"' : ""}><span class="combo-text">${esc(p.name)} · <span class="num">${esc(p.nric)}</span></span>${p.usedBy ? `<span class="combo-used">used for the ${esc(p.usedBy.toLowerCase())}</span>` : ""}</div>`).join("")
+        : '<div class="combo-empty" role="presentation">No test persona matches: the name you type is kept.</div>'}`;
+    };
+    const setOpen = (open) => {
+      list.hidden = !open;
+      wrap.classList.toggle("open", open);
+      input.setAttribute("aria-expanded", String(open));
+      if (!open) input.removeAttribute("aria-activedescendant");
+    };
+    const move = (step) => {
+      if (!items.some((p) => !p.usedBy)) return;
+      let i = active;
+      do i = (i + step + items.length) % items.length; while (items[i].usedBy);
+      active = i;
+      list.querySelectorAll('[role="option"]').forEach((o) => o.setAttribute("aria-selected", String(Number(o.dataset.i) === i)));
+      const opt = document.getElementById(`opt-${who}-${i}`);
+      input.setAttribute("aria-activedescendant", opt.id);
+      opt.scrollIntoView({ block: "nearest" });
+    };
+    const pick = (i) => {
+      const p = items[i];
+      if (!p || p.usedBy) return;
+      d[who].name = input.value = p.name;
+      d[who].nric = p.nric;
+      const nric = $app.querySelector(`[data-f="${who}.nric"]`);
+      if (nric) nric.value = p.nric;
+      saveDraft();
+      refreshHints();
+      setOpen(false);
+    };
+    input.addEventListener("focus", () => { render(""); setOpen(true); });
+    input.addEventListener("click", () => { if (!isOpen()) { render(""); setOpen(true); } });
+    input.addEventListener("input", () => { render(input.value); setOpen(true); });
+    input.addEventListener("blur", () => setOpen(false));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!isOpen()) { render(""); setOpen(true); }
+        move(e.key === "ArrowDown" ? 1 : -1);
+      } else if (e.key === "Enter" && isOpen() && active >= 0) {
+        e.preventDefault();
+        pick(active);
+      } else if (e.key === "Escape" && isOpen()) {
+        e.preventDefault();
+        setOpen(false);
+      } else if (e.key === "Tab") setOpen(false);
+    });
+    list.addEventListener("mousedown", (e) => e.preventDefault()); // keep the focus in the input
+    list.addEventListener("click", (e) => {
+      const opt = e.target.closest('[role="option"]');
+      if (opt) pick(Number(opt.dataset.i));
+    });
+  });
+}
+
 const otherNrics = (d, prefix) => ({ hirer: [], guarantor: [d.hirer.nric], guarantor2: [d.hirer.nric, d.guarantor.nric] })[prefix];
 function draftValid(d) {
   return partyValid(d.hirer) && (!d.guarantorOn || partyValid(d.guarantor, otherNrics(d, "guarantor"))) && (!d.guarantorOn || !d.guarantor2On || partyValid(d.guarantor2, otherNrics(d, "guarantor2"))) && d.ltaCode.trim();
@@ -480,6 +565,7 @@ function dealerApply() {
     if (b === "mobile") inp.addEventListener("change", () => { inp.value = d[a][b] = fmtPhone(inp.value); saveDraft(); });
   });
   refreshHints();
+  bindCombos(d, refreshHints);
   document.getElementById("gtoggle").addEventListener("click", () => {
     d.guarantorOn = !d.guarantorOn;
     saveDraft();
@@ -496,6 +582,7 @@ function dealerApply() {
     d.hirer = { name: sp.hirer.name, nric: sp.hirer.nric, email, mobile: "9123 4567" };
     d.guarantorOn = true;
     d.guarantor = { name: sp.guarantor.name, nric: sp.guarantor.nric, email: d.guarantor.email || email, mobile: "9876 5432" };
+    if (d.guarantor2On) d.guarantor2 = { name: sp.guarantor2.name, nric: sp.guarantor2.nric, email: d.guarantor2.email || email, mobile: "8765 4321" };
     d.ltaCode = "A7K29Q";
     saveDraft();
     dealerApply();

@@ -349,10 +349,13 @@ code { font-family: var(--font-mono); font-size: .92em; }
    across the whole menu width (no radius) with a 3 px red bar drawn inside it (inset shadow: it takes no room, so
    the text does not move). Hover is a light grey, weaker than the pink of the current item. */
 .layout { --side-x: var(--space-5); display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: calc(100vh - 56px); }
-.side { background: var(--surface); border-right: 1px solid var(--border); padding: var(--space-4) 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-base); }
-.side .cap { padding: var(--space-4) var(--side-x) var(--space-1); font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-muted); }
-.side .cap:first-child { padding-top: var(--space-1); }
-.side a, .side .item { display: flex; align-items: center; min-height: 40px; padding: 0 var(--side-x); border-radius: 0; color: var(--text-2); font-weight: 500; text-decoration: none; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+/* D-62: two groups, FINANCE and SUPPORT: a clear caption (bold, darker than the items, capitals, letter-spaced),
+   a thin line and more space between the groups than between items; items are indented under their caption. */
+.side { background: var(--surface); border-right: 1px solid var(--border); padding: var(--space-5) 0; display: flex; flex-direction: column; font-size: var(--fs-base); }
+.side-group { display: flex; flex-direction: column; gap: 2px; }
+.side-group + .side-group { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border); }
+.side .cap { padding: 0 var(--side-x) var(--space-2); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.side a, .side .item { display: flex; align-items: center; min-height: 40px; padding: 0 var(--side-x) 0 calc(var(--side-x) + 12px); border-radius: 0; color: var(--text-2); font-weight: 500; text-decoration: none; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .side a:hover { background: var(--surface-2); color: var(--text); }
 .side a.on { background: var(--accent-subtle); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .side a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -367,6 +370,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
   .layout { display: block; min-height: 0; }
   .side { flex-direction: row; gap: var(--space-1); padding: 0 var(--space-4); border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .side .cap, .side .item.off { display: none; }
+  .side-group { display: contents; }
   .side a { min-height: var(--control-h-lg); border-radius: 0; padding: 0 var(--space-3); border-bottom: 2px solid transparent; }
   .side a:hover { background: transparent; }
   .side a.on { background: transparent; border-bottom-color: var(--accent); box-shadow: none; }
@@ -459,9 +463,9 @@ table.list-dealer { min-width: 760px; }
 .subcard { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
 .subcard-title { font-size: var(--fs-md); font-weight: 600; }
 
-/* sticky action bar at the bottom of long forms; focus is never hidden behind it */
-.actionbar { position: sticky; bottom: var(--space-4); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
-html:has(.actionbar) { scroll-padding-bottom: 112px; }
+/* D-63: the form's buttons are a normal row right under the last form card, as in the prototype (fig. 3.5, 3.8):
+   Cancel / Back on the left, the red main button on the right; it scrolls with the page and never covers a field. */
+.actionbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
 
 /* ---------- dealer: Review & Submit ---------- */
 .sumgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
@@ -477,6 +481,22 @@ html:has(.actionbar) { scroll-padding-bottom: 112px; }
 .input[readonly] { background: var(--surface-2); color: var(--text-2); cursor: default; }
 .input[readonly]:hover { border-color: var(--border-input); }
 .input.upper { text-transform: uppercase; }
+/* D-61: name field = combobox over the Singpass test personas. Looks like a plain text field; the arrow shows only
+   on hover or while the list is open. */
+.combo { position: relative; }
+.combo .input { width: 100%; padding-right: 40px; }
+.combo-caret { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: grid; color: var(--text-muted); pointer-events: none; visibility: hidden; }
+.combo:hover .combo-caret, .combo.open .combo-caret { visibility: visible; }
+.combo.open .combo-caret { color: var(--accent); }
+.combo-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 304px; overflow-y: auto; padding: var(--space-1) 0; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-md, 0 8px 24px rgb(31 31 36 / .12)); font-weight: 400; }
+.combo-list[hidden] { display: none; }
+.combo-head { padding: var(--space-2) var(--space-3) var(--space-1); font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.combo-opt { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px var(--space-3); min-height: 40px; padding: var(--space-2) var(--space-3); cursor: pointer; color: var(--text); }
+.combo-opt:hover { background: var(--surface-2); }
+.combo-opt[aria-selected="true"] { background: var(--accent-subtle); box-shadow: inset 3px 0 0 var(--accent); }
+.combo-opt[aria-disabled="true"] { color: var(--text-muted); cursor: not-allowed; background: transparent; }
+.combo-used { font-size: var(--fs-xs); color: var(--text-muted); }
+.combo-empty { padding: var(--space-2) var(--space-3); font-size: var(--fs-sm); color: var(--text-muted); }
 /* Declaration by Applicant / Guarantor(s): collapsed, "View full text" opens it */
 details.decl > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); cursor: pointer; list-style: none; }
 details.decl > summary::-webkit-details-marker { display: none; }
