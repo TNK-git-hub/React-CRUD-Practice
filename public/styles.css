@@ -344,17 +344,22 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .hdr-btn:hover { background: var(--on-dark-hover); }
 @media (pointer: coarse) { .hdr-btn { min-height: var(--touch); } }
 
-/* dealer: sidebar on desktop, tab bar under the header below 1024 px */
-.layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: calc(100vh - 56px); }
-.side { background: var(--surface); border-right: 1px solid var(--border); padding: var(--space-4) var(--space-3); display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-base); }
-.side .cap { padding: var(--space-4) var(--space-3) var(--space-1); font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-muted); }
+/* dealer and Ops: sidebar on desktop, tab bar under the header below 1024 px.
+   One inset (--side-x) for captions and items, so every text starts on the same line. The current item is a band
+   across the whole menu width (no radius) with a 3 px red bar drawn inside it (inset shadow: it takes no room, so
+   the text does not move). Hover is a light grey, weaker than the pink of the current item. */
+.layout { --side-x: var(--space-5); display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+.side { background: var(--surface); border-right: 1px solid var(--border); padding: var(--space-4) 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-base); }
+.side .cap { padding: var(--space-4) var(--side-x) var(--space-1); font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-muted); }
 .side .cap:first-child { padding-top: var(--space-1); }
-.side a, .side .item { display: flex; align-items: center; min-height: 36px; padding: 0 var(--space-3); border-radius: var(--radius-sm); color: var(--text-2); font-weight: 500; text-decoration: none; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
-.side a:hover { background: var(--surface-3); color: var(--text); }
-.side a.on { background: var(--accent-subtle); color: var(--accent); font-weight: 600; }
+.side a, .side .item { display: flex; align-items: center; min-height: 40px; padding: 0 var(--side-x); border-radius: 0; color: var(--text-2); font-weight: 500; text-decoration: none; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.side a:hover { background: var(--surface-2); color: var(--text); }
+.side a.on { background: var(--accent-subtle); color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.side a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .side .item.off { color: var(--text-muted); cursor: default; }
 .main { min-width: 0; padding: var(--space-6) var(--space-6) var(--space-7); display: flex; flex-direction: column; gap: var(--space-5); }
 .main > * { width: 100%; max-width: 1040px; margin-inline: auto; }
+.main.wide > * { max-width: 1240px; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: var(--space-6) var(--space-5) var(--space-7); display: flex; flex-direction: column; gap: var(--space-5); }
 .wrap.narrow { max-width: 1120px; }
 
@@ -364,7 +369,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
   .side .cap, .side .item.off { display: none; }
   .side a { min-height: var(--control-h-lg); border-radius: 0; padding: 0 var(--space-3); border-bottom: 2px solid transparent; }
   .side a:hover { background: transparent; }
-  .side a.on { background: transparent; border-bottom-color: var(--accent); }
+  .side a.on { background: transparent; border-bottom-color: var(--accent); box-shadow: none; }
   .main { padding: var(--space-5) var(--space-5) var(--space-6); }
 }
 @media (max-width: 640px) {
@@ -531,14 +536,23 @@ details.decl[open] .decl-toggle::before { content: "▾ "; }
 
 /* ---------- Ops: page head, list ---------- */
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
-table.list-ops { min-width: 1040px; }
+/* Ops list beside the menu: like the prototype, long values wrap (ref after "VMAF-2026-", names, dates) */
+table.list-ops { min-width: 940px; }
+table.list-ops th { white-space: normal; letter-spacing: .03em; }
+table.list-ops td.ref { white-space: normal; min-width: 92px; }
 table.list-ops td.date { min-width: 64px; }
+table.list-ops th.wrap-th { min-width: 64px; }
+table.list-ops td.dealer { min-width: 80px; }
+table.list-ops .pcell { min-width: 100px; }
+table.list-ops td.created { min-width: 84px; }
+table.list-ops td.created .sub { white-space: normal; }
+table.list-ops td .chip { white-space: normal; text-align: left; }
 /* search and filters above the Ops list (UI-15) */
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .filters #search { flex: 1 1 320px; max-width: 440px; }
 .filters .select { width: auto; min-width: 200px; }
 .filter-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
-table.list-ops th, table.list-ops td { padding-left: var(--space-2); padding-right: var(--space-2); }
+table.list-ops th, table.list-ops td { padding-left: 6px; padding-right: 6px; }
 table.list-ops th:first-child, table.list-ops td:first-child { padding-left: var(--space-4); }
 table.list-ops th:last-child, table.list-ops td:last-child { padding-right: var(--space-4); }
 table.list th.wrap-th { white-space: normal; min-width: 88px; }
@@ -566,6 +580,8 @@ table.list tr.flash { animation: flash 1.6s ease-out; }
   .detail-side.stick { position: sticky; top: var(--side-top, 16px); }
 }
 dl.kv { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4) var(--space-5); }
+/* two columns of the Ops details beside the menu (1200–1439 px): the main column is narrow, two fields per row */
+@media (min-width: 1200px) and (max-width: 1439px) { .detail-main dl.kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 dl.kv dt { font-size: var(--fs-sm); color: var(--text-muted); }
 dl.kv dd { margin: 2px 0 0; font-size: var(--fs-base); font-weight: 600; overflow-wrap: anywhere; }
 dl.kv dd.muted { color: var(--text-muted); font-weight: 400; }

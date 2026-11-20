@@ -28,6 +28,9 @@ phone 390 px. The design screens are `../design/*.dc.html`.
 | 11a…11f-ops-detail-* | Ops_Detail | Pending, AA locked, NRIC mismatch, old link rejected, Expired, AA issued |
 | 12-ops-expired-links | (new) | expired links list |
 | 13-demo-control | (new) | clock moved +73 h |
+| 14-menu-dealer-1280 / -1440 | left menu, dealer | My Applications: "Application" is the current item (D-60) |
+| 14-menu-ops-1280 / -1440 | left menu, Ops | Ops — All Applications with the menu |
+| menu-before/*.png | (kept) | the menu before D-60 (rounded inset item, "Home" lit on My Applications, no Ops menu) |
 
 ## Differences from the design
 

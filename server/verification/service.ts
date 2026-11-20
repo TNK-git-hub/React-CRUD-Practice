@@ -666,23 +666,19 @@ export class VerificationService {
   }
 
   /**
-   * D-50 (changed 2026-11-20): Demo Control's "Open sample" shortcuts open a sample application in a given state (the
-   * samples are created if missing). hirer-view: the hirer's portal page of a pending link; ops-view: IPA issued, AA
+   * D-50 (changed 2026-11-20), D-59: Demo Control's "Open sample" shortcuts open a sample application in a given state.
+   * They never create anything: only "Create sample applications" (seedSamples) does. hirer-view: the hirer's portal page of a pending link; ops-view: IPA issued, AA
    * still locked; dealer-view: the sample dealer's application where the hirer has shared their details and someone
    * is still pending. The detail pages no longer open samples: their "Demo: see …" buttons open the same application.
    */
   async demoShortcut(kind: DemoShortcutKind): Promise<{ ref: string; url: string; userId?: string }> {
-    let found = this.pickSample(kind);
-    if (!found) {
-      await this.seedSamples(); // adds the samples that are missing
-      found = this.pickSample(kind);
-    }
-    if (!found) throw new ServiceError(409, "No sample application is in that state any more. Use Demo Control → Reset all data, then try again.");
+    const found = this.pickSample(kind);
+    if (!found) throw new ServiceError(409, this.hasSamples() ? NO_SAMPLE_IN_STATE : "No sample applications yet: Create sample applications first (Demo Control).");
     return { ref: found.app.ref, url: found.url, ...(found.userId ? { userId: found.userId } : {}) };
   }
 
   /** Demo Control: each shortcut with the state and the ref it opens now (ref null: no sample in that state). */
-  demoShortcutList(): Array<{ kind: DemoShortcutKind; ref: string | null; label: string }> {
+  demoShortcutList(): Array<{ kind: DemoShortcutKind; ref: string | null; label: string; hint: string }> {
     // "guarantor pending", "guarantor link expired": what each person still missing is waiting for
     const word: Partial<Record<LinkStatus, string>> = { QUEUED: "queued", SENT: "pending", OPENED: "pending", EXPIRED: "link expired", MISMATCH: "NRIC mismatch" };
     const waitingText = (app: Application) => {
@@ -706,9 +702,17 @@ export class VerificationService {
     return (["ops-view", "dealer-view", "hirer-view"] as const).map((kind) => {
       const found = this.pickSample(kind);
       return found
-        ? { kind, ref: found.app.ref, label: `Open sample: ${describe[kind](found.app)} (${found.app.ref})` }
-        : { kind, ref: null, label: `Open sample: ${fallback[kind]}` };
+        ? { kind, ref: found.app.ref, label: `Open sample: ${describe[kind](found.app)} (${found.app.ref})`, hint: "" }
+        : { kind, ref: null, label: `Open sample: ${fallback[kind]}`, hint: this.hasSamples() ? NO_SAMPLE_IN_STATE : "Create sample applications first" };
     });
+  }
+
+  private samples(): Application[] {
+    return this.db.applications.filter((a) => /^VMAF-2026-0511[4-9]$/.test(a.ref));
+  }
+
+  private hasSamples(): boolean {
+    return this.samples().length > 0;
   }
 
   private waiting(app: Application): Party[] {
@@ -720,7 +724,7 @@ export class VerificationService {
       const l = currentLink(p);
       return (l.status === "SENT" || l.status === "OPENED") && !this.isPastExpiry(l);
     };
-    for (const app of this.db.applications.filter((a) => /^VMAF-2026-0511[4-9]$/.test(a.ref))) {
+    for (const app of this.samples()) {
       const hirer = app.parties[0]!;
       if (kind === "hirer-view" && pending(hirer)) return { app, url: `/verify/${currentLink(hirer).portalToken}` };
       if (kind === "ops-view" && app.stage === "IPA" && !checkAa(app).ready && app.parties.some((p) => currentLink(p).status === "FULFILLED"))
@@ -754,6 +758,8 @@ export class VerificationService {
 }
 
 export type DemoShortcutKind = "hirer-view" | "ops-view" | "dealer-view";
+
+const NO_SAMPLE_IN_STATE = "No sample in this state any more: Reset all data, then Create sample applications";
 
 /** "guarantor", "hirer and guarantor", "guarantor 1 and guarantor 2" */
 function peopleOf(parties: readonly Party[]): string {

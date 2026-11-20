@@ -222,9 +222,8 @@ async function expectUrl(page: Page, pattern: RegExp, what: string): Promise<voi
 // "Demo: see …" buttons open the SAME application in the other role; samples are opened from Demo Control (D-50)
 const shortcutPage = await (await signedIn(dealerCookie)).newPage();
 await shortcutPage.goto(`${BASE}/dealer/received/${mainRef}`);
-const [hirerTab] = await Promise.all([shortcutPage.context().waitForEvent("page"), shortcutPage.getByText("Demo: see what the hirer gets").click()]);
-await expectUrl(hirerTab, new RegExp(`${await portalPath(mainRef, hirer.id)}$`), "hirer view (this application's hirer link)");
-await hirerTab.getByText("no longer valid").waitFor(); // the hirer has already used it
+await shortcutPage.getByText("Demo: see what the hirer gets").click(); // the hirer has already shared: nothing opens (D-59)
+await shortcutPage.locator("#toast").getByText("no link to open", { exact: false }).waitFor();
 await shortcutPage.goto(`${BASE}/dealer/applications/${mainRef}`);
 await shortcutPage.getByText("Demo: see the Ops view").click();
 await expectUrl(shortcutPage, new RegExp(`/ops/applications/${mainRef}$`), "ops view");
@@ -254,6 +253,23 @@ await ops.goto(`${BASE}/ops/expired`);
 await shot(ops, "12-ops-expired-links", "Expired Singpass links");
 await ops.goto(`${BASE}/demo`);
 await shot(ops, "13-demo-control", "Demo time: +73 h");
+
+await api("POST", "/api/demo/clock/reset", opsCookie); // the menu shots without the "Demo time" bar
+// ---- left menu (dealer and Ops), 1280 and 1440 px: the current item is a full-width band (GAP_REPORT §9) ----
+for (const width of [1280, 1440]) {
+  for (const [cookie, path, name] of [[dealerCookie, "/dealer/applications", "dealer"], [opsCookie, "/ops", "ops"]] as const) {
+    const c = await browser.newContext({ viewport: { width, height: 520 } });
+    const [k, v] = cookie.split("=");
+    await c.addCookies([{ name: k!, value: v!, url: BASE }]);
+    const p = await c.newPage();
+    await p.goto(BASE + path);
+    await p.getByRole("navigation").getByText("Application").waitFor();
+    await p.waitForTimeout(250);
+    await p.screenshot({ path: join(OUT, `14-menu-${name}-${width}.png`) });
+    console.log(`  14-menu-${name}-${width}.png`);
+    await c.close();
+  }
+}
 
 await browser.close();
 await rt.close();

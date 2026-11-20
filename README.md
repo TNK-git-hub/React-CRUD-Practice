@@ -121,13 +121,22 @@ dealer (Alex Tan) and Ops (Priya Nair, private window). "Phone" = a real phone, 
 link from Demo Control → Outbox. Personas on the simulated Singpass login: `F4440488P` HENG SHI ZHENG (hirer of "Fill
 sample"), `G4440425M` RAJESH KUMAR (its guarantor) and 7 others.
 
-**Demo buttons (D-50).** A "Demo: see …" button always opens the application you are looking at, in the other role:
-"Demo: see the Ops view" on the dealer's Application Status signs this browser in as Ops (Priya Nair) and opens the
-same application; "Demo: see the dealer's view" on the Ops details (and on the customer's Done page) signs in as Alex
-Tan and opens it as the dealer (shown only for Demo Motors applications); "Demo: see what the hirer gets" on Interest
-Received opens this application's hirer link in a new tab. To jump to a sample in a given state, use **Demo Control →
-Open a sample**: each button names the state and the ref, e.g. "Open sample: IPA issued, guarantor pending
-(VMAF-2026-05117)".
+**Demo buttons (D-50, D-59).** A "Demo: see …" button only switches the signed-in role and opens the application you
+are looking at, in the other role; it never creates or changes data:
+
+- "Demo: see the Ops view" (dealer's Application Status) → signs this browser in as Ops (Priya Nair), same application.
+- "Demo: see the dealer's view" (Ops details, and the customer's Done page) → signs in as Alex Tan, same application.
+  Shown only for Demo Motors applications submitted by a dealer (hidden for Sample Auto, or an application keyed in by
+  Ops).
+- "Demo: see what the hirer gets" (Interest Received) → opens the hirer's **current** link through `/verify` in a new
+  tab, exactly as the customer would. **This counts as the customer opening the link**: the link becomes OPENED and the
+  Ops activity log shows "Customer opened the link" (once), as in the real scenario. If the hirer has no link to open
+  (queued, already fulfilled, expired, NRIC mismatch), nothing opens and a short notice says why.
+
+Sample applications exist only after **Demo Control → Create sample applications**; nothing else creates them. To jump
+to a sample in a given state, use **Demo Control → Open a sample**: each button names the state and the ref, e.g. "Open
+sample: IPA issued, guarantor pending (VMAF-2026-05117)", and is disabled with "Create sample applications first" until
+the samples exist.
 
 ### 5.1 Happy path (~3 min)
 

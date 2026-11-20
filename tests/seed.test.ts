@@ -48,12 +48,13 @@ test("D-29 sample data only uses the Singpass test personas' NRICs", async () =>
   for (const m of json.matchAll(/[STFGM]\d{7}[A-Z]/g)) assert.ok(allowed.has(m[0]), `${m[0]} found in sample data`);
 });
 
-test("D-50 demo shortcuts open a sample application in the right state (creating the samples if missing)", async () => {
+test("D-50 demo shortcuts open a sample application in the right state (D-59: only after Create sample applications)", async () => {
   const h = harness();
-  assert.equal(h.db.applications.length, 0);
+  await h.service.seedSamples(); // D-59: the shortcuts no longer create samples on demand
+  const count = h.db.applications.length;
 
   const hirerView = await h.service.demoShortcut("hirer-view");
-  assert.ok(h.db.applications.length >= 6, "samples created on demand");
+  assert.equal(h.db.applications.length, count, "a shortcut creates nothing");
   const found = h.service.findByPortalToken(hirerView.url.split("/verify/")[1]!)!;
   assert.equal(hirerView.url, `/verify/${currentLink(found.party).portalToken}`);
   assert.equal(found.party.role, "hirer");

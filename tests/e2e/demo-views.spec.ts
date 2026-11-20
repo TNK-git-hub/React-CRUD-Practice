@@ -71,7 +71,11 @@ test("Demo Control: sample shortcuts name their state and ref, and open that sam
   await signIn(page, /Alex Tan/);
   await page.request.post("/api/demo/reset");
   await page.goto("/demo");
-  await expect(page.getByText(/No sample in this state/).first()).toBeVisible();
+  // D-59: no sample yet → every "Open sample" is disabled, with the hint; nothing is created by looking
+  const samples = page.locator(".samples button");
+  await expect(samples).toHaveCount(3);
+  for (const b of await samples.all()) await expect(b).toBeDisabled();
+  await expect(page.getByText("Create sample applications first")).toHaveCount(3);
   await page.getByRole("button", { name: "Create sample applications" }).click();
   await page.getByRole("button", { name: "Open sample: IPA issued, guarantor pending (VMAF-2026-05117)" }).click();
   await expect(page).toHaveURL(/\/ops\/applications\/VMAF-2026-05117$/);
@@ -119,4 +123,52 @@ test("Ops list: search (name, plate, ref, exact NRIC) and the two filters", asyn
   await page.reload();
   await expect(page.getByLabel("Filter by status:")).toHaveValue("Approved — AA");
   await expect(refs).toHaveText(["VMAF-2026-05115"]);
+});
+
+test("D-59 demo buttons never create sample applications: reset → one application → back and forth → one row", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signIn(page, /Alex Tan/);
+  await page.request.post("/api/demo/reset");
+  const ref = ((await (await page.request.post("/api/applications", { data: application })).json()) as { ref: string }).ref;
+  const outboxSize = async () => ((await (await page.request.get("/api/demo/outbox")).json()) as Message[]).length;
+  const sent = await outboxSize();
+
+  for (let i = 0; i < 3; i++) {
+    await page.goto(`/dealer/applications/${ref}`);
+    await page.getByRole("button", { name: /Demo: see the Ops view/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/ops/applications/${ref}$`));
+    await expect(page.getByText("Singpass Status")).toBeVisible();
+    await page.getByRole("button", { name: /Demo: see the dealer's view/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/dealer/applications/${ref}$`));
+    await expect(page.getByText("Pending Singpass Verification")).toBeVisible();
+    await page.goto(`/dealer/received/${ref}`);
+    const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("button", { name: /Demo: see what the hirer gets/ }).click()]);
+    await expect(tab).toHaveURL(/\/verify\//);
+    await expect(tab.getByText(ref)).toBeVisible();
+    await tab.close();
+  }
+  await page.goto("/demo");
+  await expect(page.getByText("Create sample applications first")).toHaveCount(3);
+
+  await page.request.post("/api/session", { data: { userId: "u-priya" } });
+  await page.goto("/ops");
+  await expect(page.locator("table.list-ops tbody td.ref")).toHaveText([ref]);
+  expect(await outboxSize()).toBe(sent);
+  const activity = ((await (await page.request.get(`/api/applications/${ref}`)).json()) as { activity: Array<{ text: string }> }).activity;
+  expect(activity.filter((e) => e.text === "Customer opened the link")).toHaveLength(1);
+});
+
+test("D-59 'see what the hirer gets' opens nothing when the hirer has no current link, and says so", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await signIn(page, /Alex Tan/);
+  await page.request.post("/api/demo/reset");
+  await page.request.post("/api/demo/gateway", { data: { available: false } }); // the link stays QUEUED
+  const ref = ((await (await page.request.post("/api/applications", { data: application })).json()) as { ref: string }).ref;
+  await page.goto(`/dealer/received/${ref}`);
+  let opened = false;
+  page.context().on("page", () => (opened = true));
+  await page.getByRole("button", { name: /Demo: see what the hirer gets/ }).click();
+  await expect(page.locator("#toast")).toContainText("no link to open");
+  expect(opened).toBe(false);
+  await page.request.post("/api/demo/gateway", { data: { available: true } });
 });

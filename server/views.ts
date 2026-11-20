@@ -7,7 +7,7 @@ import type { MyinfoPerson } from "./personas.ts";
 import { checkAa } from "./verification/approval.ts";
 import { currentLink } from "./verification/model.ts";
 import type { Application, AuditEvent, Party } from "./verification/model.ts";
-import { DEALERS } from "./verification/users.ts";
+import { DEALERS, USERS } from "./verification/users.ts";
 import type { User } from "./verification/users.ts";
 
 export function partyStatusLabel(party: Party): string {
@@ -181,6 +181,9 @@ export function applicationView(app: Application, ctx: ViewContext, audit: reado
     createdById: app.createdById,
     createdAt: app.createdAt,
     dealerId: app.dealerId,
+    /** D-59: the demo dealer user who may see this application, for "Demo: see the dealer's view"; null when another
+     * dealer owns it or Ops keyed it in (manual entry). */
+    dealerUserId: USERS.some((u) => u.id === app.createdById && u.kind === "ops") ? null : (USERS.find((u) => u.kind === "dealer" && u.dealerId === app.dealerId)?.id ?? null),
     ltaCodeMasked: maskAccessCode(app.ltaCode),
     carPlate: app.carPlate,
     stage: app.stage,

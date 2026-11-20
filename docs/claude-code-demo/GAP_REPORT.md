@@ -179,3 +179,60 @@ Test viết trước (đỏ rồi mới xanh): `tests/prototype-alignment.test.t
 che LTA code, tìm kiếm / lọc / NRIC khớp đúng, hồ sơ đại lý cho Dealer Declaration, nhãn lối tắt Demo Control),
 `tests/e2e/demo-views.spec.ts` (nút chuyển góc nhìn giữ đúng hồ sơ, lối tắt Demo Control, tìm kiếm / lọc trên giao
 diện), `tests/e2e/main-flow.spec.ts` (3 ô tick, khung Dealer Declaration chỉ đọc, bước cuối "Approved — AA").
+
+## 9. Menu trái, căn hàng, và việc tạo hồ sơ mẫu ngầm (2026-11-20)
+
+Quyết định: D-59, D-60. Ảnh trước: `screens/menu-before/`; sau: `screens/14-menu-{dealer,ops}-{1280,1440}.png`.
+
+### 9.1 Menu trái
+
+Lỗi: ô đang chọn là khối bo tròn thụt vào 12 px, chữ lệch so với FINANCE / SUPPORT; "Home" sáng ở My Applications;
+trang Ops không có menu (prototype fig. 2.3 có). Sửa (D-60): một khoảng thụt chung (`--side-x` = 20 px) cho tiêu đề nhóm và
+mục; mục đang chọn là dải kéo hết chiều ngang, nền hồng nhạt, vạch đỏ 3 px vẽ bằng `inset box-shadow` (không đẩy chữ),
+không bo góc, chữ đỏ đậm; mỗi mục cao 40 px; hover xám nhạt, nhẹ hơn trạng thái đang chọn; focus có viền đỏ.
+
+| Route | Trang | Mục sáng |
+|---|---|---|
+| `/dealer/apply` | Quick Apply (bước 1) | Application |
+| `/dealer/review` | Review & Submit | Application |
+| `/dealer/received/{ref}` | Interest Received | Application |
+| `/dealer/applications` | My Applications | Application (trước: **Home**, sai) |
+| `/dealer/applications/{ref}` | Application Status | Application |
+| `/ops` | Ops — All Applications | Application (trước: không có menu) |
+| `/ops/applications/{ref}` | Ops Application Details | Application |
+| `/ops/expired` | Expired Singpass links | Application |
+| `/demo`, `/login`, `/verify/…`, `/gateway/…` | Demo Control, đăng nhập, trang khách | không có menu |
+| — | Home, Account, Document Centre, Contact Us | luôn mờ (không có trong demo; UI-01/02 là [FULL]) |
+
+Menu "Application" mở My Applications (dealer) hoặc Ops — All Applications. My Applications có thêm nút "+ Quick Apply via
+Singpass" (chữ của prototype) vì menu không còn trỏ thẳng vào form.
+
+### 9.2 Rà căn hàng các trang khác (1280 và 1440 px)
+
+| Trang | Quan sát | Xử lý |
+|---|---|---|
+| Ops — All Applications | Thêm menu thì vùng nội dung hẹp đi 232 px; bảng 10 cột tràn 254 px ở 1280 px (cột ACTIONS bị che) | **Sửa** không đổi bố cục: tiêu đề cột được xuống dòng, mã hồ sơ chỉ ngắt trước số chạy (`VMAF-2026-` / `05123`), ngày tạo ngắt giữa ngày và giờ, ô người và đại lý hẹp hơn, chip trạng thái được xuống dòng, padding ô 6 px. Không còn tràn ở 1280 / 1440 px (ở 1024 px bảng cuộn ngang trong khung, như bảng dealer trước đây) |
+| Ops Application Details | Cột chính hẹp lại; email bị cắt giữa chữ ("guarantor@example.c om") | **Sửa**: từ 1200 đến 1439 px các khối Applicant / Guarantor / Vehicle / Application Info hiện 2 trường mỗi hàng |
+| Header ↔ menu | Dấu chấm của logo và chữ menu cùng thẳng x = 24 px | Không cần sửa |
+| Tiêu đề trang, khối, bảng (dealer: Quick Apply, Review, Interest Received, Status, My Applications; Ops: list, details, expired) | Tiêu đề, dòng mô tả, thẻ và bảng thẳng mép trái của vùng nội dung | Không cần sửa |
+| Quick Apply, khung Guarantor Details | Cột NRIC trong khung lồng lệch 9 px so với cột NRIC của hirer (lưới 12 cột trong khung có padding) | Giữ: đổi thì phải bỏ khung lồng (đổi bố cục) |
+| Demo Control | Không có menu (trang của người trình diễn) | Giữ |
+
+### 9.3 Chỗ tạo hồ sơ mẫu (seed)
+
+Rà toàn bộ `server/`, `public/`, `scripts/`, `tests/` tìm `seedSamples`, `/api/demo/seed`, `ensureSample`, `createSample`,
+`demoShortcut` (không có `ensureSample` / `createSample`).
+
+| File | Hàm / route | Ai gọi | Trước | Sau |
+|---|---|---|---|---|
+| `server/verification/service.ts` | `seedSamples()` | route `POST /api/demo/seed` | tạo 6 hồ sơ mẫu | **giữ** (nguồn duy nhất) |
+| `server/runtime.ts` | `POST /api/demo/seed` | nút Demo Control "Create sample applications" (`public/app.js`), `scripts/screenshots.ts`, test | gọi `seedSamples` | **giữ** |
+| `server/verification/service.ts` | `demoShortcut()` | route `GET /api/demo/shortcut/:kind` ← nút "Open sample" (Demo Control). Ở bản trước `79b6b76` còn được gọi từ "Demo: see the Ops view", "Demo: see what the hirer gets" và "Demo: see the dealer's view" | **gọi `seedSamples()` khi không có mẫu ở trạng thái đó** (một GET sinh 6 hồ sơ) | **gỡ**: không tạo gì, trả 409 kèm gợi ý (D-59) |
+| `server/verification/service.ts` | `demoShortcutList()` | `GET /api/demo/shortcuts` ← Demo Control | chỉ đọc | chỉ đọc, thêm `hint` |
+| `public/app.js` | `bindShortcuts()` | nút "Open sample" | gọi `GET /api/demo/shortcut/:kind` | giữ; nút bị vô hiệu khi chưa có mẫu |
+| `tests/seed.test.ts`, `tests/*.test.ts`, `tests/e2e/*.spec.ts` | `seedSamples()`, `POST /api/demo/seed` | test | — | giữ. Test cũ "creating the samples if missing" kiểm tra đúng hành vi bị bỏ: đổi tiền đề (gọi seed trước) và khẳng định lối tắt không tạo thêm gì |
+
+Test viết trước (đỏ rồi xanh): `tests/no-hidden-seed.test.ts` (đếm hồ sơ, link, outbox, audit trước / sau mọi lối tắt và
+lần chuyển vai; đúng 1 sự kiện "opened" khi mở link hirer; `dealerUserId` null cho đại lý khác và hồ sơ Ops nhập tay),
+`tests/e2e/demo-views.spec.ts` (Reset → 1 hồ sơ → bấm qua lại dealer / Ops / hirer 3 vòng → danh sách Ops đúng 1 dòng,
+outbox không đổi; "Open sample" bị vô hiệu trước khi tạo mẫu; hirer không có link thì không mở gì).

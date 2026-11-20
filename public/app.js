@@ -167,7 +167,7 @@ function bindSwitchView(app) {
   $app.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", async () => {
     try {
       const users = await demoUsers();
-      const to = b.dataset.switch === "ops" ? users.find((u) => u.kind === "ops") : users.find((u) => u.kind === "dealer" && u.dealerId === app.dealerId);
+      const to = b.dataset.switch === "ops" ? users.find((u) => u.kind === "ops") : users.find((u) => u.id === app.dealerUserId);
       if (!to) return toast("No demo dealer user for this application", true);
       await actAs(to.id);
       go(`/${to.kind === "ops" ? "ops" : "dealer"}/applications/${app.ref}`);
@@ -321,21 +321,28 @@ function header() {
   </header>`;
 }
 
-function dealerShell(active, inner) {
-  const item = (href, label, key) => `<a href="${href}" data-go${active === key ? ' class="on" aria-current="page"' : ""}>${label}</a>`;
+// Left menu of the prototype (fig. 2.2, 2.3), the same for dealer and Ops. Only "Application" is a page in the demo:
+// every dealer / Ops page belongs to it (the designs mark "Application" on Quick Apply, Review and Status). Home,
+// Account, Document Centre and Contact Us are not built (UI-01 / UI-02 are [FULL]) and are shown disabled.
+// Route → menu: GAP_REPORT.md §9.
+function menuShell(kind, inner) {
+  const href = kind === "ops" ? "/ops" : "/dealer/applications";
+  const off = (label) => `<span class="item off" aria-disabled="true" title="Not in this demo">${label}</span>`;
   return `${header()}<div class="layout">
-    <nav class="side" aria-label="Dealer menu">
+    <nav class="side" aria-label="${kind === "ops" ? "Ops" : "Dealer"} menu">
       <span class="cap">FINANCE</span>
-      ${item("/dealer/applications", "Home", "list")}
-      ${item("/dealer/apply", "Application", "apply")}
-      <span class="item off" aria-disabled="true">Account</span>
+      ${off("Home")}
+      <a href="${href}" data-go class="on" aria-current="page">Application</a>
+      ${off("Account")}
       <span class="cap">SUPPORT</span>
-      <span class="item off" aria-disabled="true">Document Centre</span>
-      <span class="item off" aria-disabled="true">Contact Us</span>
+      ${off("Document Centre")}
+      ${off("Contact Us")}
     </nav>
-    <main class="main">${inner}</main>
+    <main class="main${kind === "ops" ? " wide" : ""}">${inner}</main>
   </div>`;
 }
+const dealerShell = (inner) => menuShell("dealer", inner);
+const opsShell = (inner) => menuShell("ops", inner);
 
 function bindCommon() {
   document.getElementById("realtime")?.addEventListener("click", async () => {
@@ -414,7 +421,7 @@ function draftValid(d) {
 function dealerApply() {
   state.draft ??= loadDraft();
   const d = state.draft;
-  $app.innerHTML = dealerShell("apply", `
+  $app.innerHTML = dealerShell(`
     ${stepsBar(1)}
     <section class="card form-card">
       <div class="card-head">
@@ -515,7 +522,7 @@ function dealerReview() {
   const u = state.user;
   const ro = (label, value) => `<label class="field">${label}<input class="input" value="${esc(value ?? "")}" readonly></label>`;
   const tick = (id, text) => `<label class="check"><input type="checkbox" id="${id}" ${d[id] ? "checked" : ""}><span>${text}</span></label>`;
-  $app.innerHTML = dealerShell("apply", `
+  $app.innerHTML = dealerShell(`
     ${stepsBar(3)}
     <section class="card">
       <h2>Singpass requests</h2>
@@ -590,7 +597,7 @@ function dealerReview() {
 async function dealerReceived(ref) {
   const app = await api("GET", `/api/applications/${ref}`);
   const hirer = app.parties.find((p) => p.role === "hirer");
-  $app.innerHTML = dealerShell("apply", `
+  $app.innerHTML = dealerShell(`
     <section class="card hero">
       <div class="okcircle">${icon("check", "xl")}</div>
       <h1 class="page-title">Interest Received</h1>
@@ -608,20 +615,25 @@ async function dealerReceived(ref) {
         <a class="btn" href="/dealer/apply" data-go>Submit Another</a>
         <a class="btn" href="/dealer/applications" data-go>Go to My Applications${icon("arrow-right")}</a>
         <a class="btn" href="/dealer/applications/${esc(app.ref)}" data-go>View Application Status</a>
-        ${hirer.linkUrl
-          ? `<a class="btn primary" href="${esc(hirer.linkUrl)}" target="_blank" rel="noopener" role="button">Demo: see what the hirer gets${icon("external")}</a>`
-          : `<button class="btn primary" type="button" disabled title="The hirer's link is queued until the gateway is reachable">Demo: see what the hirer gets${icon("external")}</button>`}
+        <button class="btn primary" type="button" id="hirer-view">Demo: see what the hirer gets${icon("external")}</button>
       </div>
     </section>`);
   bindCommon();
+  // D-59: open the hirer's CURRENT link through /verify, exactly as the customer would (it counts as opened);
+  // with no current link to open, open nothing and say why.
+  document.getElementById("hirer-view").addEventListener("click", () => {
+    if (hirer.linkUrl && ["SENT", "OPENED"].includes(hirer.linkStatus)) return window.open(hirer.linkUrl, "_blank", "noopener");
+    const why = { QUEUED: "the link is queued until the Singpass gateway is reachable", FULFILLED: "they have already shared their details", EXPIRED: "the link has expired", MISMATCH: "NRIC mismatch, Ops is following up" }[hirer.linkStatus] ?? "there is no current link";
+    toast(`The hirer has no link to open: ${why}`, "info");
+  });
 }
 
 // ---------------- dealer: My Applications (minimal) ----------------
 async function dealerList() {
   const load = async () => {
     const apps = await api("GET", "/api/applications");
-    $app.innerHTML = dealerShell("list", `
-      <div><h1 class="page-title">My Applications</h1><p class="page-sub">Applications submitted by ${esc(state.user.org)}.</p></div>
+    $app.innerHTML = dealerShell(`
+      <div class="page-head"><div><h1 class="page-title">My Applications</h1><p class="page-sub">Applications submitted by ${esc(state.user.org)}.</p></div><a class="btn primary" href="/dealer/apply" data-go>+ Quick Apply via Singpass</a></div>
       <div class="tablebox"><table class="list list-dealer"><thead><tr><th>APPLICATION NO.</th><th>HIRER</th><th>GUARANTOR</th><th>SINGPASS</th><th>SUBMITTED</th><th>STATUS</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
       ${apps.length ? apps.map((a) => `<tr><td class="ref">${esc(a.ref)}</td><td>${esc(a.parties[0].name)}</td><td>${esc(a.parties[1]?.name ?? "—")}</td>
         <td>${singpassCount(a)}</td><td class="nowrap num">${fmt(a.createdAt)}</td><td>${statusChip(a.opsStatus)}</td>
@@ -665,7 +677,7 @@ async function dealerStatus(ref) {
     const app = await api("GET", `/api/applications/${ref}`);
     const changed = new Set(prev ? app.parties.filter((p) => prev[p.id] !== undefined && prev[p.id] !== p.status).map((p) => p.id) : []);
     const resendable = app.createdById === state.user.id && app.stage !== "AA" && app.parties.some((p) => ["Pending", "Expired", "NRIC mismatch", "Queued"].includes(p.status));
-    $app.innerHTML = dealerShell("apply", `
+    $app.innerHTML = dealerShell(`
       <div>
         <h1 class="page-title"><a class="title-link" href="/dealer/applications" data-go>${icon("arrow-left", "lg")}Application Details</a></h1>
         <p class="page-sub num">${esc(app.ref)} · Submitted ${fmtDay(app.createdAt)} · Personal — Hire Purchase Loan (PARF / COE) — Quick Apply</p>
@@ -711,13 +723,19 @@ function partyStatusText(p) {
 // a person in a list cell: name, then masked NRIC and Singpass status (each kept on one line)
 const partyCell = (p) => `<div class="pcell"><span class="pname">${esc(p.name)}</span><span class="pmeta"><span class="num nowrap">${esc(p.nricMasked)}</span>${partyStatusText(p)}</span></div>`;
 
+// "VMAF-2026-05123" may break only before the running number (never at the other hyphens)
+const refWrap = (ref) => {
+  const m = /^(.*-)(\d+)$/.exec(ref);
+  return m ? `<span class="nowrap">${esc(m[1])}</span><wbr><span class="nowrap">${esc(m[2])}</span>` : esc(ref);
+};
+
 async function opsList() {
   let flashRef = null;
   const params = new URLSearchParams(location.search);
   const f = { q: params.get("q") ?? "", singpass: params.get("singpass") ?? "all", status: params.get("status") ?? "all" };
   const statuses = ["Pending", "Credit Review", "Approved — IPA", "Approved — AA", "Declined"];
   const opt = (value, label, cur) => `<option value="${esc(value)}"${value === cur ? " selected" : ""}>${esc(label)}</option>`;
-  $app.innerHTML = `${header()}<main class="wrap">
+  $app.innerHTML = opsShell(`
     <div class="page-head">
       <div><h1 class="page-title">Ops — All Applications</h1><p class="page-sub">All loan applications across every dealer — Ops review queue.</p></div>
       <div class="row"><a class="btn" href="/ops/expired" data-go id="expired-btn">${icon("clock")}Expired links</a><a class="btn quiet" href="/demo" data-go>${icon("play")}Demo Control</a></div>
@@ -730,7 +748,7 @@ async function opsList() {
     </div>
     <div class="tablebox"><table class="list list-ops"><thead><tr><th>APPLICATION NO.</th><th class="wrap-th">APPLICATION DATE</th><th>DEALER NAME</th><th>HIRER NAME</th><th>GUARANTOR</th><th class="wrap-th">CAR PLATE NO.</th><th class="wrap-th">SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th class="actions">ACTIONS</th></tr></thead><tbody id="rows"></tbody></table></div>
     <p class="live small">The hirer and guarantor each show their own Singpass status, updated live.</p>
-  </main>`;
+  `);
   bindCommon();
   const filtered = () => f.q.trim() || f.singpass !== "all" || f.status !== "all";
   const load = async () => {
@@ -742,11 +760,11 @@ async function opsList() {
     document.getElementById("rows").innerHTML = apps.length ? apps.map((a) => {
       const h = a.parties.find((p) => p.role === "hirer");
       const gs = a.parties.filter((p) => p.role === "guarantor");
-      return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td class="ref">${esc(a.ref)}</td><td class="num date">${fmtDay(a.createdAt)}</td><td class="dealer">${esc(a.dealer)}</td>
+      return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td class="ref">${refWrap(a.ref)}</td><td class="num date">${fmtDay(a.createdAt)}</td><td class="dealer">${esc(a.dealer)}</td>
         <td>${partyCell(h)}</td>
         <td>${gs.length ? gs.map(partyCell).join("") : '<span class="muted">—</span>'}</td>
         <td class="nowrap">${a.carPlate ? esc(a.carPlate) : '<span class="muted">—</span>'}</td><td>${singpassCount(a)}</td>
-        <td class="nowrap">${esc(a.createdBy)}<span class="sub">${fmt(a.createdAt)}</span></td>
+        <td class="created">${esc(a.createdBy)}<span class="sub">${fmt(a.createdAt).split(" ").map((x) => `<span class="nowrap">${x}</span>`).join(" ")}</span></td>
         <td>${statusChip(a.opsStatus)}</td>
         <td class="actions"><a class="btn sm icon-only" href="/ops/applications/${esc(a.ref)}" data-go aria-label="View ${esc(a.ref)}" title="View">${icon("eye")}</a></td></tr>`;
     }).join("") : `<tr><td colspan="10" class="empty">${filtered() ? "No application matches the search or filters." : "No applications. Submit one as the dealer, or create sample applications in Demo Control."}</td></tr>`;
@@ -841,7 +859,7 @@ function bindResend(ref, after) {
 async function opsExpired() {
   const load = async () => {
     const rows = await api("GET", "/api/links/expired");
-    $app.innerHTML = `${header()}<main class="wrap">
+    $app.innerHTML = opsShell(`
       <a class="back-link" href="/ops" data-go>${icon("arrow-left")}All Applications</a>
       <div><h1 class="page-title">Expired Singpass links</h1><p class="page-sub">People whose current link expired without a result. Resend to issue a new link.</p></div>
       <div class="tablebox"><table class="list list-expired"><thead><tr><th>APPLICATION NO.</th><th>PERSON</th><th>EXPIRED</th><th>NEXT RESEND</th><th class="actions">ACTIONS</th></tr></thead><tbody>
@@ -849,7 +867,7 @@ async function opsExpired() {
         <td>${r.resendRetryAt ? `<span class="st wait">from ${fmt(r.resendRetryAt)}</span>` : '<span class="st ok">now</span>'}</td>
         <td class="actions"><button class="btn sm" type="button" data-resend="${esc(r.partyId)}" data-ref="${esc(r.ref)}" data-label="${esc(r.label)}" ${r.resendRetryAt ? "disabled" : ""}>${icon("send")}Resend link</button></td></tr>`).join("") : `<tr><td colspan="5" class="empty">No expired links.</td></tr>`}
       </tbody></table></div>
-    </main>`;
+    `);
     bindCommon();
     bindResend(null, load);
   };
@@ -874,14 +892,14 @@ async function opsDetail(ref) {
     const app = await api("GET", `/api/applications/${ref}`);
     const h = app.parties.find((p) => p.role === "hirer");
     const gs = app.parties.filter((p) => p.role === "guarantor");
-    // the dealer's view only for an application of the demo dealer user
-    const dealerView = (await demoUsers()).some((u) => u.kind === "dealer" && u.dealerId === app.dealerId);
+    // D-59: the dealer's view only for an application of the demo dealer, submitted by a dealer (not keyed in by Ops)
+    const dealerView = Boolean(app.dealerUserId);
     const canIpa = app.stage === "Submitted";
     const canAaStage = app.stage === "Submitted" || app.stage === "IPA";
     if (selected === "IPA" && !canIpa && canAaStage) selected = "AA";
     const aaBlocked = !app.aaCheck.ready; // the server's own AA check
     const applyDisabled = selected === "IPA" ? !canIpa : !canAaStage || aaBlocked;
-    $app.innerHTML = `${header()}<main class="wrap">
+    $app.innerHTML = opsShell(`
       <a class="back-link" href="/ops" data-go>${icon("arrow-left")}All Applications</a>
       <div class="detail-head"><h1 class="page-title">Application Details</h1><span class="ref-badge"><b class="num">${esc(app.ref)}</b></span>${statusChip(app.opsStatus)}
         ${dealerView ? `<button class="btn sm quiet" type="button" data-switch="dealer">Demo: see the dealer's view${icon("arrow-right")}</button>` : ""}</div>
@@ -967,7 +985,7 @@ async function opsDetail(ref) {
           </section>
         </aside>
       </div>
-    </main>`;
+    `);
     fitDetailSide();
     bindCommon();
     bindSwitchView(app);
@@ -1059,10 +1077,10 @@ async function demoPage() {
         </section>
         <section class="card span-all">
           <h2>Open a sample</h2>
-          <p class="small muted">Sample applications in a given state, for the presenter. The "Demo: see …" buttons on a detail page always open that same application in the other role.</p>
+          <p class="small muted">Sample applications in a given state, for the presenter. Only "Create sample applications" creates them. The "Demo: see …" buttons on a detail page always open that same application in the other role.</p>
           <ul class="samples">${shortcuts.map((x) => `<li>${x.ref
             ? `<button class="btn" type="button" data-shortcut="${esc(x.kind)}">${icon(x.kind === "hirer-view" ? "external" : "arrow-right")}${esc(x.label)}</button><span class="small muted">${opens[x.kind]}</span>`
-            : `<button class="btn" type="button" disabled>${esc(x.label)}</button><span class="small muted">No sample in this state — Create sample applications (after Reset all data if needed).</span>`}</li>`).join("")}</ul>
+            : `<button class="btn" type="button" disabled>${esc(x.label)}</button><span class="small muted">${esc(x.hint)}</span>`}</li>`).join("")}</ul>
         </section>
         <section class="card span-all">
           <h2>Links</h2>
