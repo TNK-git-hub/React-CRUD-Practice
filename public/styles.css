@@ -215,6 +215,7 @@ code { font-family: var(--font-mono); font-size: .92em; }
 .btn.quiet { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.quiet:hover { background: var(--surface-3); color: var(--text); }
 .btn.sm { min-height: var(--control-h-sm); padding: 0 var(--space-3); font-size: var(--fs-sm); gap: 6px; }
+.btn.sm.icon-only { width: var(--control-h-sm); padding: 0; justify-content: center; }
 .btn.lg { min-height: var(--control-h-lg); padding: 0 var(--space-5); font-size: var(--fs-md); }
 .btn.block { width: 100%; }
 .btn:disabled, .btn[aria-disabled="true"],
@@ -465,6 +466,21 @@ html:has(.actionbar) { scroll-padding-bottom: 112px; }
 .check:hover { border-color: var(--border-strong); }
 .check:has(input:checked) { border-color: var(--accent); background: var(--surface-2); }
 .overline-title { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .08em; color: var(--text-2); }
+/* Dealer Declaration: read-only values pre-filled from the dealer's profile */
+.decl-grid > .field { grid-column: span 6; }
+@media (max-width: 640px) { .decl-grid > .field { grid-column: span 12; } }
+.input[readonly] { background: var(--surface-2); color: var(--text-2); cursor: default; }
+.input[readonly]:hover { border-color: var(--border-input); }
+.input.upper { text-transform: uppercase; }
+/* Declaration by Applicant / Guarantor(s): collapsed, "View full text" opens it */
+details.decl > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); cursor: pointer; list-style: none; }
+details.decl > summary::-webkit-details-marker { display: none; }
+details.decl > summary h2 { display: inline; }
+.decl-toggle { color: var(--accent); font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; }
+.decl-toggle::before { content: "▸ "; }
+details.decl[open] .decl-toggle::before { content: "▾ "; }
+.decl-text { margin-top: var(--space-3); color: var(--text-2); line-height: 1.6; }
+.decl-text ol { margin: var(--space-2) 0 var(--space-3); padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-1); }
 
 /* ---------- dealer: Interest Received ---------- */
 .hero { align-items: center; text-align: center; padding: var(--space-7) var(--space-6); gap: var(--space-4); }
@@ -498,6 +514,9 @@ html:has(.actionbar) { scroll-padding-bottom: 112px; }
 .tracker .bullet { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--border-strong); background: var(--surface); color: var(--text-muted); }
 .tracker li.done .bullet { background: var(--success-dot); border-color: var(--success-dot); color: var(--on-brand); }
 .tracker li.current .bullet { background: var(--warning-bg); border-color: var(--warning-dot); color: var(--warning-fg); }
+.tracker li.bad .bullet { background: var(--danger-bg); border-color: var(--danger-dot); color: var(--danger-fg); }
+.tracker li.bad b { color: var(--danger-fg); }
+.tracker .tk-body > div:last-child:not(.chips) { margin-top: var(--space-2); }
 .tk-body { display: flex; flex-direction: column; gap: 2px; padding-top: 3px; min-width: 0; }
 .tracker b { font-size: var(--fs-md); font-weight: 600; }
 .tracker li.todo b { color: var(--text-muted); font-weight: 500; }
@@ -513,6 +532,12 @@ html:has(.actionbar) { scroll-padding-bottom: 112px; }
 /* ---------- Ops: page head, list ---------- */
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4); }
 table.list-ops { min-width: 1040px; }
+table.list-ops td.date { min-width: 64px; }
+/* search and filters above the Ops list (UI-15) */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.filters #search { flex: 1 1 320px; max-width: 440px; }
+.filters .select { width: auto; min-width: 200px; }
+.filter-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
 table.list-ops th, table.list-ops td { padding-left: var(--space-2); padding-right: var(--space-2); }
 table.list-ops th:first-child, table.list-ops td:first-child { padding-left: var(--space-4); }
 table.list-ops th:last-child, table.list-ops td:last-child { padding-right: var(--space-4); }
@@ -530,12 +555,11 @@ table.list tr.flash { animation: flash 1.6s ease-out; }
 .detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .detail { display: flex; flex-direction: column; gap: var(--space-5); }
 .detail-main, .detail-side { display: contents; }
+/* one column below 1200 px: Applicant, Singpass Status, Change Status, then the rest in page order (UI-16) */
+.detail-main > * { order: 4; }
 .d-info { order: 1; }
 .d-singpass { order: 2; }
-.d-activity { order: 3; }
-.d-myinfo { order: 4; }
-.d-vehicle { order: 5; }
-.d-change { order: 6; }
+.d-change { order: 3; }
 @media (min-width: 1200px) {
   .detail { display: grid; grid-template-columns: minmax(0, 1fr) 392px; align-items: start; gap: var(--space-5); }
   .detail-main, .detail-side { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
@@ -700,6 +724,8 @@ html:has(.gw-actions) { scroll-padding-bottom: 96px; }
 .ctl-row .row { gap: var(--space-2); }
 .ctl-row .ic { color: var(--text-muted); }
 .tablebox.flat { box-shadow: none; }
+.samples { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.samples li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 table.list-links { min-width: 640px; }
 .inline-link { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; font-size: var(--fs-sm); }
 .sep { margin: 0 var(--space-2); color: var(--text-muted); }

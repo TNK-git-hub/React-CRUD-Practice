@@ -14,7 +14,7 @@ import { checkAa } from "./approval.ts";
 import type { AaUnmet } from "./approval.ts";
 import type { Db } from "./db.ts";
 import { ACTIVE_LINK_STATUSES, MAX_GUARANTORS, currentLink, isCurrent, validateParty } from "./model.ts";
-import type { Application, ApplicationInput, AuditType, IssueReason, Party, PartyInput, Role, VerificationLink } from "./model.ts";
+import type { Application, ApplicationInput, AuditType, IssueReason, LinkStatus, Party, PartyInput, Role, VerificationLink } from "./model.ts";
 import { DEALERS } from "./users.ts";
 import type { Actor } from "./users.ts";
 
@@ -666,34 +666,69 @@ export class VerificationService {
   }
 
   /**
-   * D-50: the design's "Demo: see …" buttons open a sample application in the matching state (samples are created if
-   * missing). hirer-view: the hirer's portal page of a pending link; ops-view: IPA issued, AA still locked; dealer-view:
-   * the sample dealer's application where the hirer has just shared their details.
+   * D-50 (changed 2026-11-20): Demo Control's "Open sample" shortcuts open a sample application in a given state (the
+   * samples are created if missing). hirer-view: the hirer's portal page of a pending link; ops-view: IPA issued, AA
+   * still locked; dealer-view: the sample dealer's application where the hirer has shared their details and someone
+   * is still pending. The detail pages no longer open samples: their "Demo: see …" buttons open the same application.
    */
-  async demoShortcut(kind: "hirer-view" | "ops-view" | "dealer-view"): Promise<{ ref: string; url: string; userId?: string }> {
-    const samples = () => this.db.applications.filter((a) => /^VMAF-2026-0511[4-9]$/.test(a.ref));
+  async demoShortcut(kind: DemoShortcutKind): Promise<{ ref: string; url: string; userId?: string }> {
+    let found = this.pickSample(kind);
+    if (!found) {
+      await this.seedSamples(); // adds the samples that are missing
+      found = this.pickSample(kind);
+    }
+    if (!found) throw new ServiceError(409, "No sample application is in that state any more. Use Demo Control → Reset all data, then try again.");
+    return { ref: found.app.ref, url: found.url, ...(found.userId ? { userId: found.userId } : {}) };
+  }
+
+  /** Demo Control: each shortcut with the state and the ref it opens now (ref null: no sample in that state). */
+  demoShortcutList(): Array<{ kind: DemoShortcutKind; ref: string | null; label: string }> {
+    // "guarantor pending", "guarantor link expired": what each person still missing is waiting for
+    const word: Partial<Record<LinkStatus, string>> = { QUEUED: "queued", SENT: "pending", OPENED: "pending", EXPIRED: "link expired", MISMATCH: "NRIC mismatch" };
+    const waitingText = (app: Application) => {
+      const groups = new Map<string, Party[]>();
+      for (const p of this.waiting(app)) {
+        const w = word[currentLink(p).status] ?? "pending";
+        groups.set(w, [...(groups.get(w) ?? []), p]);
+      }
+      return [...groups].map(([w, ps]) => `${peopleOf(ps)} ${w}`).join(", ");
+    };
+    const describe: Record<DemoShortcutKind, (app: Application) => string> = {
+      "ops-view": (app) => `IPA issued, ${waitingText(app)}`,
+      "dealer-view": (app) => `hirer fulfilled, ${waitingText(app)}`,
+      "hirer-view": () => "hirer's link pending, customer page",
+    };
+    const fallback: Record<DemoShortcutKind, string> = {
+      "ops-view": "IPA issued, AA locked",
+      "dealer-view": "hirer fulfilled, someone pending",
+      "hirer-view": "hirer's link pending, customer page",
+    };
+    return (["ops-view", "dealer-view", "hirer-view"] as const).map((kind) => {
+      const found = this.pickSample(kind);
+      return found
+        ? { kind, ref: found.app.ref, label: `Open sample: ${describe[kind](found.app)} (${found.app.ref})` }
+        : { kind, ref: null, label: `Open sample: ${fallback[kind]}` };
+    });
+  }
+
+  private waiting(app: Application): Party[] {
+    return app.parties.filter((p) => currentLink(p).status !== "FULFILLED");
+  }
+
+  private pickSample(kind: DemoShortcutKind): { app: Application; url: string; userId?: string } | null {
     const pending = (p: Party) => {
       const l = currentLink(p);
       return (l.status === "SENT" || l.status === "OPENED") && !this.isPastExpiry(l);
     };
-    const pick = () => {
-      for (const app of samples()) {
-        const hirer = app.parties[0]!;
-        if (kind === "hirer-view" && pending(hirer)) return { ref: app.ref, url: `/verify/${currentLink(hirer).portalToken}` };
-        if (kind === "ops-view" && app.stage === "IPA" && !checkAa(app).ready && app.parties.some((p) => currentLink(p).status === "FULFILLED"))
-          return { ref: app.ref, url: `/ops/applications/${app.ref}`, userId: "u-priya" };
-        if (kind === "dealer-view" && app.dealerId === "d-demo" && currentLink(hirer).status === "FULFILLED" && app.parties.some(pending))
-          return { ref: app.ref, url: `/dealer/applications/${app.ref}`, userId: "u-alex" };
-      }
-      return null;
-    };
-    let found = pick();
-    if (!found) {
-      await this.seedSamples(); // adds the samples that are missing
-      found = pick();
+    for (const app of this.db.applications.filter((a) => /^VMAF-2026-0511[4-9]$/.test(a.ref))) {
+      const hirer = app.parties[0]!;
+      if (kind === "hirer-view" && pending(hirer)) return { app, url: `/verify/${currentLink(hirer).portalToken}` };
+      if (kind === "ops-view" && app.stage === "IPA" && !checkAa(app).ready && app.parties.some((p) => currentLink(p).status === "FULFILLED"))
+        return { app, url: `/ops/applications/${app.ref}`, userId: "u-priya" };
+      if (kind === "dealer-view" && app.dealerId === "d-demo" && currentLink(hirer).status === "FULFILLED" && app.parties.some(pending))
+        return { app, url: `/dealer/applications/${app.ref}`, userId: "u-alex" };
     }
-    if (!found) throw new ServiceError(409, "No sample application is in that state any more. Use Demo Control → Reset all data, then try again.");
-    return found;
+    return null;
   }
 
   // ---------------------------------------------------------------- audit
@@ -716,6 +751,14 @@ export class VerificationService {
       details,
     });
   }
+}
+
+export type DemoShortcutKind = "hirer-view" | "ops-view" | "dealer-view";
+
+/** "guarantor", "hirer and guarantor", "guarantor 1 and guarantor 2" */
+function peopleOf(parties: readonly Party[]): string {
+  const names = parties.map((p) => p.label.toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "nobody");
 }
 
 function guarantorLabel(index: number, count: number): string {

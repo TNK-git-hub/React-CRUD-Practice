@@ -14,7 +14,8 @@ import { MockGatewayAdapter, SimulatedGateway } from "./gateway/simulated.ts";
 import { GatewayUnavailable } from "./gateway/adapter.ts";
 import { isValidNric } from "./nric.ts";
 import { PERSONAS } from "./personas.ts";
-import { applicationView, canSee } from "./views.ts";
+import { OPS_STATUS_LABELS, applicationView, canSee, matchesFilters } from "./views.ts";
+import type { ListFilters } from "./views.ts";
 import { Db } from "./verification/db.ts";
 import type { ApplicationInput, PartyInput } from "./verification/model.ts";
 import { ServiceError, VerificationService } from "./verification/service.ts";
@@ -197,7 +198,13 @@ export function createRuntime(opts: RuntimeOptions) {
   // ---- applications ----
   route("GET", "/api/applications", async (req, res) => {
     const user = requireUser(req);
-    send(res, 200, db.applications.filter((a) => canSee(user, a)).map((a) => applicationView(a, { user, key, portalUrl }, db.audit)));
+    const qs = new URL(req.url ?? "/", "http://x").searchParams;
+    const singpass = qs.get("singpass") ?? "all";
+    const status = qs.get("status") ?? "all";
+    if (singpass !== "all" && singpass !== "yes" && singpass !== "no") throw new HttpError(400, "singpass must be all, yes or no");
+    if (status !== "all" && !(OPS_STATUS_LABELS as readonly string[]).includes(status)) throw new HttpError(400, "Unknown status");
+    const filters: ListFilters = { q: qs.get("q") ?? "", singpass, status };
+    send(res, 200, db.applications.filter((a) => canSee(user, a) && matchesFilters(a, filters)).map((a) => applicationView(a, { user, key, portalUrl }, db.audit)));
   });
   route("POST", "/api/applications", async (req, res) => {
     const user = requireUser(req, "dealer");
@@ -359,6 +366,10 @@ export function createRuntime(opts: RuntimeOptions) {
   route("POST", "/api/demo/seed", async (req, res) => {
     requireUser(req);
     send(res, 200, { added: await service.seedSamples() });
+  });
+  route("GET", "/api/demo/shortcuts", async (req, res) => {
+    requireUser(req);
+    send(res, 200, service.demoShortcutList());
   });
   route("GET", "/api/demo/shortcut/:kind", async (req, res, [kind]) => {
     requireUser(req);

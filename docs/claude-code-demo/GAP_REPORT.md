@@ -129,3 +129,53 @@ README thiếu (đã bổ sung): cổng 3000 có thể đang bị chiếm trên 
 `npm run setup` là cách nhanh nhất để có `.env` với khoá mới; `npm ci` in cảnh báo `npm audit`. Không kiểm được việc
 tải Chromium lần đầu trên bản clone vì trình duyệt đã có trong cache dùng chung của máy; việc tải với
 `NODE_OPTIONS=--use-system-ca` đã được kiểm ở bước 6 trên cùng máy (máy có CA riêng).
+
+## 8. Đối chiếu với Prototype Walkthrough, màn hình [CORE] (2026-11-20)
+
+Nguồn: `docs/requirements/ui-spec-from-prototype.md` (prompt gọi là `ui-spec-prototype.md`). Phạm vi chốt: chỉ [CORE], giữ
+các điểm lệch có chủ ý ở mục 7 của spec (D-52). Quyết định: D-50 (đổi), D-52 … D-58. Ảnh: `screens/` (chạy `npm run screens`).
+
+| Màn hình | Chỗ lệch so với spec | Sửa / Giữ | Lý do |
+|---|---|---|---|
+| UI-01 Home dealer | Spec: mô tả thẻ Quick Apply nhắc "LTA auto-fill" | **Không có gì để sửa** | Demo không có trang Home dealer (menu "Home" mở My Applications); UI-01 là [FULL]. Không có chuỗi "auto-fill" nào trong app |
+| UI-04 Quick Apply | Ô LTA tên "LTA Access Code *", có dòng "The rest of the form unlocks once this is entered." | **Sửa** | Q2: bỏ dòng hứa hẹn (không có Section B/C); nhãn "Input LTA Access Code *", placeholder "e.g. A1B2C3D4" (D-53) |
+| UI-04 | Tên không tự IN HOA | **Sửa** | Spec: "text, IN HOA"; gõ thì tự in hoa, gửi lên server in hoa |
+| UI-04 | Số điện thoại không định dạng `9123 4567` | **Sửa** | Spec 1.2; tự định dạng khi rời ô, placeholder "e.g. 9123 4567" |
+| UI-04 | Tối đa 2 guarantor (prototype 1); có "Fill sample" | Giữ | Spec mục 7 (QnA A2.7); nút mẫu là công cụ trình diễn |
+| UI-04 | Nút "Next: Documents →" đi thẳng tới bước 3, thanh bước đánh dấu "Documents" đã xong | Giữ, **cần chốt** | Bước Documents là UI-07 [FULL], Q3 chưa chốt. Nếu muốn, đổi nhãn thành "Next: Review & Submit" |
+| UI-08 Review & Submit | Thiếu khung **Dealer Declaration** (4 trường) và ô tick dưới khung | **Sửa** | Q5: 4 trường chỉ đọc, điền từ hồ sơ đại lý (Demo Motors Pte Ltd, 202612345D, Alex Tan, alex.tan@demomotors.sg); thêm ô tick đúng câu UI-08 (D-54) |
+| UI-08 | Thiếu khung "Declaration by Applicant / Guarantor(s) — MAS Notice 642, …" nên câu tick 2 ("declarations above") không có gì ở trên | **Sửa** | Thêm khung, 8 điều "By the Applicant" của prototype, gập sau "View full text", ghi chú là văn bản prototype chờ bản chính thức |
+| UI-08 | Đoạn DEALER'S ATTESTATION bị rút gọn ("… receiving …") | **Sửa** | Thay bằng nguyên văn prototype (a)–(d). "ValueMax Privacy Policy" in đậm, không gắn link vì chưa có URL thật |
+| UI-08 | "Send Singpass Request" bật với 2 ô tick | **Sửa** | Q5: chỉ bật khi đủ 3 ô (e2e kiểm tra từng ô) |
+| UI-08 | Hộp thông tin nói link email thay vì "Singpass app + LTA" | Giữ | D-51, spec mục 7 |
+| UI-08 | Khung "Singpass requests" không có trong prototype | Giữ (đứng đầu) | Spec ghi nên giữ |
+| UI-09 Interest Received | Thiếu nút "Go to My Applications →" | **Sửa** | Demo có danh sách `/dealer/applications`; thêm nút cạnh "View Application Status" |
+| UI-09 | Câu "retrieving their vehicle documents via LTA" bị bỏ; có 2 thẻ link | Giữ | D-51; thẻ link là cải tiến của demo |
+| UI-09 | "Demo: see what the hirer gets" mở trang khách của **hồ sơ mẫu** | **Sửa** | Mở link hirer của **chính hồ sơ này** (tab mới), tắt khi link đang queued (D-50 đổi) |
+| UI-11 Application Status | 5 bước (… "IPA Issued", "AA") thay vì 4 bước với bước cuối đổi tên | **Sửa** | Q6: 4 bước; bước cuối "Awaiting ValueMax Decision" / "IPA Issued" / "Approved — AA" / "Application Declined" (D-55) |
+| UI-11 | Chữ phụ khác prototype ("An AA (final approval) needs every person…", "ValueMax Ops reviews the application"…) | **Sửa** | Theo bảng UI-11; "on their Singpass app" → "through the Singpass link emailed to them"; nêu đúng người còn thiếu |
+| UI-11 | Trạng thái Declined không có khối thông báo | **Sửa** | Thêm "Application Declined — Sorry, we are unable to proceed with this loan application.", không hiện lý do nội bộ |
+| UI-11 | Chip từng người, nút "Resend link", "Updates live" | Giữ | Spec mục 7, D-04 |
+| UI-11 | "Demo: see the Ops view →" mở hồ sơ mẫu 05117 thay vì hồ sơ đang xem | **Sửa (lỗi)** | Mở Ops view của chính hồ sơ, tự chuyển vai trước (D-50 đổi) |
+| UI-11 | "View IPA Notice" chỉ đổi chữ thành "out of scope" | Giữ | UI-12 là [FULL], D-48 |
+| UI-15 Ops list | Không có ô tìm kiếm, lọc "Singpass Fulfilled?", lọc trạng thái | **Sửa** | Tìm theo tên hirer / biển số / mã hồ sơ; NRIC chỉ khớp đúng và đủ, kết quả vẫn che (D-57) |
+| UI-15 | Thiếu cột APPLICATION DATE; tên cột DEALER / HIRER / CAR PLATE | **Sửa** | Thêm cột `07 Oct 2026`; đổi thành DEALER NAME, HIRER NAME, CAR PLATE NO. |
+| UI-15 | Nút "View" có chữ; thêm 1 cột thì bảng tràn ở 1280 px | **Sửa** | Nút con mắt chỉ có icon như prototype (`aria-label` "View {ref}") |
+| UI-15 | Mô tả bỏ chữ "today"; "Expired links", "Demo Control" thay "+ New Application"; NRIC che; "1 of 2" | Giữ | Spec ghi "today" là [KHÔNG RÕ]; UI-23 [FULL]; D-41; "1 of 2" vẫn tính là "No" khi lọc |
+| UI-15 | Nút ✏️ sửa, 📋 copy link | Giữ (không làm) | UI-17 [FULL]; F8 chưa rõ |
+| UI-16 Ops details | Thứ tự khối: Applicant (+ Dealer, Created by, LTA) → Activity → MyInfo → Vehicle | **Sửa** | Theo spec: Applicant → Singpass Status → Guarantor → Vehicle → Application Info → Documents → Activity (D-58) |
+| UI-16 | Thiếu Applicant Phone, khối Guarantor Info, Application Info, Relevant Document(s); Vehicle Info chỉ 3 trường | **Sửa** | Thêm đủ nhãn; trường / khối không có dữ liệu hiện "—" |
+| UI-16 | LTA Access Code hiện rõ (`DEMO01`) | **Sửa** | Proposal 3.1: che `DE****01`, server không gửi mã đầy đủ (D-53) |
+| UI-16 | Ngày sinh `2000-02-02`, tiền `SGD 84,000` trong bảng MyInfo | **Sửa** | Spec 1.2: `02 Feb 2000`, `S$ 84,000` |
+| UI-16 | Trang thay popup; 2 cột (Singpass Status + Change Status bên phải); trạng thái Singpass chi tiết; bảng MyInfo; không có FI Review | Giữ | Spec mục 7 và ghi chú UI-16; D-10, D-49. Dưới 1200 px: Applicant → Singpass Status → Change Status → phần còn lại |
+| UI-16 | Không có lối chuyển sang góc nhìn dealer của hồ sơ | **Sửa** | "Demo: see the dealer's view →" mở chính hồ sơ (chỉ khi thuộc Demo Motors; hồ sơ Sample Auto thì ẩn) |
+| UI-19 khoá AA | Prototype: đủ 3 số AA + Singpass Fulfilled; demo chỉ kiểm Singpass | Giữ | Không nhập số IPA/AA (D-11, D-48); hộp "Cannot issue AA yet" đã có |
+| UI-22 Change Status | Đặt ngay trên trang chi tiết, chỉ có "Issue IPA", "Issue AA" | Giữ | Nhãn "New Status", "Apply Status Change", "OPS ONLY" đã khớp; các lựa chọn khác là [FULL] (H1) |
+| Q8 (UI-14) | API dealer vẫn có trường `myinfo: null` | **Sửa** | Dealer không nhận trường `myinfo`; chỉ Ops (D-56) |
+| Demo Control | Lối tắt hồ sơ mẫu nằm trên trang chi tiết các hồ sơ khác | **Sửa** | Chuyển vào thẻ "Open a sample", nhãn ghi trạng thái + mã hồ sơ, tính theo dữ liệu hiện tại (D-50) |
+| Customer Done | "Demo: see the dealer's view" mở hồ sơ mẫu | **Sửa** | Mở dealer view của chính hồ sơ vừa xác thực; hồ sơ của đại lý khác thì báo lỗi |
+
+Test viết trước (đỏ rồi mới xanh): `tests/prototype-alignment.test.ts` (13 test: tracker theo trạng thái, Myinfo chỉ cho Ops,
+che LTA code, tìm kiếm / lọc / NRIC khớp đúng, hồ sơ đại lý cho Dealer Declaration, nhãn lối tắt Demo Control),
+`tests/e2e/demo-views.spec.ts` (nút chuyển góc nhìn giữ đúng hồ sơ, lối tắt Demo Control, tìm kiếm / lọc trên giao
+diện), `tests/e2e/main-flow.spec.ts` (3 ô tick, khung Dealer Declaration chỉ đọc, bước cuối "Approved — AA").

@@ -44,7 +44,7 @@ test("API main flow: submit → /verify → simulated gateway → job → both F
 
   const asDealer = await call<AppJson>(s, "GET", `/api/applications/${ref}`, dealer);
   assert.deepEqual(asDealer.json.parties.map((p) => p.status), ["Fulfilled", "Fulfilled"]);
-  assert.equal(asDealer.json.parties[0]!.myinfo, null, "dealers do not see Myinfo data");
+  assert.ok(!("myinfo" in asDealer.json.parties[0]!), "dealers do not receive Myinfo data at all (Q8)");
   assert.equal(asDealer.json.allFulfilled, true);
 });
 

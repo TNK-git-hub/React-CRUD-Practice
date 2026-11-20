@@ -121,17 +121,25 @@ dealer (Alex Tan) and Ops (Priya Nair, private window). "Phone" = a real phone, 
 link from Demo Control → Outbox. Personas on the simulated Singpass login: `F4440488P` HENG SHI ZHENG (hirer of "Fill
 sample"), `G4440425M` RAJESH KUMAR (its guarantor) and 7 others.
 
+**Demo buttons (D-50).** A "Demo: see …" button always opens the application you are looking at, in the other role:
+"Demo: see the Ops view" on the dealer's Application Status signs this browser in as Ops (Priya Nair) and opens the
+same application; "Demo: see the dealer's view" on the Ops details (and on the customer's Done page) signs in as Alex
+Tan and opens it as the dealer (shown only for Demo Motors applications); "Demo: see what the hirer gets" on Interest
+Received opens this application's hirer link in a new tab. To jump to a sample in a given state, use **Demo Control →
+Open a sample**: each button names the state and the ref, e.g. "Open sample: IPA issued, guarantor pending
+(VMAF-2026-05117)".
+
 ### 5.1 Happy path (~3 min)
 
 | Do | See | Say |
 | --- | --- | --- |
-| Dealer: Quick Apply → **Fill sample** → type the phone's email for hirer and guarantor → Next → tick both boxes → **Send Singpass Request** | "Interest Received", one link per person, expiry in 72 h | "Each person gets their own link, valid 72 hours; only one link per person is active." |
+| Dealer: Quick Apply → **Fill sample** → type the phone's email for hirer and guarantor → Next → tick the three boxes (Dealer Declaration, applicant declarations, Dealer's Attestation) → **Send Singpass Request** | "Interest Received", one link per person, expiry in 72 h | "Each person gets their own link, valid 72 hours; only one link per person is active." |
 | Dealer: **View Application Status** | tracker, both chips "Pending" | "The dealer can now leave this screen open." |
 | Phone: open the hirer's email (or Outbox link) → **Continue to Singpass** | AutoFinance first checks the link, then the grey "SIMULATED GATEWAY" pages | "The link opens our portal first: an old or expired link stops here." |
 | Phone: **Retrieve Myinfo with Singpass** → pick **HENG SHI ZHENG** → **I agree** → review tabs → **Submit Application** | "Details shared"; no redirect back | "Like the real ValueMax gateway, it does not send the customer back." |
 | Watch the dealer screen | Hirer chip turns **Fulfilled** within ~2 s, no refresh | "There is no webhook: AutoFinance polls the gateway every 2 seconds, checks the NRIC, stores the data encrypted, and pushes the change to the screens." |
 | Phone: guarantor link → **RAJESH KUMAR** → I agree → Submit | Guarantor **Fulfilled** | |
-| Ops: All Applications → View → Change Status → **Issue AA** → Apply | "Ready to issue AA", then "Approved — AA"; the dealer tracker shows AA | "The AA is locked on the server until everyone is Fulfilled." |
+| Ops: All Applications → View → Change Status → **Issue AA** → Apply | "Ready to issue AA", then "Approved — AA"; the dealer tracker's last step becomes "Approved — AA" | "The AA is locked on the server until everyone is Fulfilled." |
 
 ### 5.2 IPA before AA
 

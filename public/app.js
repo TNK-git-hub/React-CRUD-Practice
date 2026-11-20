@@ -78,6 +78,15 @@ function fmt(ms) {
   return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`;
 }
 const fmtDay = (ms) => new Date(ms).toLocaleDateString("en-GB", { timeZone: "Asia/Singapore", day: "2-digit", month: "short", year: "numeric" });
+// "2000-02-02" → "02 Feb 2000" (spec §1.2: dates as dd Mon yyyy)
+const fmtIsoDate = (iso) => (/^\d{4}-\d{2}-\d{2}$/.test(iso ?? "") ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" }) : iso || "—");
+// spec §1.2: money with thousands separators, "S$ 84,000"
+const money = (n) => `S$ ${Number(n).toLocaleString("en-SG")}`;
+// Singapore mobile shown as "9123 4567"
+const fmtPhone = (v) => {
+  const d = String(v ?? "").replace(/\s+/g, "");
+  return /^\d{8}$/.test(d) ? `${d.slice(0, 4)} ${d.slice(4)}` : String(v ?? "");
+};
 function hoursLeft(ms) {
   const h = Math.max(0, Math.ceil((ms - Date.now()) / 3_600_000));
   return `${h} h`;
@@ -141,7 +150,32 @@ function bindReveal() {
   }));
 }
 
-// D-50: the design's "Demo: see …" buttons open a sample application in the matching state. ops-view / dealer-view
+// Sign the browser in as another demo user (D-08) if it is not already that user.
+async function actAs(userId) {
+  if (state.user?.id === userId) return;
+  state.user = (await api("POST", "/api/session", { userId })).user;
+  await loadDemoClock();
+}
+async function demoUsers() {
+  state.users ??= await api("GET", "/api/users");
+  return state.users;
+}
+
+// "Demo: see the Ops view / the dealer's view" on a detail page: the SAME application in the other role (D-50 changed
+// 2026-11-20). The dealer's view exists only for an application of the demo dealer user.
+function bindSwitchView(app) {
+  $app.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      const users = await demoUsers();
+      const to = b.dataset.switch === "ops" ? users.find((u) => u.kind === "ops") : users.find((u) => u.kind === "dealer" && u.dealerId === app.dealerId);
+      if (!to) return toast("No demo dealer user for this application", true);
+      await actAs(to.id);
+      go(`/${to.kind === "ops" ? "ops" : "dealer"}/applications/${app.ref}`);
+    } catch (e) { toast(e.message, true); }
+  }));
+}
+
+// D-50: Demo Control's "Open sample" buttons open a sample application in a given state. ops-view / dealer-view
 // switch the browser to that role first; hirer-view opens the customer page in a new tab.
 function bindShortcuts() {
   document.querySelectorAll("[data-shortcut]").forEach((b) => b.addEventListener("click", async () => {
@@ -161,7 +195,7 @@ function bindShortcuts() {
 }
 
 // ---------------- state ----------------
-const state = { user: null, config: null, draft: null, refresh: null, demo: null };
+const state = { user: null, users: null, config: null, draft: null, refresh: null, demo: null };
 const emptyParty = () => ({ name: "", nric: "", email: "", mobile: "" });
 function loadDraft() {
   try {
@@ -171,7 +205,7 @@ function loadDraft() {
   return emptyDraft();
 }
 function emptyDraft() {
-  return { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), guarantor2On: false, guarantor2: emptyParty(), ltaCode: "", c1: false, c2: false };
+  return { hirer: emptyParty(), guarantorOn: false, guarantor: emptyParty(), guarantor2On: false, guarantor2: emptyParty(), ltaCode: "", c1: false, c2: false, c3: false };
 }
 function saveDraft() {
   try { sessionStorage.setItem("draft", JSON.stringify(state.draft)); } catch {}
@@ -350,10 +384,10 @@ function stepsBar(n) {
 function partyFields(prefix, p, label) {
   const hint = (key) => `<span class="hint" id="h-${prefix}-${key}" data-h="${prefix}.${key}"></span>`;
   return `<div class="fgrid">
-    <label class="field c-name">Name of ${label} *<input class="input" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"></label>
+    <label class="field c-name">Name of ${label} *<input class="input upper" data-f="${prefix}.name" value="${esc(p.name)}" autocomplete="off"></label>
     <label class="field c-nric">NRIC of ${label} *<input class="input num" data-f="${prefix}.nric" value="${esc(p.nric)}" autocomplete="off" aria-describedby="h-${prefix}-nric">${hint("nric")}</label>
     <label class="field c-email">Email Address *${prefix === "hirer" ? " (to send Singpass request)" : ""}<input class="input" type="email" data-f="${prefix}.email" value="${esc(p.email)}" aria-describedby="h-${prefix}-email">${hint("email")}</label>
-    <label class="field c-phone">Phone Number *<input class="input num" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(p.mobile)}" aria-describedby="h-${prefix}-mobile">${hint("mobile")}</label>
+    <label class="field c-phone">Phone Number *<input class="input num" inputmode="numeric" data-f="${prefix}.mobile" value="${esc(fmtPhone(p.mobile))}" placeholder="e.g. 9123 4567" aria-describedby="h-${prefix}-mobile">${hint("mobile")}</label>
   </div>`;
 }
 
@@ -400,7 +434,7 @@ function dealerApply() {
       </div>
       ${d.guarantor2On ? `<div class="subcard"><h3 class="subcard-title">Second Guarantor Details</h3>${partyFields("guarantor2", d.guarantor2, "Second Guarantor")}</div>` : ""}` : ""}
       <hr class="divider">
-      <div class="fgrid"><label class="field c-lta">LTA Access Code *<input class="input" data-f="ltaCode" value="${esc(d.ltaCode)}" aria-describedby="h-lta"><span class="hint" id="h-lta">The rest of the form unlocks once this is entered.</span></label></div>
+      <div class="fgrid"><label class="field c-lta">Input LTA Access Code *<input class="input" data-f="ltaCode" value="${esc(d.ltaCode)}" placeholder="e.g. A1B2C3D4" autocomplete="off"></label></div>
     </section>
     <div class="actionbar">
       <button class="btn" id="clear" type="button">Cancel</button>
@@ -423,15 +457,21 @@ function dealerApply() {
       }
     }
   };
-  $app.querySelectorAll("[data-f]").forEach((inp) =>
+  $app.querySelectorAll("[data-f]").forEach((inp) => {
+    const [a, b] = inp.dataset.f.split(".");
     inp.addEventListener("input", () => {
-      const [a, b] = inp.dataset.f.split(".");
+      if (b === "name") { // names in capitals, as on the NRIC (prototype UI-04)
+        const at = inp.selectionStart;
+        inp.value = inp.value.toUpperCase();
+        inp.setSelectionRange(at, at);
+      }
       if (b) d[a][b] = inp.value;
       else d[a] = inp.value;
       saveDraft();
       refreshHints();
-    }),
-  );
+    });
+    if (b === "mobile") inp.addEventListener("change", () => { inp.value = d[a][b] = fmtPhone(inp.value); saveDraft(); });
+  });
   refreshHints();
   document.getElementById("gtoggle").addEventListener("click", () => {
     d.guarantorOn = !d.guarantorOn;
@@ -472,16 +512,43 @@ function dealerReview() {
   if (!draftValid(d)) return go("/dealer/apply");
   const box = (lbl, p) => `<div class="sumbox"><span class="overline">${lbl}</span><b class="num">${esc(p.name.toUpperCase())} · ${esc(p.nric.toUpperCase())}</b><span class="muted small">${icon("mail")} ${esc(p.email)}</span></div>`;
   const sendLabel = `Send Singpass Request${icon("arrow-right")}`;
+  const u = state.user;
+  const ro = (label, value) => `<label class="field">${label}<input class="input" value="${esc(value ?? "")}" readonly></label>`;
+  const tick = (id, text) => `<label class="check"><input type="checkbox" id="${id}" ${d[id] ? "checked" : ""}><span>${text}</span></label>`;
   $app.innerHTML = dealerShell("apply", `
     ${stepsBar(3)}
     <section class="card">
       <h2>Singpass requests</h2>
       <div class="sumgrid">${box("HIRER", d.hirer)}${d.guarantorOn ? box(d.guarantor2On ? "GUARANTOR 1" : "GUARANTOR", d.guarantor) : ""}${d.guarantorOn && d.guarantor2On ? box("GUARANTOR 2", d.guarantor2) : ""}</div>
-      <label class="check"><input type="checkbox" id="c1" ${d.c1 ? "checked" : ""}><span>I confirm that the Applicant and Guarantor(s) have been shown the declarations above, have read and understood them in a language they understand, and have agreed to them — including consent to identity, employment and credit bureau verification.</span></label>
+    </section>
+    <section class="card">
+      <div><h2>Dealer Declaration</h2><p class="muted small">Pre-filled from the dealer's profile.</p></div>
+      <div class="fgrid decl-grid">${ro("Name of Dealer", u.org)}${ro("Company Reg No.", u.orgRegNo)}${ro("Salesperson Name", u.name)}${ro("Salesperson Email", u.email)}</div>
+      ${tick("c1", "I confirm the information given is true and correct, and that I have verified the applicant's identity against their supporting documents.")}
+    </section>
+    <section class="card">
+      <details class="decl">
+        <summary><h2>Declaration by Applicant / Guarantor(s) — MAS Notice 642, Credit Checks, PDPA &amp; Online Submission</h2><span class="decl-toggle">View full text</span></summary>
+        <div class="decl-text">
+          <b>By the Applicant:</b>
+          <ol>
+            <li>I am of full legal age and am not bound or affected by any legal impediment from entering into a Hire Purchase Agreement with VM Autofinance Pte Ltd (“VMAF”) or from driving any vehicle; and no person whom I intend to authorise to drive the vehicle is so bound or affected.</li>
+            <li>This facility is granted by VMAF in reliance on my representations in this application and all related correspondence. If anything I have stated is incomplete or inaccurate in any way, VMAF reserves the right to reduce, cancel or not approve the facility.</li>
+            <li>I undertake to pay all cancellation fees and out-of-pocket expenses and/or charges incurred by VMAF in relation to my loan application after it is approved.</li>
+            <li>VMAF may decline this application without giving any reason whatsoever.</li>
+            <li>I undertake to provide VMAF with the actual Open Market Value (OMV) of the vehicle upon its registration.</li>
+            <li>Except as disclosed in this application, I have not received any discount, rebate or other benefit from the vendor of the vehicle or any other person which has the effect of reducing the True Purchase Price (as defined in MAS Notice 642 dated 25 February 2013, as may be replaced, supplemented or amended from time to time).</li>
+            <li>Except as disclosed in this application, I/we have not obtained any other credit or hire purchase facility for the purchase or hire of the vehicle.</li>
+            <li>I am the borrower of the loan and shall use the loan only for legal purposes.</li>
+          </ol>
+          <p class="small muted">Text of prototype v54; the official wording is to be confirmed by ValueMax.</p>
+        </div>
+      </details>
+      ${tick("c2", "I confirm that the Applicant and Guarantor(s) have been shown the declarations above, have read and understood them in a language they understand, and have agreed to them — including consent to identity, employment and credit bureau verification.")}
       <hr class="divider">
       <h3 class="overline-title">DEALER'S ATTESTATION</h3>
-      <p class="para">By submitting this application, I, as an authorised representative of the Dealer named in this application, confirm that: (a) all information was provided by the Applicant / Guarantor(s) and is accurate and complete; (b) I have verified the identity of the Applicant / Guarantor(s) against their original supporting documents; (c) the Applicant / Guarantor(s) have consented to … receiving a Singpass verification request to authorise MyInfo retrieval; and (d) I understand the Dealer is not an agent of VMAF.</p>
-      <label class="check"><input type="checkbox" id="c2" ${d.c2 ? "checked" : ""}><span>I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.</span></label>
+      <p class="para">By submitting this application, I, as an authorised representative of the Dealer named in this application, confirm that: <b>(a)</b> all information in this application was provided by the Applicant / Guarantor(s) and is accurate and complete to the best of my knowledge; <b>(b)</b> I have verified the identity of the Applicant / Guarantor(s) against their original supporting documents, and the documents uploaded are true copies; <b>(c)</b> the Applicant / Guarantor(s) have consented to (i) the disclosure of their personal data to VM Autofinance Pte Ltd for purposes in relation to this loan application, in accordance with the <b>ValueMax Privacy Policy</b>, (ii) VMAF contacting them about this application using the contact details provided, and (iii) receiving a Singpass verification request to authorise MyInfo retrieval; and <b>(d)</b> I understand the Dealer is not an agent of VMAF, and that knowingly providing false or misleading information may result in the rejection of this application, termination of dealer arrangements, and may constitute an offence under Singapore law.</p>
+      ${tick("c3", "I have explained the above (including the Privacy Policy) to the Applicant / Guarantor(s), and I make the Dealer's Attestation set out above.")}
     </section>
     <div class="note">${icon("mail")}<span>On submit, a Singpass verification link is emailed to each person (one active link each, valid ${state.config.ttlHours} hours).</span></div>
     <div class="actionbar">
@@ -490,8 +557,9 @@ function dealerReview() {
     </div>`);
   bindCommon();
   const btn = document.getElementById("send");
-  const sync = () => (btn.disabled = !(d.c1 && d.c2));
-  for (const id of ["c1", "c2"])
+  const ticks = ["c1", "c2", "c3"]; // Q5: all three, as on the prototype screen
+  const sync = () => (btn.disabled = !ticks.every((id) => d[id]));
+  for (const id of ticks)
     document.getElementById(id).addEventListener("change", (e) => {
       d[id] = e.target.checked;
       saveDraft();
@@ -503,8 +571,8 @@ function dealerReview() {
     btn.textContent = "Sending…";
     try {
       const app = await api("POST", "/api/applications", {
-        hirer: d.hirer,
-        guarantors: d.guarantorOn ? [d.guarantor, ...(d.guarantor2On ? [d.guarantor2] : [])] : [],
+        hirer: { ...d.hirer, name: d.hirer.name.toUpperCase() },
+        guarantors: d.guarantorOn ? [d.guarantor, ...(d.guarantor2On ? [d.guarantor2] : [])].map((g) => ({ ...g, name: g.name.toUpperCase() })) : [],
         ltaCode: d.ltaCode,
       });
       state.draft = emptyDraft();
@@ -538,12 +606,14 @@ async function dealerReceived(ref) {
       <p class="para">Keep an eye on the <b>My Applications</b> page for updates — this application now shows as <b>Pending</b>.</p>
       <div class="row center">
         <a class="btn" href="/dealer/apply" data-go>Submit Another</a>
+        <a class="btn" href="/dealer/applications" data-go>Go to My Applications${icon("arrow-right")}</a>
         <a class="btn" href="/dealer/applications/${esc(app.ref)}" data-go>View Application Status</a>
-        <button class="btn primary" type="button" data-shortcut="hirer-view">Demo: see what the hirer gets${icon("external")}</button>
+        ${hirer.linkUrl
+          ? `<a class="btn primary" href="${esc(hirer.linkUrl)}" target="_blank" rel="noopener" role="button">Demo: see what the hirer gets${icon("external")}</a>`
+          : `<button class="btn primary" type="button" disabled title="The hirer's link is queued until the gateway is reachable">Demo: see what the hirer gets${icon("external")}</button>`}
       </div>
     </section>`);
   bindCommon();
-  bindShortcuts();
 }
 
 // ---------------- dealer: My Applications (minimal) ----------------
@@ -578,19 +648,15 @@ function partyChip(p, flash = false) {
 }
 
 function trackerSteps(app, changed = new Set()) {
-  const issued = Boolean(app.ipaAt || app.aaAt);
-  const mark = { done: icon("check"), current: icon("clock"), todo: "" };
-  const said = { done: "Done", current: "In progress", todo: "Not started" };
-  const step = (cls, title, desc, extra = "") =>
-    `<li class="${cls}"${cls === "current" ? ' aria-current="step"' : ""}><span class="bullet">${mark[cls]}</span><div class="tk-body"><b><span class="visually-hidden">${said[cls]}: </span>${title}</b><span class="desc">${desc}</span>${extra}</div></li>`;
-  return [
-    step("done", "Application Submitted", "Application details submitted by the dealer"),
-    step(app.allFulfilled ? "done" : "current", "Pending Singpass Verification", app.allFulfilled ? "Every person has completed Singpass" : "An AA (final approval) needs every person to complete Singpass first.",
-      `<div class="chips">${app.parties.map((p) => partyChip(p, changed.has(p.id))).join("")}</div>`),
-    step(issued ? "done" : app.allFulfilled ? "current" : "todo", "Credit Review", issued ? "ValueMax Ops has completed its review" : "ValueMax Ops reviews the application"),
-    step(app.ipaAt || app.aaAt ? "done" : "todo", "IPA Issued", app.ipaAt ? `In-Principle Approval issued <span class="num">${fmt(app.ipaAt)}</span>` : app.aaAt ? "No IPA — the AA was issued directly" : "In-Principle Approval"),
-    step(app.aaAt ? "done" : "todo", "AA", app.aaAt ? `Approval Advice issued <span class="num">${fmt(app.aaAt)}</span>` : "Approval Advice (final approval)"),
-  ].join("");
+  const mark = { done: icon("check"), current: icon("clock"), todo: "", bad: icon("x") };
+  const said = { done: "Done", current: "In progress", todo: "Not started", bad: "Declined" };
+  return app.tracker.map((t) => {
+    let extra = "";
+    if (t.key === "singpass") extra = `<div class="chips">${app.parties.map((p) => partyChip(p, changed.has(p.id))).join("")}</div>`;
+    if (t.key === "decision" && app.stage === "IPA")
+      extra = `<div><button class="btn primary sm" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">${icon("file")}View IPA Notice</button></div>`;
+    return `<li class="${t.state}"${t.state === "current" ? ' aria-current="step"' : ""}><span class="bullet">${mark[t.state]}</span><div class="tk-body"><b><span class="visually-hidden">${said[t.state]}: </span>${esc(t.title)}</b><span class="desc">${esc(t.desc)}</span>${extra}</div></li>`;
+  }).join("");
 }
 
 async function dealerStatus(ref) {
@@ -608,17 +674,17 @@ async function dealerStatus(ref) {
       <section class="card">
         <div class="card-head"><h2>Application Status</h2><span class="ref-badge">Application Ref: <b class="num">${esc(app.ref)}</b></span></div>
         <ol class="tracker">${trackerSteps(app, changed)}</ol>
+        ${app.stage === "Declined" ? `<div class="note-red" role="status">${icon("x-circle")}<span><b>Application Declined</b> — Sorry, we are unable to proceed with this loan application.</span></div>` : ""}
         <div class="card-foot">
           <div class="row">
-            ${app.ipaAt ? `<button class="btn primary" type="button" onclick="this.textContent='IPA notice is out of scope in this demo'">View IPA Notice</button>` : ""}
             ${resendable ? app.parties.filter((p) => p.status !== "Fulfilled").map((p) => `<button class="btn sm" type="button" data-resend="${esc(p.id)}" data-label="${esc(p.label)}">${icon("refresh")}Resend link (${esc(p.label)})</button>`).join("") : ""}
-            <button class="btn sm quiet" type="button" data-shortcut="ops-view">Demo: see the Ops view${icon("arrow-right")}</button>
+            <button class="btn sm quiet" type="button" data-switch="ops">Demo: see the Ops view${icon("arrow-right")}</button>
           </div>
           <span class="live small">Updates live — no need to refresh.</span>
         </div>
       </section>`);
     bindCommon();
-    bindShortcuts();
+    bindSwitchView(app);
     bindResend(ref); // D-04: the dealer agent who submitted may resend, with a reason
     prev = Object.fromEntries(app.parties.map((p) => [p.id, p.status]));
   };
@@ -647,35 +713,59 @@ const partyCell = (p) => `<div class="pcell"><span class="pname">${esc(p.name)}<
 
 async function opsList() {
   let flashRef = null;
+  const params = new URLSearchParams(location.search);
+  const f = { q: params.get("q") ?? "", singpass: params.get("singpass") ?? "all", status: params.get("status") ?? "all" };
+  const statuses = ["Pending", "Credit Review", "Approved — IPA", "Approved — AA", "Declined"];
+  const opt = (value, label, cur) => `<option value="${esc(value)}"${value === cur ? " selected" : ""}>${esc(label)}</option>`;
+  $app.innerHTML = `${header()}<main class="wrap">
+    <div class="page-head">
+      <div><h1 class="page-title">Ops — All Applications</h1><p class="page-sub">All loan applications across every dealer — Ops review queue.</p></div>
+      <div class="row"><a class="btn" href="/ops/expired" data-go id="expired-btn">${icon("clock")}Expired links</a><a class="btn quiet" href="/demo" data-go>${icon("play")}Demo Control</a></div>
+    </div>
+    <div class="filters" role="search">
+      <input class="input" type="search" id="search" value="${esc(f.q)}" placeholder="Search by applicant name / car plate / application no. / full NRIC" aria-label="Search by applicant name, car plate, application no. or full NRIC" autocomplete="off">
+      <select class="select" id="f-singpass" aria-label="Singpass Fulfilled?">${[["all", "All"], ["yes", "Yes"], ["no", "No"]].map(([v, l]) => opt(v, `Singpass Fulfilled? — ${l}`, f.singpass)).join("")}</select>
+      <label class="filter-label" for="f-status">Filter by status:</label>
+      <select class="select" id="f-status">${opt("all", "All", f.status)}${statuses.map((x) => opt(x, x, f.status)).join("")}</select>
+    </div>
+    <div class="tablebox"><table class="list list-ops"><thead><tr><th>APPLICATION NO.</th><th class="wrap-th">APPLICATION DATE</th><th>DEALER NAME</th><th>HIRER NAME</th><th>GUARANTOR</th><th class="wrap-th">CAR PLATE NO.</th><th class="wrap-th">SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th class="actions">ACTIONS</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <p class="live small">The hirer and guarantor each show their own Singpass status, updated live.</p>
+  </main>`;
+  bindCommon();
+  const filtered = () => f.q.trim() || f.singpass !== "all" || f.status !== "all";
   const load = async () => {
-    const [apps, expired] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/links/expired")]);
-    $app.innerHTML = `${header()}<main class="wrap">
-      <div class="page-head">
-        <div><h1 class="page-title">Ops — All Applications</h1><p class="page-sub">All loan applications across every dealer — Ops review queue.</p></div>
-        <div class="row"><a class="btn" href="/ops/expired" data-go>${expired.length ? icon("alert-triangle", "t-bad") : icon("clock")}Expired links (${expired.length})</a><a class="btn quiet" href="/demo" data-go>${icon("play")}Demo Control</a></div>
-      </div>
-      <div class="tablebox"><table class="list list-ops"><thead><tr><th>APPLICATION NO.</th><th>DEALER</th><th>HIRER</th><th>GUARANTOR</th><th>CAR PLATE</th><th class="wrap-th">SINGPASS FULFILLED</th><th>CREATED</th><th>STATUS</th><th class="actions">ACTIONS</th></tr></thead><tbody>
-      ${apps.length ? apps.map((a) => {
-        const h = a.parties.find((p) => p.role === "hirer");
-        const gs = a.parties.filter((p) => p.role === "guarantor");
-        return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td class="ref">${esc(a.ref)}</td><td class="dealer">${esc(a.dealer)}</td>
-          <td>${partyCell(h)}</td>
-          <td>${gs.length ? gs.map(partyCell).join("") : '<span class="muted">—</span>'}</td>
-          <td class="nowrap">${a.carPlate ? esc(a.carPlate) : '<span class="muted">—</span>'}</td><td>${singpassCount(a)}</td>
-          <td class="nowrap">${esc(a.createdBy)}<span class="sub">${fmt(a.createdAt)}</span></td>
-          <td>${statusChip(a.opsStatus)}</td>
-          <td class="actions"><a class="btn sm" href="/ops/applications/${esc(a.ref)}" data-go aria-label="View ${esc(a.ref)}">${icon("eye")}View</a></td></tr>`;
-      }).join("") : `<tr><td colspan="9" class="empty">No applications. Submit one as the dealer, or create sample applications in Demo Control.</td></tr>`}
-      </tbody></table></div>
-      <p class="live small">The hirer and guarantor each show their own Singpass status, updated live.</p>
-    </main>`;
-    bindCommon();
+    const qs = new URLSearchParams(Object.entries(f).filter(([k, v]) => (k === "q" ? v.trim() : v !== "all"))).toString();
+    const [apps, expired] = await Promise.all([api("GET", `/api/applications${qs ? `?${qs}` : ""}`), api("GET", "/api/links/expired")]);
+    if (!document.getElementById("rows")) return; // left the page meanwhile
+    history.replaceState(history.state, "", `/ops${qs ? `?${qs}` : ""}`);
+    document.getElementById("expired-btn").innerHTML = `${expired.length ? icon("alert-triangle", "t-bad") : icon("clock")}Expired links (${expired.length})`;
+    document.getElementById("rows").innerHTML = apps.length ? apps.map((a) => {
+      const h = a.parties.find((p) => p.role === "hirer");
+      const gs = a.parties.filter((p) => p.role === "guarantor");
+      return `<tr class="${a.ref === flashRef ? "flash" : ""}"><td class="ref">${esc(a.ref)}</td><td class="num date">${fmtDay(a.createdAt)}</td><td class="dealer">${esc(a.dealer)}</td>
+        <td>${partyCell(h)}</td>
+        <td>${gs.length ? gs.map(partyCell).join("") : '<span class="muted">—</span>'}</td>
+        <td class="nowrap">${a.carPlate ? esc(a.carPlate) : '<span class="muted">—</span>'}</td><td>${singpassCount(a)}</td>
+        <td class="nowrap">${esc(a.createdBy)}<span class="sub">${fmt(a.createdAt)}</span></td>
+        <td>${statusChip(a.opsStatus)}</td>
+        <td class="actions"><a class="btn sm icon-only" href="/ops/applications/${esc(a.ref)}" data-go aria-label="View ${esc(a.ref)}" title="View">${icon("eye")}</a></td></tr>`;
+    }).join("") : `<tr><td colspan="10" class="empty">${filtered() ? "No application matches the search or filters." : "No applications. Submit one as the dealer, or create sample applications in Demo Control."}</td></tr>`;
   };
+  let timer;
+  document.getElementById("search").addEventListener("input", (e) => {
+    f.q = e.target.value;
+    clearTimeout(timer);
+    timer = setTimeout(() => load().catch((x) => toast(x.message, true)), 200);
+  });
+  document.getElementById("f-singpass").addEventListener("change", (e) => { f.singpass = e.target.value; load().catch((x) => toast(x.message, true)); });
+  document.getElementById("f-status").addEventListener("change", (e) => { f.status = e.target.value; load().catch((x) => toast(x.message, true)); });
   await load();
   state.refresh = (d) => { flashRef = d.ref ?? null; return load(); };
 }
 
 // ---------------- screen 11: Ops detail ----------------
+// one "label / value" pair of a details block; html is already escaped; no value → "—"
+const kv = (label, html, cls = "") => `<div><dt>${label}</dt><dd class="${html ? cls : "muted"}">${html || "—"}</dd></div>`;
 function opsPartyStatus(p, ref) {
   switch (p.status) {
     case "Fulfilled": return `<dd><span class="st ok">Fulfilled · NRIC matched</span></dd>`;
@@ -702,10 +792,10 @@ function myinfoTable(p) {
     <div class="scroll-x"><table class="cmp"><thead><tr><th>FIELD</th><th>DEALER ENTERED</th><th>FROM MYINFO</th></tr></thead><tbody>
     <tr><td>NRIC</td><td class="num">${esc(p.nricMasked)}</td><td class="t-ok num">${esc(mi.uinfin)} ${icon("check-circle")} match</td></tr>
     ${row("Name", p.name, esc(mi.name))}
-    ${row("Date of birth", "", `<span class="num">${esc(mi.dob)}</span>`)}
+    ${row("Date of birth", "", `<span class="num">${esc(fmtIsoDate(mi.dob))}</span>`)}
     ${row("Registered address", "", esc(mi.regAddress))}
     ${row("Employer", "", esc(mi.employer))}
-    ${row("Annual income (NOA)", "", noa ? `<span class="num">SGD ${noa.amount.toLocaleString("en-SG")} (${noa.year})</span>` : "—")}
+    ${row("Annual income (NOA)", "", noa ? `<span class="num">${money(noa.amount)} (${noa.year})</span>` : "—")}
     ${row("CPF contributions", "", `<span class="num">${mi.cpfMonths} months</span>`)}
     ${row("Housing", "", esc(mi.hdbType || mi.housingType))}
     </tbody></table></div></section>`;
@@ -713,7 +803,7 @@ function myinfoTable(p) {
 
 // Activity log as a vertical timeline. The server writes the sentences (SGT, no internal codes, no full NRIC).
 function activityLog(app) {
-  if (!app.activity?.length) return "";
+  if (!app.activity?.length) return `<section class="card d-activity"><h2>Activity</h2><p class="muted">—</p></section>`;
   return `<section class="card d-activity"><h2>Activity</h2><ol class="timeline">${app.activity
     .slice(0, 40)
     .map((e) => `<li class="${esc(e.tone || "")}"><span class="tl-dot" aria-hidden="true"></span><div class="tl-body"><span class="tl-meta"><span class="num">${esc(e.time)}</span>${e.party ? ` · <b>${esc(e.party)}</b>` : ""}</span><span class="tl-text">${esc(e.text)}</span></div></li>`)
@@ -783,6 +873,9 @@ async function opsDetail(ref) {
   const load = async () => {
     const app = await api("GET", `/api/applications/${ref}`);
     const h = app.parties.find((p) => p.role === "hirer");
+    const gs = app.parties.filter((p) => p.role === "guarantor");
+    // the dealer's view only for an application of the demo dealer user
+    const dealerView = (await demoUsers()).some((u) => u.kind === "dealer" && u.dealerId === app.dealerId);
     const canIpa = app.stage === "Submitted";
     const canAaStage = app.stage === "Submitted" || app.stage === "IPA";
     if (selected === "IPA" && !canIpa && canAaStage) selected = "AA";
@@ -790,25 +883,53 @@ async function opsDetail(ref) {
     const applyDisabled = selected === "IPA" ? !canIpa : !canAaStage || aaBlocked;
     $app.innerHTML = `${header()}<main class="wrap">
       <a class="back-link" href="/ops" data-go>${icon("arrow-left")}All Applications</a>
-      <div class="detail-head"><h1 class="page-title">Application Details</h1><span class="ref-badge"><b class="num">${esc(app.ref)}</b></span>${statusChip(app.opsStatus)}</div>
+      <div class="detail-head"><h1 class="page-title">Application Details</h1><span class="ref-badge"><b class="num">${esc(app.ref)}</b></span>${statusChip(app.opsStatus)}
+        ${dealerView ? `<button class="btn sm quiet" type="button" data-switch="dealer">Demo: see the dealer's view${icon("arrow-right")}</button>` : ""}</div>
       <div class="detail">
         <div class="detail-main">
           <section class="card d-info">
+            <h2>Applicant</h2>
             <dl class="kv">
-              <div><dt>Applicant Name</dt><dd>${esc(h.name)}</dd></div>
-              <div><dt>Applicant NRIC</dt><dd class="num nowrap">${nricWithReveal(app.ref, h, "entered", h.nricMasked)}</dd></div>
-              <div><dt>Applicant Email</dt><dd>${esc(h.email)}</dd></div>
-              <div><dt>Dealer</dt><dd>${esc(app.dealer)}</dd></div>
-              <div><dt>Created by</dt><dd>${esc(app.createdBy)} · <span class="num nowrap">${fmt(app.createdAt)}</span></dd></div>
-              <div><dt>LTA Access Code</dt><dd class="num">${esc(app.ltaCode)}</dd></div>
+              ${kv("Applicant Name", esc(h.name))}
+              ${kv("Applicant NRIC", nricWithReveal(app.ref, h, "entered", h.nricMasked), "num nowrap")}
+              ${kv("Applicant Email", esc(h.email))}
+              ${kv("Applicant Phone", esc(fmtPhone(h.mobile)), "num")}
             </dl>
           </section>
-          ${activityLog(app)}
-          ${app.parties.map(myinfoTable).join("")}
+          ${myinfoTable(h)}
+          <section class="card d-guarantor">
+            <h2>Guarantor Info</h2>
+            ${gs.length ? gs.map((g) => `${gs.length > 1 ? `<h3 class="subcard-title">${esc(g.label)}</h3>` : ""}<dl class="kv">
+              ${kv("Guarantor Name", esc(g.name))}
+              ${kv("Guarantor NRIC", nricWithReveal(app.ref, g, "entered", g.nricMasked), "num nowrap")}
+              ${kv("Guarantor Email", esc(g.email))}
+              ${kv("Guarantor Phone", esc(fmtPhone(g.mobile)), "num")}
+            </dl>`).join("") : '<p class="muted">—</p>'}
+          </section>
+          ${gs.map(myinfoTable).join("")}
           <section class="card d-vehicle">
             <h2>Vehicle Info</h2>
-            <dl class="kv"><div><dt>Car Plate</dt><dd${app.carPlate ? "" : ' class="muted"'}>${esc(app.carPlate || "—")}</dd></div><div><dt>Make</dt><dd class="muted">—</dd></div><div><dt>Model</dt><dd class="muted">—</dd></div></dl>
+            <dl class="kv">
+              ${kv("Car Plate", esc(app.carPlate))}
+              ${["Make", "Model", "Registered Date", "Manufacturing Year", "Engine No.", "Chassis No.", "OMV (S$)"].map((l) => kv(l, "")).join("")}
+            </dl>
           </section>
+          <section class="card d-appinfo">
+            <h2>Application Info</h2>
+            <dl class="kv">
+              ${kv("Dealer Name", esc(app.dealer))}
+              ${kv("Created By", esc(app.createdBy))}
+              ${kv("LTA Access Code", esc(app.ltaCodeMasked), "num")}
+              ${["Purchase Price (S$)", "Requested Loan Amount (S$)", "Requested Tenure", "Interest Rate (%)"].map((l) => kv(l, "")).join("")}
+              ${kv("Created At", fmt(app.createdAt), "num nowrap")}
+              ${kv("Last Modified", fmt(app.lastModifiedAt), "num nowrap")}
+            </dl>
+          </section>
+          <section class="card d-docs">
+            <h2>Relevant Document(s)</h2>
+            <p class="muted">—</p>
+          </section>
+          ${activityLog(app)}
         </div>
         <aside class="detail-side">
           <section class="card d-singpass">
@@ -849,6 +970,7 @@ async function opsDetail(ref) {
     </main>`;
     fitDetailSide();
     bindCommon();
+    bindSwitchView(app);
     document.getElementById("newstatus").addEventListener("change", (e) => { selected = e.target.value; load(); });
     document.getElementById("apply").addEventListener("click", async () => {
       try {
@@ -897,7 +1019,8 @@ async function demoPage() {
     return signIn();
   }
   const load = async () => {
-    const [apps, outbox, demo] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox"), api("GET", "/api/demo/state")]);
+    const [apps, outbox, demo, shortcuts] = await Promise.all([api("GET", "/api/applications"), api("GET", "/api/demo/outbox"), api("GET", "/api/demo/state"), api("GET", "/api/demo/shortcuts")]);
+    const opens = { "ops-view": "opens as Ops (Priya Nair)", "dealer-view": "opens as the dealer (Alex Tan)", "hirer-view": "opens the customer page in a new tab" };
     const cfg = state.config;
     const hours = Math.round(demo.offsetMs / 3_600_000);
     const outStatus = (m) => (m.status === "sent" ? '<span class="st ok">sent</span>' : m.status === "failed" ? `<span class="st bad">${esc(m.error || "failed")}</span>` : '<span class="st wait">outbox only</span>');
@@ -935,6 +1058,13 @@ async function demoPage() {
           </div>
         </section>
         <section class="card span-all">
+          <h2>Open a sample</h2>
+          <p class="small muted">Sample applications in a given state, for the presenter. The "Demo: see …" buttons on a detail page always open that same application in the other role.</p>
+          <ul class="samples">${shortcuts.map((x) => `<li>${x.ref
+            ? `<button class="btn" type="button" data-shortcut="${esc(x.kind)}">${icon(x.kind === "hirer-view" ? "external" : "arrow-right")}${esc(x.label)}</button><span class="small muted">${opens[x.kind]}</span>`
+            : `<button class="btn" type="button" disabled>${esc(x.label)}</button><span class="small muted">No sample in this state — Create sample applications (after Reset all data if needed).</span>`}</li>`).join("")}</ul>
+        </section>
+        <section class="card span-all">
           <h2>Links</h2>
           ${apps.length ? `<div class="tablebox flat"><table class="list list-links"><thead><tr><th>APPLICATION</th><th>PERSON</th><th>STATUS</th><th>LINK</th></tr></thead><tbody>
           ${apps.flatMap((a) => a.parties.map((p) => `<tr><td class="ref">${esc(a.ref)}</td><td>${esc(p.label)} · ${esc(p.name)}<span class="sub">${esc(p.nricMasked)}</span></td><td>${partyStatusText(p)}</td>
@@ -954,6 +1084,7 @@ async function demoPage() {
       </div>
     </main>`;
     bindCommon();
+    bindShortcuts();
     const act = async (fn, msg) => { try { await fn(); if (msg) toast(msg); } catch (e) { toast(e.message, true); } load(); };
     document.getElementById("reset").addEventListener("click", () => act(() => api("POST", "/api/demo/reset"), "All demo data deleted"));
     document.getElementById("seed").addEventListener("click", () => act(async () => toast(`${(await api("POST", "/api/demo/seed")).added} sample application(s) created`)));
@@ -1133,11 +1264,21 @@ function doneScreen(ref) {
       <h1>Details shared</h1>
       <p class="gw-text">Your MyInfo details were sent to ValueMax AutoFinance${ref ? ` for application <span class="num">${esc(ref)}</span>` : ""}. You can close this page.</p>
       <p class="gw-note">Your dealer will contact you about the next step.</p>
-      <button class="btn" type="button" data-shortcut="dealer-view">Demo: see the dealer's view${icon("arrow-right")}</button>
+      ${ref ? `<button class="btn" type="button" id="dealer-view">Demo: see the dealer's view${icon("arrow-right")}</button>` : ""}
     </main>
     <div class="foot">Today the gateway does not send the customer back to AutoFinance, so this page is the end of the customer's journey.</div>
   </div>`;
-  bindShortcuts();
+  // the same application, as the demo dealer user (only if it is one of that dealer's applications)
+  document.getElementById("dealer-view")?.addEventListener("click", async () => {
+    try {
+      const dealer = (await demoUsers()).find((u) => u.kind === "dealer");
+      await actAs(dealer.id);
+      await api("GET", `/api/applications/${encodeURIComponent(ref)}`);
+      go(`/dealer/applications/${ref}`);
+    } catch (e) {
+      toast(e.status === 404 ? "This application belongs to another dealer: open it as Ops" : e.message, true);
+    }
+  });
 }
 
 function declinedScreen() {

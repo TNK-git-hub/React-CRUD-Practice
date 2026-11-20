@@ -21,10 +21,21 @@ test("main demo: submit → open both links from the outbox → consent → stat
   await dealer.locator('[data-f="hirer.email"]').fill("hirer@example.com");
   await dealer.locator('[data-f="guarantor.email"]').fill("guarantor@example.com");
   await dealer.getByRole("button", { name: /Next: Documents/ }).click();
+  // Review & Submit (UI-08, Q5): Dealer Declaration pre-filled and read-only; three ticks, all needed
+  for (const [label, value] of [["Name of Dealer", "Demo Motors Pte Ltd"], ["Company Reg No.", "202612345D"], ["Salesperson Name", "Alex Tan"], ["Salesperson Email", "alex.tan@demomotors.sg"]] as const) {
+    await expect(dealer.getByLabel(label, { exact: true })).toHaveValue(value);
+    await expect(dealer.getByLabel(label, { exact: true })).not.toBeEditable();
+  }
   const send = dealer.getByRole("button", { name: /Send Singpass Request/ });
   await expect(send).toBeDisabled();
-  await dealer.locator("#c1").check();
   await dealer.locator("#c2").check();
+  await dealer.locator("#c3").check();
+  await expect(send).toBeDisabled(); // the Dealer Declaration tick is still missing
+  await dealer.locator("#c1").check();
+  await expect(send).toBeEnabled();
+  await dealer.locator("#c3").uncheck();
+  await expect(send).toBeDisabled();
+  await dealer.locator("#c3").check();
   await send.click();
   await expect(dealer.getByRole("heading", { name: "Interest Received" })).toBeVisible();
   const ref = new URL(dealer.url()).pathname.split("/").pop()!;
@@ -77,5 +88,6 @@ test("main demo: submit → open both links from the outbox → consent → stat
   await expect(ops.getByText("Ready to issue AA")).toBeVisible({ timeout: 10_000 });
   await ops.locator("#apply").click();
   await expect(ops.getByText(/AA issued by Priya Nair/)).toBeVisible();
-  await expect(dealer.getByText(/Approval Advice issued/)).toBeVisible({ timeout: 10_000 });
+  await expect(dealer.getByText(/Approval Advice \(final approval\) issued/)).toBeVisible({ timeout: 10_000 });
+  await expect(dealer.getByText("Approved — AA")).toBeVisible();
 });

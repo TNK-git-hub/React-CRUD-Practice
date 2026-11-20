@@ -126,6 +126,7 @@ await shot(dealer, "01-main-quick-apply", "Valid NRIC");
 await dealer.getByText("Next: Documents").click();
 await dealer.locator("#c1").check();
 await dealer.locator("#c2").check();
+await dealer.locator("#c3").check();
 await shot(dealer, "02-dealer-submit", "Send Singpass Request");
 await dealer.getByText("Send Singpass Request").click();
 await shot(dealer, "03-dealer-received", "Interest Received");
@@ -196,10 +197,21 @@ await ops.locator("#apply").click();
 await ops.getByText("AA issued by").waitFor();
 await shot(ops, "11f-ops-detail-aa-issued", "Approved — AA");
 await dealer.goto(`${BASE}/dealer/applications/${mainRef}`);
-await shot(dealer, "09e-dealer-status-aa-issued", "Approval Advice issued");
+await shot(dealer, "09e-dealer-status-aa-issued", "Approval Advice (final approval) issued");
+// sample applications: IPA issued with the guarantor still pending; declined
+await dealer.goto(`${BASE}/dealer/applications/VMAF-2026-05117`);
+await shot(dealer, "09f-dealer-status-ipa-guarantor-pending", "Still awaiting the guarantor");
+await dealer.goto(`${BASE}/dealer/applications/VMAF-2026-05114`);
+await shot(dealer, "09g-dealer-status-declined", "unable to proceed");
 
 await ops.goto(`${BASE}/ops`);
 await shot(ops, "10-ops-list", "Ops — All Applications");
+await ops.goto(`${BASE}/ops?singpass=no&status=Pending`);
+await ops.locator("table.list-ops tbody td.ref").first().waitFor();
+await shot(ops, "10b-ops-list-filtered", "Ops — All Applications");
+await ops.goto(`${BASE}/ops?q=G4440432Q`);
+await ops.getByText("VMAF-2026-05117").first().waitFor();
+await shot(ops, "10c-ops-list-search-nric", "VMAF-2026-05117");
 
 // ---- the design's "Demo: see …" shortcuts land on a sample in the right state (D-50) ----
 async function expectUrl(page: Page, pattern: RegExp, what: string): Promise<void> {
@@ -207,23 +219,29 @@ async function expectUrl(page: Page, pattern: RegExp, what: string): Promise<voi
     throw new Error(`${what}: landed on ${page.url()}`);
   });
 }
+// "Demo: see …" buttons open the SAME application in the other role; samples are opened from Demo Control (D-50)
 const shortcutPage = await (await signedIn(dealerCookie)).newPage();
 await shortcutPage.goto(`${BASE}/dealer/received/${mainRef}`);
 const [hirerTab] = await Promise.all([shortcutPage.context().waitForEvent("page"), shortcutPage.getByText("Demo: see what the hirer gets").click()]);
-await expectUrl(hirerTab, /\/verify\//, "hirer view");
-await hirerTab.getByText("Continue to Singpass").waitFor();
+await expectUrl(hirerTab, new RegExp(`${await portalPath(mainRef, hirer.id)}$`), "hirer view (this application's hirer link)");
+await hirerTab.getByText("no longer valid").waitFor(); // the hirer has already used it
 await shortcutPage.goto(`${BASE}/dealer/applications/${mainRef}`);
 await shortcutPage.getByText("Demo: see the Ops view").click();
-await expectUrl(shortcutPage, /\/ops\/applications\/VMAF-2026-05117$/, "ops view");
-await shortcutPage.getByText("Cannot issue AA yet").or(shortcutPage.getByText("Singpass Status")).first().waitFor();
+await expectUrl(shortcutPage, new RegExp(`/ops/applications/${mainRef}$`), "ops view");
+await shortcutPage.getByText("Singpass Status").waitFor();
+await shortcutPage.getByText("Demo: see the dealer's view").click();
+await expectUrl(shortcutPage, new RegExp(`/dealer/applications/${mainRef}$`), "dealer view");
 const log = await api<{ gatewayLog: Array<{ linkId: string; applicationRef: string; event: string }> }>("GET", "/api/demo/state", opsCookie);
 const doneLinkId = log.gatewayLog.find((g) => g.applicationRef === mainRef && g.event === "submitted")!.linkId;
 const donePage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
 await donePage.goto(`${BASE}/gateway/${doneLinkId}`);
 await donePage.getByText("Demo: see the dealer's view").click();
-await expectUrl(donePage, /\/dealer\/applications\/VMAF-2026-05117$/, "dealer view");
-await donePage.getByText("Pending Singpass Verification").waitFor();
-console.log("  demo shortcuts: hirer view, Ops view, dealer view checked");
+await expectUrl(donePage, new RegExp(`/dealer/applications/${mainRef}$`), "dealer view from the customer's Done page");
+await shortcutPage.goto(`${BASE}/demo`);
+await shortcutPage.getByText("Open sample: IPA issued, guarantor pending (VMAF-2026-05117)").click();
+await expectUrl(shortcutPage, /\/ops\/applications\/VMAF-2026-05117$/, "Demo Control sample shortcut");
+await shortcutPage.getByText("Singpass Status").waitFor();
+console.log("  demo buttons (same application) and Demo Control sample shortcuts checked");
 
 // ---- expired: clock +73 h ----
 const exp = await submit("M5004553J", "F4440489M");
