@@ -24,7 +24,8 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 
 ## Quy trình agent
 - Session chính chỉ điều phối: giao việc cho subagent, tổng hợp kết quả. Không tự sửa `src/` hay `test/` (hook `.claude/hooks/guard.mjs` chặn).
-- Thứ tự: `code-planner` + `test-planner` → `test-writer` (test fail trước) → `code-writer` (code cho pass) → `code-reviewer` + `test-critic`. Có vấn đề thì quay lại writer tương ứng.
+- Thứ tự: `code-planner` + `test-planner` → `test-writer` (test fail trước) → `code-writer` (code cho pass) → `code-reviewer` + `test-critic` + `security-reviewer` (chạy song song được, cả ba chỉ đọc). Có vấn đề thì quay lại writer tương ứng.
+- Finding HIGH/MEDIUM của `security-reviewer` là vấn đề nghiêm trọng: `test-writer` viết test chứng minh lỗ hổng (vd user A gọi tài nguyên của user B phải bị từ chối), `code-writer` sửa cho pass. Finding cho thấy spec thiếu scenario: ghi `SPEC_PROBLEM`, quay lại spec harness.
 - Quyền ghi: `code-writer` chỉ `backend/src`, `frontend/src`, `frontend/public`; `test-writer` chỉ `<package>/test/public`, `frontend/test/e2e`; `spec-writer`, `planner` chỉ `specs/changes/`, `.specify/feature.json`. Không ai đọc/sửa `test/private`.
 - Không giao cho writer này sửa phần của writer kia (vd. nhờ `test-writer` sửa test cho khớp code sai).
 - Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
@@ -32,7 +33,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 
 ## Quy trình sửa bug
 - Người dùng báo bug, test fail bất thường hay hành vi sai: làm theo skill `bug-fix-flow`. Không sửa khi người dùng chưa đồng ý root cause.
-- Thứ tự: phân loại (vi phạm scenario nào; không scenario nào nói tới thì là lỗ hổng spec, chuyển sang spec harness) → `bugs/<id>/report.md` → RED (`test-writer` viết test tái hiện, tên bắt đầu bằng scenario ID, phải fail đúng vì bug) → điều tra (`bug-investigator`, chỉ đọc) → gate root cause (dừng chờ người dùng đồng ý) → GREEN (`code-writer` sửa một chỗ ở gốc, tối đa 3 lần thất bại) → review (`code-reviewer` + `test-critic`).
+- Thứ tự: phân loại (vi phạm scenario nào; không scenario nào nói tới thì là lỗ hổng spec, chuyển sang spec harness) → `bugs/<id>/report.md` → RED (`test-writer` viết test tái hiện, tên bắt đầu bằng scenario ID, phải fail đúng vì bug) → điều tra (`bug-investigator`, chỉ đọc) → gate root cause (dừng chờ người dùng đồng ý) → GREEN (`code-writer` sửa một chỗ ở gốc, tối đa 3 lần thất bại) → review (`code-reviewer` + `test-critic` + `security-reviewer`).
 - Session chính ghi hồ sơ `bugs/<id>/` (`report.md`, `investigation.md`, `fix.md`). Đó là toàn bộ hồ sơ: làm tiếp ở chat mới chỉ cần thư mục này, không cần log chat cũ.
 - Không sửa, xoá hay skip test tái hiện để cho pass; không sửa `specs/`.
 

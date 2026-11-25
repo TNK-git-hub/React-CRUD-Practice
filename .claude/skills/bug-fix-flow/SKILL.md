@@ -1,6 +1,6 @@
 ---
 name: bug-fix-flow
-description: Use when the user reports a bug, a test fails unexpectedly, or the app behaves wrongly. Interactive flow for the main session (orchestrator) - classify against the spec scenarios, write bugs/<id>/report.md, reproduce with a failing test (test-writer), investigate (bug-investigator), stop for the user to approve the root cause, then fix at the source (code-writer, at most 3 failed attempts) and review (code-reviewer + test-critic). No fix before the user approves a root cause.
+description: Use when the user reports a bug, a test fails unexpectedly, or the app behaves wrongly. Interactive flow for the main session (orchestrator) - classify against the spec scenarios, write bugs/<id>/report.md, reproduce with a failing test (test-writer), investigate (bug-investigator), stop for the user to approve the root cause, then fix at the source (code-writer, at most 3 failed attempts) and review (code-reviewer + test-critic + security-reviewer). No fix before the user approves a root cause.
 ---
 # Bug fix flow (interactive)
 
@@ -60,7 +60,8 @@ After each attempt write `fix.md`: `Attempt <n>: <change> — <result>` (test ou
   in `investigation.md`. Tell the user it may be an architecture problem and suggest a new chat (see "New chat").
 
 ## g) Review
-`code-reviewer` (the diff) and `test-critic` (the reproduction test) as in the feature flow. Findings → back to the
+`code-reviewer` (the diff), `test-critic` (the reproduction test) and `security-reviewer` (the diff, Principle II) as in
+the feature flow; the three only read, so they can run in parallel. Findings → back to the
 writer that owns the file (`code-writer` for code, `test-writer` for the test), never one for the other.
 Look for the same mistake elsewhere (the investigator's list + a `grep` of the pattern): list each `file:line` in
 `fix.md`, "Same pattern elsewhere". Fixing them is a new decision for the user, not part of this fix.
