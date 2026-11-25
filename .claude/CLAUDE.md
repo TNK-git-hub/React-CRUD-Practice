@@ -53,7 +53,8 @@ specs/
   _system/                  edge-case-catalog.md (shared); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (created per app by spec-bootstrap)
   capabilities/<domain>/    LIVING SPEC, shared by the domain: states.md, rules.md, history.md (Removed IDs) — no spec.md here
     <feature>/spec.md       one feature's requirements + its Merged changes (features: Features table of domain-model.md)
-  changes/NNN-<name>/       CHANGE IN PROGRESS: spec.md (kind: delta), plan.md, tasks.md, checklists/ — nothing else
+  changes/NNN-<name>/       CHANGE IN PROGRESS: spec.md (kind: delta), plan.md, tasks.md, checklists/,
+                            approval.json + .approved/ (written by approval.py approve only) — nothing else
   archive/NNN-<name>/       changes already merged into capabilities
 backend/test/public/        tests (written by the TEST harness, Vitest); each test name starts with a scenario ID
 frontend/test/public/       (same; frontend/test/e2e/ for browser tests)
@@ -118,8 +119,11 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 3. `/spec-edge-cases` → refuses while a `[NEEDS CLARIFICATION]` is left (run clarify first). Walks
    `edge-case-catalog.md`, adds scenarios with IDs and P1–P3 to `spec.md`, turns every `_(unassigned)_` row into a
    scenario, updates Traceability; writes `checklists/edge-cases.md`.
-4. **STOP — wait for the user to approve the spec.** On approval the main session sets the frontmatter
-   `status: approved`; `/speckit-plan` refuses any other status.
+4. **STOP — wait for the user to approve the spec.** The user runs, in their own terminal,
+   `python3 .specify/scripts/approval.py approve --change <change> --gate spec`: it records the gate (sha256) in
+   `specs/changes/<change>/approval.json` and sets the frontmatter `status: approved`. The main session never sets the
+   status itself; `/speckit-plan` refuses any other status. The gate leaves out `## Architecture Decisions` and
+   `## Data Model` (the planner fills them); any other change to `spec.md` afterwards needs a new spec approval.
 5. `/speckit-plan` → `plan.md` (from `.specify/templates/overrides/plan-template.md`; MUST fill in `## Test Strategy` —
    runner and commands, environment, naming, test level per scenario type, data safety — and `## Quickstart`) plus
    `## Architecture Decisions` (ADRs) and `## Data Model` in `spec.md`. No research.md, data-model.md, contracts/ or
@@ -132,9 +136,13 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 7. `/speckit-tasks` → `tasks.md` from `.specify/templates/overrides/tasks-template.md`: no test tasks, every task lists
    `Scenarios: <ID,…>`, every scenario of `spec.md` belongs to at least one task.
 8. `/speckit-analyze` → fix CRITICAL findings in plan / tasks (spec problems: stop and report).
-9. **STOP — wait for the user to approve plan and tasks.**
-10. **HANDOFF** (see "Handoff"): `python3 .specify/scripts/spec_check.py --stage spec --change <change>` passes;
-    commit the change folder on branch `NNN-<name>`. Do not open the PR yet: code and tests come first.
+9. **STOP — wait for the user to approve plan and tasks.** The user runs, in their own terminal,
+   `python3 .specify/scripts/approval.py approve --change <change> --gate plan` (hashes `spec.md` + `plan.md` +
+   `tasks.md`; refused while the spec gate is missing or no longer matches: approve the spec again first).
+10. **HANDOFF** (see "Handoff"): `python3 .specify/scripts/approval.py verify --change <change>` and
+    `python3 .specify/scripts/spec_check.py --stage spec --change <change>` pass;
+    commit the change folder (with `approval.json` and `.approved/`) on branch `NNN-<name>`. Do not open the PR yet:
+    code and tests come first.
 
 Do not use `specify workflow run speckit`: the core workflow still has an implement step.
 
@@ -158,6 +166,9 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 
 ## Hard rules
 
+- Approvals are the user's: only `approval.py approve`, run by the user in their own terminal, writes
+  `approval.json` and `.approved/` (of a change or a bug). No agent, the main session included, writes or edits them
+  or runs `approval.py approve` (`guard.mjs` blocks it); agents run `approval.py verify` only.
 - Only `spec-archive` may modify `specs/capabilities/` and `specs/_system/nfr.md` (bootstrap creates nfr.md once).
 - `/speckit-specify` may **append** rows to three files of `specs/_system/`, never change an existing row:
   `traceability.md` (the items of a requirement document that has none yet, owned by the new change),

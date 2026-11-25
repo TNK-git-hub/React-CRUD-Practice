@@ -5,11 +5,13 @@
 # bugs/
 # └── <YYYYMMDD>-<slug>/
 #     ├── report.md               expected, actual, steps, environment, error / log, violated scenario ID
-#     ├── investigation.md        evidence log, call chain, ranked hypotheses, root cause,
-#     │                           "Root cause: approved by user on <date>" (gate before any fix)
-#     └── fix.md                  attempts (at most 3 failed), files changed, tests, verification,
-#                                 same pattern elsewhere
+#     ├── investigation.md        evidence log, call chain, ranked hypotheses, root cause
+#     ├── fix.md                  attempts (at most 3 failed), files changed, tests, verification,
+#     │                           same pattern elsewhere
+#     ├── approval.json           gate root-cause (sha256 of report.md + the Root cause section), written only by
+#     │                           approval.py approve, run by the user in their own terminal (gate before any fix)
+#     └── .approved/root-cause/   the approved copy, so `approval.py verify --bug <id>` can print a diff
 #
-# The folder is the whole record: to go on in a new chat, start from these three files only (no old chat log).
+# The folder is the whole record: to go on in a new chat, start from these files only (no old chat log).
 # Templates: .claude/skills/bug-fix-flow/templates/. Behavior no scenario covers is a spec gap, not a bug:
 # it goes to the spec harness (/speckit-specify), not here.

@@ -91,7 +91,7 @@ flowchart TD
 | 4 | Bootstrap | ✋ Duyệt `specs/_system/roadmap.md` và trả lời các câu hỏi Claude nêu | Thứ tự và phạm vi các change là quyết định nghiệp vụ |
 | 5 | Spec | Trả lời câu hỏi của `/speckit-clarify` (tối đa 5 câu) | Lệnh chỉ chạy ở session chính vì cần người trả lời |
 | 6 | Spec | Trả lời các chỗ `[NEEDS CLARIFICATION]` | Claude không được tự đặt con số, giới hạn, quyền hay chính sách xoá dữ liệu |
-| 7 | Spec | ✋ **Duyệt spec**, sau đó Claude đặt `status: approved` | `/speckit-plan` từ chối chạy khi spec chưa được duyệt |
+| 7 | Spec | ✋ **Duyệt spec**: tự chạy `python3 .specify/scripts/approval.py approve --change <change> --gate spec` trong terminal của bạn (lệnh ghi hash vào `approval.json` và đặt `status: approved`) | `/speckit-plan` từ chối chạy khi spec chưa được duyệt; Claude không chạy được lệnh duyệt |
 | 8 | Plan | ✋ **Duyệt plan + tasks** | Đây là cổng cuối trước khi agent viết code |
 | 9 | Plan | Đồng ý nếu plan muốn đổi stack | Stack chỉ được đổi khi người dùng cho phép |
 | 10 | Trước code | Viết hidden test trong một session riêng: `claude --agent private-test-writer` | Agent viết code và test không bao giờ được thấy hidden test |
@@ -130,7 +130,7 @@ flowchart TD
 | 1 | `/speckit-specify` | Branch `NNN-<name>`, file `specs/changes/NNN-<name>/spec.md` (delta: `ADDED` / `MODIFIED` / `REMOVED` / `RENAMED` / `MOVED`) |
 | 2 | `/speckit-clarify` | Claude hỏi bạn tối đa 5 câu, ghi câu trả lời vào spec. **Chạy ở session chính** |
 | 3 | `/spec-edge-cases` | Scenario có ID (`ABC-003-S2`), Given / When / Then, P1–P3, `→ Recovery:`; file `checklists/edge-cases.md` |
-| 4 | ✋ **Duyệt spec** | Bạn đọc spec. Đồng ý thì nói Claude đặt `status: approved` |
+| 4 | ✋ **Duyệt spec** | Bạn đọc spec. Đồng ý thì tự chạy `python3 .specify/scripts/approval.py approve --change <change> --gate spec` trong terminal của bạn (ghi hash vào `approval.json`, đặt `status: approved`) |
 
 Điểm nào chưa rõ được ghi `[NEEDS CLARIFICATION: ...]`: Claude không tự bịa con số, giới hạn hay quyền.
 

@@ -44,12 +44,16 @@ same pattern elsewhere.
 Show the user: the root cause, the evidence (`file:line`, test output), the fix direction, the impact. Then STOP and
 wait. The Stop hook (`stop-gate.sh`) reports the red reproduction test once: that is expected here; reply that you
 are waiting for approval of the root cause, do not fix.
-- Approved → write in `investigation.md`, Root cause gate: `Root cause: approved by user on <YYYY-MM-DD>` and a
-  one-line summary.
+- Approval is the user's, in their own terminal (you cannot run it; `guard.mjs` blocks it): ask the user to run
+  `python3 .specify/scripts/approval.py approve --bug <id> --gate root-cause --summary "<one line>"`. It hashes
+  `report.md` and the "Root cause" section of `investigation.md` into `bugs/<id>/approval.json`. Never write an
+  approval line yourself.
 - Rejected → write the hypothesis as rejected, with the user's reason; back to d) with the new information, or (when
   this chat already holds a long dead-end) suggest going on in a new chat (see "New chat").
 
 ## f) GREEN: fix at the source
+First run `python3 .specify/scripts/approval.py verify --bug <id>`. Not exit 0 (not approved, or `report.md` / the Root
+cause section changed since) → STOP and tell the user; no fix without a matching approval.
 Give `code-writer`: the approved root cause and fix direction from `investigation.md`, the reproduction test. Tell it:
 one change at the source, in the shared code (no patch in each caller, no wrapper, no new dependency); the
 reproduction test must pass and the rest of `pnpm test` stay green.
