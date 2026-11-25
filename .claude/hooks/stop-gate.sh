@@ -13,6 +13,9 @@ fi
 
 cd "$CLAUDE_PROJECT_DIR" || exit 0
 
+# Khung harness chưa có app (chưa có package.json) thì không có gì để test
+[ -f package.json ] || exit 0
+
 # Không có file nào thay đổi thì khỏi chạy test
 if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
   exit 0
