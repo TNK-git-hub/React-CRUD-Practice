@@ -665,8 +665,8 @@ def check_approvals(root: Path) -> list[str]:
         if (folder / "plan.md").is_file() and (folder / "tasks.md").is_file():
             wanted.append(("plan", "plan.md and tasks.md exist"))
         for gate, why in wanted:
-            ok, reason, _ = approval.check_gate(root, folder, gate)
-            if not ok:
+            code, reason, _ = approval.check_gate(root, folder, gate)
+            if code != approval.OK:  # PENDING and ERROR both fail the check
                 errors.append(f"{loc}: {why} but {reason} ({fix.format(gate=gate)})")
     return errors
 

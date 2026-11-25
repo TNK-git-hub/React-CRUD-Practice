@@ -21,18 +21,21 @@ if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --other
   exit 0
 fi
 
-# Bug flow (skill bug-fix-flow): while a bug record with uncommitted changes has no matching root-cause gate, the
-# session is waiting for the user (the reproduction test is red by design), so do not push it to "fix" the test.
-# "Waiting" is derived from approval.py only (no marker file). Only folders named like a bug id count (<YYYYMMDD>-<slug>),
-# so another folder under bugs/ cannot switch the gate off; bugs/.gitkeep has no folder and is ignored.
+# Bug flow (skill bug-fix-flow): while a bug record with uncommitted changes is complete but its root-cause gate is
+# missing or changed, the session is waiting for the user (the reproduction test is red by design), so do not push
+# it to "fix" the test. "Waiting" is derived from approval.py only (no marker file): skip only on `verify` exit 1
+# (pending: report.md + the Root cause section are there). Exit 2 (missing file / heading, broken approval.json,
+# unexpected error) or any other code -> run the tests (fail-closed). Only folders named like a bug id count
+# (<YYYYMMDD>-<slug>), so another folder under bugs/ cannot switch the gate off; bugs/.gitkeep is ignored.
 PY="$(command -v python3 || command -v python || true)"
 if [ -n "$PY" ] && [ -f .specify/scripts/approval.py ]; then
   bug_ids=$(git status --porcelain --untracked-files=all -- bugs/ \
     | sed -E 's/^.{3}//; s/.* -> //; s/^"//' \
     | sed -nE 's#^bugs/([0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*)/.*#\1#p' | sort -u)
   for id in $bug_ids; do
-    if ! "$PY" .specify/scripts/approval.py verify --bug "$id" --root "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1; then
-      echo "[stop-gate] bug $id đang chờ người dùng duyệt root cause (approval.py verify --bug $id chưa khớp): bỏ qua pnpm test." >&2
+    "$PY" .specify/scripts/approval.py verify --bug "$id" --root "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
+    if [ "$?" -eq 1 ]; then
+      echo "[stop-gate] bug $id đang chờ người dùng duyệt root cause (hồ sơ đã đủ, approval.py verify --bug $id chưa khớp): bỏ qua pnpm test." >&2
       exit 0
     fi
   done

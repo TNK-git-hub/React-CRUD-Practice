@@ -253,12 +253,92 @@ class ApprovalTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("gate plan is not approved", out)
 
-    def test_verify_missing_file(self) -> None:
+    # ---- verify exit codes: 0 match, 1 pending (files there, gate missing / changed), 2 error ----
+    def test_verify_missing_file_is_error(self) -> None:
         self.approve_change("spec")
         (self.change / "spec.md").unlink()
         code, out = self.verify("--change", CHANGE)
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 2)
         self.assertIn("not found", out)
+
+    def test_verify_no_gate_but_spec_missing_is_error(self) -> None:
+        (self.change / "spec.md").unlink()
+        self.assertEqual(self.verify("--change", CHANGE)[0], 2)
+
+    def test_verify_plan_gate_tasks_missing_is_error(self) -> None:
+        (self.change / "tasks.md").unlink()
+        self.assertEqual(self.verify("--change", CHANGE, "--gate", "plan")[0], 2)
+
+    def test_verify_spec_heading_missing_is_error(self) -> None:
+        self.edit(f"specs/changes/{CHANGE}/spec.md", "## Architecture Decisions", "## Decisions")
+        code, out = self.verify("--change", CHANGE, "--gate", "spec")
+        self.assertEqual(code, 2)
+        self.assertIn("## Architecture Decisions", out)
+
+    def test_verify_bug_without_investigation_is_error(self) -> None:
+        (self.root / "bugs" / BUG / "investigation.md").unlink()
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("investigation.md not found", out)
+
+    def test_verify_bug_without_report_is_error(self) -> None:
+        (self.root / "bugs" / BUG / "report.md").unlink()
+        self.assertEqual(self.verify("--bug", BUG)[0], 2)
+
+    def test_verify_bug_without_root_cause_section_is_error(self) -> None:
+        self.edit(f"bugs/{BUG}/investigation.md", "## Root cause\n", "## Cause\n")
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("no '## Root cause' heading", out)
+
+    def test_verify_bug_complete_without_gate_is_pending(self) -> None:
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 1)
+        self.assertIn("gate root-cause is not approved", out)
+
+    def test_verify_bug_gate_changed_is_pending(self) -> None:
+        self.approve_bug()
+        self.edit(f"bugs/{BUG}/report.md", "max 100 filters.", "max 200 filters.")
+        self.assertEqual(self.verify("--bug", BUG)[0], 1)
+
+    def test_verify_bug_gate_matches(self) -> None:
+        self.approve_bug()
+        self.assertEqual(self.verify("--bug", BUG)[0], 0)
+
+    def test_verify_broken_json_is_error(self) -> None:
+        (self.root / "bugs" / BUG / "approval.json").write_text("{not json")
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("not valid JSON", out)
+
+    def test_verify_gate_without_sha256_is_error(self) -> None:
+        (self.root / "bugs" / BUG / "approval.json").write_text('{"root-cause": {"at": "x"}}')
+        self.assertEqual(self.verify("--bug", BUG)[0], 2)
+
+    def test_verify_bad_ids_are_errors(self) -> None:
+        self.assertEqual(self.verify("--bug", "not-a-bug-id")[0], 2)
+        self.assertEqual(self.verify("--change", "bulk-delete")[0], 2)
+        self.assertEqual(self.verify("--bug", "20261125-no-such-folder")[0], 2)
+        self.assertEqual(self.verify("--bug", BUG, "--gate", "spec")[0], 2)
+
+    def test_verify_unexpected_error_is_error(self) -> None:
+        with mock.patch.object(approval, "materials", side_effect=RuntimeError("boom")):
+            code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("unexpected error: RuntimeError: boom", out)
+
+    def test_verify_worst_code_wins(self) -> None:
+        self.approve_change("spec")
+        self.approve_change("plan")
+        (self.change / "tasks.md").unlink()  # spec gate still OK, plan gate ERROR
+        self.assertEqual(self.verify("--change", CHANGE)[0], 2)
+
+    def test_verify_help_lists_exit_codes(self) -> None:
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(SystemExit):
+            approval.main(["verify", "--help"])
+        self.assertIn("1  pending", out.getvalue())
+        self.assertIn("2  error", out.getvalue())
 
     # ---- root-cause gate ----
     def approve_bug(self) -> None:

@@ -202,6 +202,35 @@ class StopGateTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue(self.pnpm_called())
 
+    # ---- fail-closed: an incomplete record or an approval.py error never switches the gate off ----
+    def assert_tests_ran(self) -> None:
+        code, err = self.run_gate()
+        self.assertEqual(code, 2, err)
+        self.assertTrue(self.pnpm_called())
+        self.assertNotIn("bỏ qua pnpm test", err)
+
+    def test_bug_with_notes_only_runs_tests(self) -> None:
+        self.with_app()
+        self.write(f"bugs/{BUG}/notes.md", "first notes\n")
+        self.assert_tests_ran()
+
+    def test_bug_with_report_only_runs_tests(self) -> None:
+        self.with_app()
+        self.write(f"bugs/{BUG}/report.md", REPORT)
+        self.assert_tests_ran()
+
+    def test_bug_without_root_cause_section_runs_tests(self) -> None:
+        self.with_app()
+        self.write(f"bugs/{BUG}/report.md", REPORT)
+        self.write(f"bugs/{BUG}/investigation.md", INVESTIGATION.replace("## Root cause\n", "## Findings\n"))
+        self.assert_tests_ran()
+
+    def test_broken_approval_json_runs_tests(self) -> None:
+        self.with_app()
+        folder = self.bug_record()
+        (folder / approval.APPROVAL_FILE).write_text("{not json", encoding="utf-8")
+        self.assert_tests_ran()
+
     def test_folder_not_named_like_a_bug_id_runs_tests(self) -> None:
         self.with_app()
         self.write("bugs/notes/todo.md", "x\n")

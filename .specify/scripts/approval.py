@@ -21,9 +21,15 @@ What each gate hashes (CRLF read as LF):
   root-cause  bugs/<id>/report.md + the "Root cause" section of investigation.md (from that heading, named as in
               .claude/skills/bug-fix-flow/templates/investigation.md, up to the next heading of the same or a higher level).
 
-verify: exit 0 when every gate asked for exists and matches; exit 1 with the reason (missing gate / changed) and a
-unified diff against the copy in .approved/. spec_check.py --stage spec uses check_gate() for open changes.
-Exit codes: 0 ok; 1 not approved, changed, refused or bad input; 2 approve without a TTY.
+verify prints the reason per gate and a unified diff against the copy in .approved/. Exit codes of verify:
+  0  every gate asked for exists and matches
+  1  pending: every file the gate hashes exists and can be read, but the gate is not approved yet or has changed
+  2  error: a file the gate hashes is missing (report.md / investigation.md / spec.md / plan.md / tasks.md), a heading
+     the normalization needs is missing (the Root cause section, '## Architecture Decisions', '## Clarifications'),
+     bad change / bug id or folder, approval.json is broken, or an unexpected error
+Callers treat every non-zero code as "not approved"; stop-gate.sh skips tests on 1 only (fail-closed on 2).
+Exit codes of approve: 0 approved; 1 not approved, refused or bad input; 2 no TTY.
+spec_check.py --stage spec uses check_gate() for open changes.
 """
 
 from __future__ import annotations
@@ -52,6 +58,9 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 REQ_HEAD_RE = re.compile(r"^####\s+(ADDED|MODIFIED|REMOVED|RENAMED|MOVED)\s+[A-Z]{2,5}-\d{3}\b")
 SCENARIO_RE = re.compile(r"^\s*- `[A-Z]{2,5}-\d{3}-S\d+`")
 TASK_RE = re.compile(r"^\s*- \[[ xX]\] T\d+")
+
+
+OK, PENDING, ERROR = 0, 1, 2  # verify exit codes (and check_gate() codes)
 
 
 class ApprovalError(Exception):
@@ -196,20 +205,25 @@ def load(folder: Path) -> dict:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise ApprovalError(f"{path.name} is not valid JSON: {e}") from e
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        raise ApprovalError(f"{path.name} is not a JSON object")
+    return data
 
 
-def check_gate(root: Path, folder: Path, gate: str) -> tuple[bool, str, str]:
-    """(ok, reason, unified diff against the approved copy). Used by verify and by spec_check.py."""
+def check_gate(root: Path, folder: Path, gate: str) -> tuple[int, str, str]:
+    """(OK | PENDING | ERROR, reason, unified diff against the approved copy). Used by verify and by spec_check.py.
+    The files the gate hashes are read first: PENDING only when they are all there and readable."""
     try:
-        data = load(folder)
-        if gate not in data:
-            return False, f"gate {gate} is not approved", ""
         mats = materials(root, folder, gate)
+        entry = load(folder).get(gate)
+        if entry is not None and not (isinstance(entry, dict) and isinstance(entry.get("sha256"), str)):
+            raise ApprovalError(f"{APPROVAL_FILE}: gate {gate} has no sha256")
     except ApprovalError as e:
-        return False, f"gate {gate}: {e}", ""
-    if digest(mats) == data[gate].get("sha256"):
-        return True, f"gate {gate} matches (sha256 {data[gate]['sha256'][:12]}…)", ""
+        return ERROR, f"gate {gate}: {e}", ""
+    if entry is None:
+        return PENDING, f"gate {gate} is not approved", ""
+    if digest(mats) == entry["sha256"]:
+        return OK, f"gate {gate} matches (sha256 {entry['sha256'][:12]}…)", ""
     diffs = []
     for label, content in mats:
         copy = folder / COPIES_DIR / gate / copy_name(label)
@@ -220,7 +234,7 @@ def check_gate(root: Path, folder: Path, gate: str) -> tuple[bool, str, str]:
             copy.read_text(encoding="utf-8").split("\n"), content.split("\n"),
             fromfile=f"approved: {label}", tofile=f"now: {label}", lineterm="",
         )
-    return False, f"gate {gate} changed since approval", "\n".join(diffs)
+    return PENDING, f"gate {gate} changed since approval", "\n".join(diffs)
 
 
 def summary_of(gate: str, mats: list[tuple[str, str]], summary: str | None) -> str:
@@ -242,8 +256,8 @@ def approve(root: Path, change: str | None, bug: str | None, gate: str, summary:
         return 2
     folder = folder_of(root, change, bug)
     if gate == "plan":
-        ok, reason, diff = check_gate(root, folder, "spec")
-        if not ok:
+        code, reason, diff = check_gate(root, folder, "spec")
+        if code != OK:
             print(f"approval.py approve: refused, {reason}.")
             if diff:
                 print(diff)
@@ -288,7 +302,9 @@ def approve(root: Path, change: str | None, bug: str | None, gate: str, summary:
 
 
 def verify(root: Path, change: str | None, bug: str | None, gate: str | None) -> int:
+    """OK, PENDING or ERROR: the worst code of the gates asked for."""
     folder = folder_of(root, change, bug)
+    where = folder.relative_to(root).as_posix()
     if gate:
         gates = [gate]
     elif bug is not None:
@@ -296,23 +312,31 @@ def verify(root: Path, change: str | None, bug: str | None, gate: str | None) ->
     else:
         gates = [g for g in CHANGE_GATES if g in load(folder)]
         if not gates:
-            print(f"FAIL {folder.relative_to(root).as_posix()}: no gate approved yet")
-            return 1
-    failed = 0
+            materials(root, folder, "spec")  # spec.md missing / unreadable -> ApprovalError -> ERROR
+            print(f"FAIL {where}: no gate approved yet")
+            return PENDING
+    worst = OK
     for g in gates:
-        ok, reason, diff = check_gate(root, folder, g)
-        print(f"{'OK  ' if ok else 'FAIL'} {folder.relative_to(root).as_posix()}: {reason}")
+        code, reason, diff = check_gate(root, folder, g)
+        print(f"{'OK  ' if code == OK else 'FAIL'} {where}: {reason}")
         if diff:
             print(diff)
-        failed += not ok
-    return 1 if failed else 0
+        worst = max(worst, code)
+    return worst
+
+
+VERIFY_CODES = """exit codes:
+  0  every gate asked for exists and matches
+  1  pending: the files the gate hashes are all there and readable, but the gate is not approved yet or has changed
+  2  error: missing file or heading, bad change / bug id, broken approval file, unexpected error"""
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="human-only approvals locked with sha256")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("approve", "verify"):
-        p = sub.add_parser(name)
+        p = sub.add_parser(name, epilog=VERIFY_CODES if name == "verify" else None,
+                           formatter_class=argparse.RawDescriptionHelpFormatter)
         who = p.add_mutually_exclusive_group(required=True)
         who.add_argument("--change", help="change folder in specs/changes/, e.g. 001-product-bulk-delete")
         who.add_argument("--bug", help="bug folder in bugs/, e.g. 20261125-price-filter-ignores-max")
@@ -322,10 +346,11 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--summary", help="one line, required for --gate root-cause")
     args = parser.parse_args(argv)
     root = (args.root or default_root()).resolve()
+    bad_input = ERROR if args.command == "verify" else 1
     allowed = BUG_GATES if args.bug is not None else CHANGE_GATES
     if args.gate and args.gate not in allowed:
         print(f"approval.py: --gate {args.gate} does not apply to --{'bug' if args.bug else 'change'}", file=sys.stderr)
-        return 1
+        return bad_input
     try:
         if args.command == "approve":
             summary = (args.summary or "").strip()
@@ -336,7 +361,12 @@ def main(argv: list[str] | None = None) -> int:
         return verify(root, args.change, args.bug, args.gate)
     except ApprovalError as e:
         print(f"approval.py: {e}", file=sys.stderr)
-        return 1
+        return bad_input
+    except Exception as e:  # noqa: BLE001 - verify exits 2 (error) on anything unexpected, never 1 (pending)
+        if args.command != "verify":
+            raise
+        print(f"approval.py: unexpected error: {type(e).__name__}: {e}", file=sys.stderr)
+        return ERROR
 
 
 if __name__ == "__main__":
