@@ -9,7 +9,8 @@
 //                          <package>/test/private; không đọc src/, test/public/; không Bash (đường dẫn kiểm cả sau symlink)
 //   agent khác   -> không ghi gì
 // Bash: subagent (mọi agent_type) không ghi file bằng Bash, chỉ bằng Edit/Write (luật theo agent ở trên). Ngoại lệ hẹp
-//   theo agent: lệnh mà skill của agent đó bảo chạy (BASH_WRITE_EXCEPTIONS) và test-writer xoá đúng một file test.
+//   theo agent: lệnh mà skill của agent đó bảo chạy (BASH_WRITE_EXCEPTIONS), test-writer xoá đúng một file test,
+//   code-writer rm / git mv / git restore -- đúng file trong vùng src. Subagent không chạy script spec-archive.
 //   Session chính: Bash ghi vào specs/ -> hỏi người dùng.
 // Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
 // Ngoài private-test-writer, không ai được ghi <package>/test/private.
@@ -243,6 +244,15 @@ if (tool === "Bash") {
   const GIT_INDEX_ONLY = /^(add|commit)$/; // không đổi file trong working tree
   const INTERP = /^(node|python[\d.]*|perl|ruby|bash|sh|zsh|dash)$/;
   const FIND_WRITE = /^-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)$/;
+  const PNPM_WRITE = /^(add|install|i|remove|rm|uninstall|un|update|up|upgrade)$/;
+  // git branch / tag / config / worktree là lệnh ghi, trừ các dạng chỉ đọc này (r = tham số sau tên lệnh con)
+  const GIT_READ_FORM = {
+    branch: (r) => r.length === 0 || (r.length === 1 && r[0] === "--show-current") || r.every((a) => /^(--list|-a|-r|--all|--remotes)$/.test(a)),
+    tag: (r) => r.length >= 1 && /^(--list|-l)$/.test(r[0]) && r.slice(1).every((a) => !a.startsWith("-")),
+    config: (r) => (r.length === 2 && r[0] === "--get" && !r[1].startsWith("-")) || (r.length === 1 && /^(--list|-l)$/.test(r[0])),
+    worktree: () => false,
+  };
+  const FIX_FLAG = (a) => a === "--fix" || a.startsWith("--fix="); // --fix-dry-run không ghi
   const words = (seg) => seg.replace(PREFIX, "").split(/\s+/).filter(Boolean);
   // Lý do một đoạn lệnh là lệnh ghi, hoặc null. indexOnly=false: git add / commit không tính (chỉ đổi index / lịch sử).
   const bashWrite = (seg, indexOnly = true) => {
@@ -257,20 +267,38 @@ if (tool === "Bash") {
     if (prog === "find" && args.some((a) => FIND_WRITE.test(a))) return "find -delete / -exec / -fprint";
     if (prog === "xargs" && args.some((a) => WRITE_PROG.test(a) || INTERP.test(a) || /^(git|sed|perl|find)$/.test(a))) return "xargs + lệnh ghi";
     if (prog === "git") {
-      let sub = "";
+      let sub = "", si = -1;
       for (let i = 0; i < args.length; i++) {
         if (args[i] === "-c" || args[i] === "-C") i++;
-        else if (!args[i].startsWith("-")) { sub = args[i]; break; }
+        else if (!args[i].startsWith("-")) { sub = args[i]; si = i; break; }
       }
+      if (GIT_READ_FORM[sub]) return GIT_READ_FORM[sub](args.slice(si + 1)) ? null : `git ${sub}`;
       if (GIT_WRITE.test(sub) && (indexOnly || !GIT_INDEX_ONLY.test(sub))) return `git ${sub}`;
       return null;
     }
+    if (prog === "eslint" && args.some(FIX_FLAG)) return "eslint --fix";
+    if (prog === "prettier" && args.some((a) => a === "--write" || a === "-w")) return "prettier --write";
     // pnpm exec x / pnpm dlx x / npx x: xét lệnh x
     if (/^(pnpm|npm|yarn)$/.test(prog)) {
+      // `pnpm lint --fix`, `pnpm lint -- --fix`: script chuyển --fix / --write cho eslint / prettier
+      if (args.some((a) => FIX_FLAG(a) || a === "--write")) return `${prog} … --fix / --write`;
       const i = args.findIndex((a) => a === "exec" || a === "dlx");
-      return i >= 0 ? bashWrite(args.slice(i + 1).join(" "), indexOnly) : null;
+      if (i >= 0) return bashWrite(args.slice(i + 1).join(" "), indexOnly);
+      if (prog === "pnpm") {
+        let sub = "";
+        for (let j = 0; j < args.length; j++) {
+          if (/^(--filter|-f|-c|--dir)$/i.test(args[j])) j++;
+          else if (!args[j].startsWith("-")) { sub = args[j]; break; }
+        }
+        if (PNPM_WRITE.test(sub)) return `pnpm ${sub}`;
+      }
+      return null;
     }
-    if (/^(npx|pnpx|bunx)$/.test(prog)) return bashWrite(args.filter((a) => !a.startsWith("-")).join(" "), indexOnly);
+    // npx [cờ của npx] x …: xét `x …` cùng mọi cờ của x
+    if (/^(npx|pnpx|bunx)$/.test(prog)) {
+      const j = args.findIndex((a) => !a.startsWith("-"));
+      return j >= 0 ? bashWrite(args.slice(j).join(" "), indexOnly) : null;
+    }
     if (INTERP.test(prog)) {
       if (args.length === 0 || args.includes("-") || args.some((a) => a.startsWith("<"))) return `${prog} đọc code từ stdin`;
       if (prog === "node" && args.some((a) => /^(-e|-p|-pe|-ep|--eval|--print)(=|$)/.test(a))) return "node -e";
@@ -301,9 +329,25 @@ if (tool === "Bash") {
     /^\s*(git\s+)?rm\s+(-f\s+)?((backend|frontend)\/test\/public|frontend\/test\/e2e)\/[\w./-]+\.test\.tsx?\s*$/;
   if (agent === "test-writer" && TEST_RM.test(cmd) && !cmd.includes("..")) allow();
 
+  // code-writer, cũng chỉ một lệnh, không nối lệnh khác, không glob, không "..", mọi đường dẫn trong vùng src:
+  //   rm [-f] <một file>; git mv <file> <file>; git restore|checkout -- <file...> (hoàn tác một lần sửa hỏng, bug flow)
+  const SRC_FILE = /^(backend\/src|frontend\/src|frontend\/public)\/[^/]/;
+  const srcFile = (p) => !/[*?[\]{}~]/.test(p) && !p.includes("..") && SRC_FILE.test(relCmd(p));
+  if (agent === "code-writer" && segsU.length === 1 && !segsU[0].includes(">")) {
+    const w = words(segsU[0]);
+    const ok =
+      (w[0] === "rm" && ((w.length === 2 && srcFile(w[1])) || (w.length === 3 && w[1] === "-f" && srcFile(w[2])))) ||
+      (w[0] === "git" && w[1] === "mv" && w.length === 4 && srcFile(w[2]) && srcFile(w[3])) ||
+      (w[0] === "git" && /^(restore|checkout)$/.test(w[1]) && w[2] === "--" && w.length > 3 && w.slice(3).every(srcFile));
+    if (ok) allow();
+  }
+
   // Subagent: không ghi file bằng Bash (allow-list như Edit/Write); chỉ các ngoại lệ ở trên.
+  const SPEC_ARCHIVE = ".claude/skills/spec-archive/scripts/change.py";
   if (agent !== "main") {
     for (const seg of segsU) {
+      // change.py ghi specs/capabilities/: chỉ session chính chạy (qua /spec-archive)
+      if (words(seg).some((t) => relCmd(t) === SPEC_ARCHIVE)) block(`${who} không được chạy ${SPEC_ARCHIVE} (chỉ session chính, qua /spec-archive).`);
       const why = bashWrite(seg);
       if (why && !(BASH_WRITE_EXCEPTIONS[agent] || []).some((ok) => ok(words(seg)))) {
         block(`${who} không được ghi file bằng Bash (${why}: \`${seg}\`). Ghi file bằng Edit/Write, trong phạm vi của agent này.`);
