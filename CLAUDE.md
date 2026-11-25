@@ -33,7 +33,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 
 ## Quy trình sửa bug
 - Người dùng báo bug, test fail bất thường hay hành vi sai: làm theo skill `bug-fix-flow`. Không sửa khi người dùng chưa đồng ý root cause.
-- Thứ tự: phân loại (vi phạm scenario nào; không scenario nào nói tới thì là lỗ hổng spec, chuyển sang spec harness) → `bugs/<id>/report.md` → RED (`test-writer` viết test tái hiện, tên bắt đầu bằng scenario ID, phải fail đúng vì bug) → điều tra (`bug-investigator`, chỉ đọc) → gate root cause (dừng chờ người dùng đồng ý) → GREEN (`code-writer` sửa một chỗ ở gốc, tối đa 3 lần thất bại) → review (`code-reviewer` + `test-critic`).
+- Thứ tự: phân loại (vi phạm scenario nào; không scenario nào nói tới thì là lỗ hổng spec, chuyển sang spec harness) → `bugs/<id>/report.md` → RED (`test-writer` viết test tái hiện, tên bắt đầu bằng scenario ID, phải fail đúng vì bug) → điều tra (`bug-investigator`, chỉ đọc) → gate root cause (dừng chờ người dùng đồng ý) → GREEN (`code-writer` sửa một chỗ ở gốc, tối đa 3 lần thất bại) → review (`code-reviewer` + `test-critic` + `security-reviewer`).
 - Session chính ghi hồ sơ `bugs/<id>/` (`report.md`, `investigation.md`, `fix.md`). Đó là toàn bộ hồ sơ: làm tiếp ở chat mới chỉ cần thư mục này, không cần log chat cũ.
 - Không sửa, xoá hay skip test tái hiện để cho pass; không sửa `specs/`.
 

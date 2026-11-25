@@ -29,5 +29,16 @@ it under the skill's Data Exposure category.
 
 Output: the findings in the skill's REQUIRED OUTPUT FORMAT, each with two more lines: `Confidence: <n>/10` and
 `Principle II: yes|no` (yes = it breaks one of checks 1–5). Then the `SPEC_PROBLEM` lines and the missing denied-case
-tests (check 5), if any. Last: the count per severity (HIGH / MEDIUM / LOW) and the verdict: `PASS` (no HIGH or
-MEDIUM left) or `CHANGES REQUIRED`.
+tests (check 5), if any. Last: the count per severity (HIGH / MEDIUM / LOW) and the verdict:
+- `CHANGES REQUIRED`: a HIGH or MEDIUM finding is left, OR a `SPEC_PROBLEM` because a requirement with a permission
+  constraint has no scenario for the denied case (Principle II is a MUST).
+- `PASS`: otherwise. A denied-case scenario without a test is only listed and does not change the verdict
+  (`spec_check --stage archive` already blocks a scenario without a test).
+
+## Precedence over the skill
+Where skill security-review and this file differ, this file wins:
+a) "Do not use the bash tool or write to any files" (FALSE POSITIVE FILTERING) applies to the filtering step only;
+   the step that finds vulnerabilities may run read-only git commands. Never write a file, in any step.
+b) The final reply is the skill's markdown report plus the output of this file (Confidence, Principle II,
+   `SPEC_PROBLEM`, count per severity, verdict).
+c) Use only the 1–10 confidence scale; keep a finding at >= 8 (0.8–1.0 of CONFIDENCE SCORING is 8–10).

@@ -1,6 +1,6 @@
 ---
 name: bug-fix-flow
-description: Use when the user reports a bug, a test fails unexpectedly, or the app behaves wrongly. Interactive flow for the main session (orchestrator) - classify against the spec scenarios, write bugs/<id>/report.md, reproduce with a failing test (test-writer), investigate (bug-investigator), stop for the user to approve the root cause, then fix at the source (code-writer, at most 3 failed attempts) and review (code-reviewer + test-critic). No fix before the user approves a root cause.
+description: Use when the user reports a bug, a test fails unexpectedly, or the app behaves wrongly. Interactive flow for the main session (orchestrator) - classify against the spec scenarios, write bugs/<id>/report.md, reproduce with a failing test (test-writer), investigate (bug-investigator), stop for the user to approve the root cause, then fix at the source (code-writer, at most 3 failed attempts) and review (code-reviewer + test-critic + security-reviewer). No fix before the user approves a root cause.
 ---
 # Bug fix flow (interactive)
 
