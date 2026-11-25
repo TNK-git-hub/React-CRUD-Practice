@@ -60,7 +60,8 @@ After each attempt write `fix.md`: `Attempt <n>: <change> — <result>` (test ou
   in `investigation.md`. Tell the user it may be an architecture problem and suggest a new chat (see "New chat").
 
 ## g) Review
-`code-reviewer` (the diff) and `test-critic` (the reproduction test) as in the feature flow. Findings → back to the
+`code-reviewer` (the diff), `test-critic` (the reproduction test) and `security-reviewer` (the diff, Principle II) as in
+the feature flow; the three only read, so they can run in parallel. Findings → back to the
 writer that owns the file (`code-writer` for code, `test-writer` for the test), never one for the other.
 Look for the same mistake elsewhere (the investigator's list + a `grep` of the pattern): list each `file:line` in
 `fix.md`, "Same pattern elsewhere". Fixing them is a new decision for the user, not part of this fix.

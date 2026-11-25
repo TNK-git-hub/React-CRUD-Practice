@@ -210,6 +210,12 @@ const cases = [
   ["code-reviewer", "Bash", { command: "pnpm lint" }, A, "code-reviewer pnpm lint"],
   ["code-reviewer", "Bash", { command: "pnpm --filter frontend exec eslint --fix-dry-run src" }, A, "code-reviewer eslint --fix-dry-run"],
   ["main", "Bash", { command: "python3 .claude/skills/spec-archive/scripts/change.py sync --change 001-x --dry-run" }, A, "main spec-archive --dry-run"],
+  // ---- security-reviewer: read-only (Edit/Write and Bash writes blocked), reads the diff against the base branch ----
+  ["security-reviewer", "Write", { file_path: "backend/src/x.ts" }, B, "security-reviewer Write src"],
+  ["security-reviewer", "Write", { file_path: "specs/changes/001-x/spec.md" }, B, "security-reviewer Write specs/changes"],
+  ["security-reviewer", "Bash", { command: "echo x > bugs/x/a.md" }, B, "security-reviewer echo > bugs/"],
+  ["security-reviewer", "Bash", { command: "git diff --merge-base harness-base" }, A, "security-reviewer git diff --merge-base <base>"],
+  ["security-reviewer", "Bash", { command: "git log --no-decorate harness-base..." }, A, "security-reviewer git log --no-decorate <base>..."],
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----
