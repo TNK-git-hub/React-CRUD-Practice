@@ -139,6 +139,10 @@ const cases = [
   ["planner", "Read", { file_path: "specs/changes/002-x/spec.md" }, A, "planner Read specs"],
   ["main", "Read", { file_path: "specs/_system/nfr.md" }, A, "main Read specs"],
   ["spec-writer", "Write", { file_path: "specs/changes/002-x/spec.md" }, A, "spec-writer Write specs/changes"],
+  // ---- bug flow (skill bug-fix-flow): bug-investigator only reads; the main session writes the record in bugs/ ----
+  ["bug-investigator", "Write", { file_path: "backend/src/x.ts" }, B, "bug-investigator Write src"],
+  ["bug-investigator", "Write", { file_path: "bugs/x/investigation.md" }, B, "bug-investigator Write bugs/ (read-only agent)"],
+  ["main", "Write", { file_path: "bugs/x/report.md" }, A, "main Write bugs/x/report.md"],
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----

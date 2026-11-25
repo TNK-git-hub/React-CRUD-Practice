@@ -1,0 +1,15 @@
+# bugs/ — RECORD OF EACH BUG FIX (interactive flow, skill bug-fix-flow)
+#
+# One folder per bug, written by the main session (agents only read it):
+#
+# bugs/
+# └── <YYYYMMDD>-<slug>/
+#     ├── report.md               expected, actual, steps, environment, error / log, violated scenario ID
+#     ├── investigation.md        evidence log, call chain, ranked hypotheses, root cause,
+#     │                           "Root cause: approved by user on <date>" (gate before any fix)
+#     └── fix.md                  attempts (at most 3 failed), files changed, tests, verification,
+#                                 same pattern elsewhere
+#
+# The folder is the whole record: to go on in a new chat, start from these three files only (no old chat log).
+# Templates: .claude/skills/bug-fix-flow/templates/. Behavior no scenario covers is a spec gap, not a bug:
+# it goes to the spec harness (/speckit-specify), not here.

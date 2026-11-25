@@ -30,6 +30,12 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - Sửa file harness (`.claude/`, `CLAUDE.md`, `package.json`, config test, `.github/`, `ci/`, `k8s/`) luôn phải hỏi người dùng.
 - Giao việc cho agent chạy trong pod (kind) để tự mở PR và theo dõi GitHub Actions: dùng skill `dispatch-agents` (`k8s/agents/README.md`).
 
+## Quy trình sửa bug
+- Người dùng báo bug, test fail bất thường hay hành vi sai: làm theo skill `bug-fix-flow`. Không sửa khi người dùng chưa đồng ý root cause.
+- Thứ tự: phân loại (vi phạm scenario nào; không scenario nào nói tới thì là lỗ hổng spec, chuyển sang spec harness) → `bugs/<id>/report.md` → RED (`test-writer` viết test tái hiện, tên bắt đầu bằng scenario ID, phải fail đúng vì bug) → điều tra (`bug-investigator`, chỉ đọc) → gate root cause (dừng chờ người dùng đồng ý) → GREEN (`code-writer` sửa một chỗ ở gốc, tối đa 3 lần thất bại) → review (`code-reviewer` + `test-critic`).
+- Session chính ghi hồ sơ `bugs/<id>/` (`report.md`, `investigation.md`, `fix.md`). Đó là toàn bộ hồ sơ: làm tiếp ở chat mới chỉ cần thư mục này, không cần log chat cũ.
+- Không sửa, xoá hay skip test tái hiện để cho pass; không sửa `specs/`.
+
 ## Branches
 - Base branch: `harness-base`. Change branches (`NNN-<name>`) start from it and their PRs merge into it. The skills and agents of the spec harness read the base branch name from this line; no other file hard-codes it.
 
