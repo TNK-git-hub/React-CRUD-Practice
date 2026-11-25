@@ -1,6 +1,6 @@
-# React-CRUD-Practice
+# AI-native harness
 
-Monorepo pnpm gồm `frontend/` (Next.js 16 App Router, React 19, TanStack Query, Tailwind) và `backend/` (NestJS, TypeORM, PostgreSQL, Redis).
+Khung harness (spec, code, test, CI, agent pod), chưa có code app. App theo khung này là monorepo pnpm gồm `frontend/` (Next.js 16 App Router, React 19, TanStack Query, Tailwind) và `backend/` (NestJS, TypeORM, PostgreSQL, Redis).
 
 Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js này khác với kiến thức cũ, phải xem docs trong `node_modules/next/dist/docs/`.
 

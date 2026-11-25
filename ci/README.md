@@ -1,4 +1,4 @@
-# Local CI for React-CRUD-Practice
+# Local CI
 
 CI (Continuous Integration) checks every change automatically, so broken code never reaches a PR.
 The pipeline is [`local-ci.sh`](local-ci.sh). It runs in three places: your machine, the agent pods

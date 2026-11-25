@@ -28,9 +28,6 @@ dist-ssr
 .env.*
 !.env.example
 
-# Uploaded images (saved by Multer, created again by pnpm seed)
-backend/uploads/
-
 # Keys & DB dumps
 *.pem
 *.key
