@@ -34,7 +34,8 @@ project (a person provides the initial software requirements) and a brownfield p
 (a person provides the customer's existing repository). The constitution templates are
 written (headings plus an HTML comment under each saying what to fill in; the roadmap is a
 phase table with a status column). `/onboard` creates the constitution: it detects greenfield (no project code; reads
-`docs/requirements/`) or brownfield (reads the existing code), fills the templates, and
+`docs/requirements/`) or brownfield (reads all of the existing source code, plus
+`docs/requirements/` if it has files), fills the templates, and
 asks the user with AskUserQuestion when information is missing.
 
 ## Memory

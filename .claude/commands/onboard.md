@@ -18,8 +18,10 @@ The harness files are `.claude/`, `docs/`, `README.md`, and `.gitignore`. Any ot
 tracked or untracked file is project code.
 
 - **Brownfield** (an existing customer repository): there is project code.
-  Read it: the README, build and dependency files, the folder layout, and the main entry
-  points. Also read `docs/requirements/` if it has files.
+  Read all of the project's source code (list it with `git ls-files` plus untracked
+  files). Skip only generated or third-party files: dependency folders, build output,
+  vendored libraries, lock files, and binaries. Also read every file in
+  `docs/requirements/` except `README.md`, if there are any.
 - **Greenfield** (a new project): there is no project code.
   Read every file in `docs/requirements/` except `README.md`. If there are none, tell the
   user to put the customer's requirements there, and stop.
