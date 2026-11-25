@@ -42,8 +42,10 @@ same pattern elsewhere.
 
 ## e) GATE: root cause
 Show the user: the root cause, the evidence (`file:line`, test output), the fix direction, the impact. Then STOP and
-wait. The Stop hook (`stop-gate.sh`) reports the red reproduction test once: that is expected here; reply that you
-are waiting for approval of the root cause, do not fix.
+wait. The Stop hook (`stop-gate.sh`) skips `pnpm test` by itself only while the record is complete and waits for
+the root-cause approval: `bugs/<id>/` has uncommitted changes, `report.md` and the Root cause section of
+`investigation.md` are there, and `approval.py verify --bug <id>` exits 1 (gate missing or changed). An incomplete
+record or any error (exit 2) still runs the tests. Do not fix.
 - Approval is the user's, in their own terminal (you cannot run it; `guard.mjs` blocks it): ask the user to run
   `python3 .specify/scripts/approval.py approve --bug <id> --gate root-cause --summary "<one line>"`. It hashes
   `report.md` and the "Root cause" section of `investigation.md` into `bugs/<id>/approval.json`. Never write an
