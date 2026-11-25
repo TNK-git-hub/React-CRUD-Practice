@@ -30,17 +30,31 @@ jobs:
         with:
           persist-credentials: false
 
+      # Harness skeleton (no app yet): skip the app steps. hashFiles() is not allowed in a job-level `if:`.
+      - name: Check for app (package.json)
+        id: app
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json yet (harness skeleton): skipping app CI"
+          fi
+
       - name: Set up Node 22
+        if: steps.app.outputs.present == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
 
       - name: Enable pnpm (version from package.json)
+        if: steps.app.outputs.present == 'true'
         run: corepack enable && pnpm --version
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
       - name: Local CI (install, lint, typecheck, build, test)
+        if: steps.app.outputs.present == 'true'
         run: pnpm ci:local
 
   # Spec harness: no app, no LLM, a few seconds.
