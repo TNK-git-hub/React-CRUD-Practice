@@ -12,6 +12,8 @@
 //   theo agent: lệnh mà skill của agent đó bảo chạy (BASH_WRITE_EXCEPTIONS), test-writer xoá đúng một file test,
 //   code-writer rm / git mv / git restore -- đúng file trong vùng src. Subagent không chạy script spec-archive.
 //   Session chính: Bash ghi vào specs/ -> hỏi người dùng.
+// approval.json và .approved/ (lần duyệt khoá bằng hash): không ai ghi, kể cả session chính; không ai chạy
+//   `approval.py approve` qua Claude (chỉ người dùng, trong terminal riêng); `approval.py verify` thì ai cũng chạy được.
 // Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
 // Ngoài private-test-writer, không ai được ghi <package>/test/private.
 // Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
@@ -71,6 +73,10 @@ const relRaw = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).
 const rel = (p) => fold(relRaw(p));
 
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
+// Lần duyệt khoá bằng hash (.specify/scripts/approval.py): approval.json và bản sao trong .approved/ chỉ approval.py ghi,
+// khi người dùng chạy approve trong terminal của họ. Không agent nào (kể cả session chính) ghi hay chạy approve.
+const APPROVAL = /(^|\/)(approval\.json$|\.approved(\/|$))/;
+const APPROVAL_REF = /(^|[\s/'"=<>])(approval\.json|\.approved)(?=$|[\s/'"<>;&|)`])/;
 const PRIVATE = /(^|\/)test\/private(\/|$)/;
 const TEST_ANY = /(^|\/)test(\/|$)/;
 const TEST_WRITABLE = /^((backend|frontend)\/test\/public|frontend\/test\/e2e)(\/|$)/;
@@ -143,6 +149,7 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
 
   if (ENV.test(r)) block("Không ai được sửa file .env.");
   if (PRIVATE.test(r)) block("Không ai được sửa test/private.");
+  if (APPROVAL.test(r)) block(`${who} không được sửa ${r}: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
   if (TEST_ANY.test(r)) {
     if (agent === "test-writer" && TEST_WRITABLE.test(r)) allow();
     block(`${who} không được sửa ${r}. Chỉ test-writer được ghi vào test/public và frontend/test/e2e.`);
@@ -202,6 +209,10 @@ if (tool === "Bash") {
     block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
   }
   if (/test\/private/.test(cmd)) block("Không được đọc hay chạy test/private qua Claude.");
+  // Duyệt: chỉ người dùng (kể cả khi chuỗi nằm trong nháy hay sau `script`, `bash -c`). approval.py verify thì được.
+  if (/approval\.py\s+approve\b/.test(cmd)) {
+    block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/approval.py approve …`. Agent chỉ được chạy `approval.py verify`.");
+  }
 
   // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
   // vitest lọc file theo chuỗi con của đường dẫn (`pnpm test a` chạy cả test private có chữ "a"), nên tham số chỉ được là
@@ -323,6 +334,11 @@ if (tool === "Bash") {
     ],
     planner: [mkdirIn(new RegExp(`^specs/changes/${CHANGE}/checklists/?$`))],
   };
+
+  // Ghi vào approval.json / .approved/ bằng Bash: chặn với mọi agent, kể cả session chính (git add / commit vẫn được)
+  if (APPROVAL_REF.test(cmd) && segsU.some((s) => bashWrite(s, false))) {
+    block(`${who} không được ghi approval.json hay .approved/ bằng Bash: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
+  }
 
   // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
   const TEST_RM =

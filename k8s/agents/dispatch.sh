@@ -74,6 +74,9 @@ if [[ -n "$CHANGE" ]]; then
   for t in ${SPEC_TASKS//,/ }; do
     grep -qE "^[[:space:]]*- \[[ xX]\] ${t}([^0-9]|\$)" "$CDIR/tasks.md" || fail "task $t not found in specs/changes/$CHANGE/tasks.md"
   done
+  # plan + tasks phải được chính người dùng duyệt (approval.py approve trong terminal) và không đổi từ lúc duyệt
+  python3 "$ROOT/.specify/scripts/approval.py" verify --change "$CHANGE" --gate plan --root "$ROOT" >&2 \
+    || fail "plan not approved or changed since approval: run approval.py verify --change $CHANGE"
   # specs/archive không cần cho agent; bỏ file rác của macOS
   COPYFILE_DISABLE=1 tar -C "$ROOT" --exclude '.DS_Store' --exclude 'specs/archive' -czf "$TMP/spec.tgz" specs
   [[ "$(wc -c < "$TMP/spec.tgz")" -lt 900000 ]] || fail "specs/ is too big for a ConfigMap (max ~1 MiB)"

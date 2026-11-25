@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import io
+import os
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import approval  # noqa: E402
 import spec_check  # noqa: E402
 
 CHANGE = "001-product-bulk-delete"
@@ -620,6 +623,106 @@ class SpecCheckTest(unittest.TestCase):
         code, out = self.spec_stage(moved)
         self.assertEqual(code, 1)
         self.assertIn("MOVED PROD-003 needs '- **From:** <feature>' and '- **To:** <feature>'", out)
+
+
+    # ---- 5b. approvals (approval.py) of open changes ----
+    def approve(self, gate: str) -> None:
+        """The user's terminal: a fake TTY that answers y."""
+        class TTY(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+        with mock.patch.object(sys, "stdin", TTY("y\n")), mock.patch.object(sys, "stdout", TTY()):
+            code = approval.main(["approve", "--change", OPEN, "--gate", gate, "--root", str(self.root)])
+        self.assertEqual(code, 0)
+
+    def add_plan(self) -> None:
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\n## Test Strategy\n\nVitest.\n")
+        self.write(f"specs/changes/{OPEN}/tasks.md", "# Tasks\n\n- [ ] T001 Search. Scenarios: PROD-002-S1, PROD-002-S2\n")
+
+    def test_approved_status_needs_spec_gate(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("status: draft", "status: approved"))
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/spec.md: status is approved but gate spec is not approved", out)
+        self.assertIn(f"approval.py approve --change {OPEN} --gate spec", out)
+
+    def test_implementing_status_needs_spec_gate(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("status: draft", "status: implementing"))
+        self.assertEqual(code, 1)
+        self.assertIn(f"specs/changes/{OPEN}/spec.md: status is implementing but gate spec is not approved", out)
+
+    def test_unknown_status_needs_spec_gate(self) -> None:
+        code, out = self.spec_stage(DELTA.replace("status: draft", "status: review"))
+        self.assertEqual(code, 1)
+        self.assertIn("status is review but gate spec is not approved", out)
+
+    def test_implementing_after_approval_passes(self) -> None:
+        self.open_change()
+        self.approve("spec")
+        path = self.root / f"specs/changes/{OPEN}/spec.md"
+        path.write_text(path.read_text().replace("status: approved", "status: implementing"))
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 0, out)
+
+    def test_draft_status_needs_no_spec_gate(self) -> None:
+        code, out = self.spec_stage()
+        self.assertEqual(code, 0, out)
+
+    def test_approved_spec_gate_passes(self) -> None:
+        self.open_change()
+        self.approve("spec")
+        self.assertIn("status: approved", (self.root / f"specs/changes/{OPEN}/spec.md").read_text())
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 0, out)
+
+    def test_spec_changed_after_approval(self) -> None:
+        self.open_change()
+        self.approve("spec")
+        path = self.root / f"specs/changes/{OPEN}/spec.md"
+        path.write_text(path.read_text().replace("**Then** HTTP 400", "**Then** HTTP 422"))
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn("status is approved but gate spec changed since approval", out)
+
+    def test_plan_and_tasks_need_plan_gate(self) -> None:
+        self.open_change()
+        self.approve("spec")
+        self.add_plan()
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn("plan.md and tasks.md exist but gate plan is not approved", out)
+        self.approve("plan")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 0, out)
+
+    def test_plan_changed_after_approval(self) -> None:
+        self.open_change()
+        self.approve("spec")
+        self.add_plan()
+        self.approve("plan")
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n\n## Test Strategy\n\nJest.\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 1)
+        self.assertIn("gate plan changed since approval", out)
+        self.assertNotIn("gate spec", out)
+
+    def test_plan_without_tasks_needs_no_plan_gate(self) -> None:
+        self.open_change()
+        self.write(f"specs/changes/{OPEN}/plan.md", "# Plan\n")
+        code, out = self.run_check(OPEN, stage="spec")
+        self.assertEqual(code, 0, out)
+
+    def test_archive_is_not_checked_for_approvals(self) -> None:
+        self.write("specs/archive/000-old/spec.md", "---\nkind: delta\nstatus: approved\n---\n")
+        self.write("specs/archive/000-old/plan.md", "x")
+        self.write("specs/archive/000-old/tasks.md", "x")
+        code, out = self.run_check(stage="spec")
+        self.assertEqual(code, 0, out)
+
+    def test_approval_error_as_github_annotation(self) -> None:
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            code, out = self.spec_stage(DELTA.replace("status: draft", "status: approved"))
+        self.assertEqual(code, 1)
+        self.assertIn("::error title=spec-check::specs/changes/002-product-search/spec.md: status is approved", out)
 
 
 if __name__ == "__main__":

@@ -42,9 +42,10 @@
 
 ## Root cause gate
 
-<!-- Filled in by the main session only after the user answers. -->
-Root cause: approved by user on <YYYY-MM-DD>
-Summary: <one line>
+<!-- Not written by hand. The user approves in their own terminal (approval.py approve --bug <id> --gate root-cause
+     --summary "<one line>"); it hashes report.md + the "Root cause" section above into bugs/<id>/approval.json.
+     Check: python3 .specify/scripts/approval.py verify --bug <id> -->
+See `bugs/<id>/approval.json` (gate `root-cause`).
 
 ## Stopped after 3 failed attempts
 

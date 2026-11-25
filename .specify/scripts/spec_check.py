@@ -22,6 +22,9 @@
      reference into specs/archive/ (an archived change is history, not a source)
   4. every scenario of an open change, and every NFR row, is listed in its "## Traceability"
   5. no delta keyword (ADDED, MODIFIED, REMOVED, RENAMED, MOVED) in specs/capabilities/ or specs/_system/nfr.md
+  5b. approvals (approval.py, approved by the user in a terminal) of every open change: any frontmatter status other
+     than the pre-approval one (`draft`; the template lists draft | approved | implementing | archived) needs a gate
+     spec that matches; plan.md + tasks.md present needs a gate plan that matches
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
   6. for a change branch (`NNN-<name>`): specs/changes/<change>/ is gone and specs/archive/<change>/ exists
   7. every scenario ID in specs/capabilities/ is mentioned by some file under TEST_DIRS
@@ -37,6 +40,9 @@ import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import approval  # noqa: E402  (same folder: the gate hashes live in one place)
 
 CHANGE_RE = re.compile(r"^\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 REQ_ID = r"[A-Z]{2,5}-\d{3}"
@@ -71,6 +77,9 @@ SECTIONS = (
     "Open Questions", "Traceability",
 )
 STAGES = ("spec", "archive")
+# Status a spec has before the user approves it (spec-template.md: draft | approved | implementing | archived).
+# Every other value, unknown ones included, comes after the approval and needs a matching gate spec.
+PRE_APPROVAL_STATUSES = ("draft",)
 PLAN_PLACEHOLDERS = (
     "_(Architecture Decisions: filled by /speckit-plan)_",
     "_(Data Model: filled by /speckit-plan)_",
@@ -642,6 +651,26 @@ def check_changes(root: Path, cap: Capabilities, nfr_where: dict[str, str]) -> l
     return errors
 
 
+def check_approvals(root: Path) -> list[str]:
+    """Open changes only (not specs/archive/, not bugs/): an approved spec / a plan must match its approval.json gate."""
+    errors: list[str] = []
+    for path in sorted((root / "specs/changes").glob("*/spec.md")):
+        folder, loc = path.parent, rel(root, path)
+        fix = f"the user runs `python3 .specify/scripts/approval.py approve --change {folder.name} --gate {{gate}}`" \
+              f"; diff: `python3 .specify/scripts/approval.py verify --change {folder.name}`"
+        wanted = []
+        status = ChangeSpec(root, path).meta.get("status", "")
+        if status and status not in PRE_APPROVAL_STATUSES:
+            wanted.append(("spec", f"status is {status}"))
+        if (folder / "plan.md").is_file() and (folder / "tasks.md").is_file():
+            wanted.append(("plan", "plan.md and tasks.md exist"))
+        for gate, why in wanted:
+            ok, reason, _ = approval.check_gate(root, folder, gate)
+            if not ok:
+                errors.append(f"{loc}: {why} but {reason} ({fix.format(gate=gate)})")
+    return errors
+
+
 # --------------------------------------------------------------------------- main
 
 
@@ -661,6 +690,7 @@ def run(root: Path, change: str, stage: str = "spec") -> list[str]:
     errors += check_ids(cap.req_locs, cap.removed, nfr_locs)
     errors += check_changes(root, cap, nfr_where)
     errors += check_pointers(root)
+    errors += check_approvals(root)
     if stage == "archive":
         errors += check_tests(root, scenarios)
     return errors

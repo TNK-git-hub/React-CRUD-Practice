@@ -26,6 +26,7 @@
       "Bash(kubectl logs:*)",
       "Bash(python3 .specify/scripts/next_change.py:*)",
       "Bash(python3 .specify/scripts/spec_check.py:*)",
+      "Bash(python3 .specify/scripts/approval.py verify:*)",
       "Bash(bash .specify/scripts/bash/check-prerequisites.sh:*)",
       "Bash(bash .specify/scripts/bash/resolve-template.sh:*)",
       "Bash(bash .specify/scripts/bash/setup-plan.sh:*)",

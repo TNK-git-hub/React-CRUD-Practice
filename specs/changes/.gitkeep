@@ -13,9 +13,12 @@
 #     │                           Data Model, Clarifications, Assumptions, Open Questions, Traceability
 #     ├── plan.md                 stack, cấu trúc thư mục, ## Test Strategy (bắt buộc), ## Quickstart
 #     ├── tasks.md                danh sách task, KHÔNG có task viết test; mỗi task ghi `Scenarios: <ID>, ...`
-#     └── checklists/
-#         ├── quality.md          checklist chất lượng spec (/speckit-checklist)
-#         └── edge-cases.md       checklist edge case (/spec-edge-cases)
+#     ├── checklists/
+#     │   ├── quality.md          checklist chất lượng spec (/speckit-checklist)
+#     │   └── edge-cases.md       checklist edge case (/spec-edge-cases)
+#     ├── approval.json           gate spec / plan (sha256), chỉ approval.py approve ghi, do người dùng chạy trong
+#     │                           terminal riêng; spec_check --stage spec kiểm nó khớp
+#     └── .approved/<gate>/       bản sao đã duyệt, để `approval.py verify` in diff
 #
 # Định dạng "rich spec" KHÔNG có research.md, data-model.md, contracts/, quickstart.md:
 # Data Model và ADR nằm ngay trong spec.md, Quickstart nằm trong plan.md.
