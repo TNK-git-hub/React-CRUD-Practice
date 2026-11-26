@@ -3,15 +3,19 @@
 #
 # Usage (từ gốc repo):
 #   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base <branch>]
-#                               [--change NNN-<feature> [--tasks T001,T002]] [--no-wait] [--no-private] [--dry-run]
+#                               [--change NNN-<feature> [--tasks T001,T002] | --bug <YYYYMMDD>-<slug>]
+#                               [--no-wait] [--no-private] [--dry-run]
 #
 #   <job-id>     chữ thường, số, dấu "-" (vd: example-task). Branch sẽ là agent/<job-id>-<timestamp>.
 #   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
-#                "-" (chỉ khi có --change): task sinh tự động từ spec.
+#                "-" (chỉ khi có --change hoặc --bug): task sinh tự động từ spec / hồ sơ bug.
 #   --change     làm theo spec của spec harness: specs/changes/NNN-<feature>/ (spec.md, plan.md, tasks.md, checklists/).
 #                Cả thư mục specs/ ở máy này được gửi vào pod, nên spec chưa commit vẫn dùng được (không lọt vào PR).
 #   --tasks      chỉ làm các task này trong tasks.md (mặc định: mọi task). Scenario của chúng phải có test.
-#   --mode       full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
+#   --bug        steps f-g of the bug flow (skill bug-fix-flow) for bugs/<id>/: needs a root-cause approval that still
+#                matches (approval.py verify --bug <id>, which also covers the reproduction test). Mode full only, not
+#                with --change / --tasks. The pod skips PLAN, checks that the reproduction test fails, then GREEN + REVIEW.
+#   --mode      full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
 #                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
 #   --base       branch để clone và mở PR vào (mặc định: dòng "Base branch" của CLAUDE.md). Phải đã push lên origin.
 #   --no-wait    tạo Job rồi thoát ngay, không theo dõi log.
@@ -23,12 +27,12 @@
 # Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
 set -euo pipefail
 
-usage() { sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 fail() { echo "RESULT: FAILED reason=$*"; exit 1; }
 
 [[ $# -ge 2 ]] || usage
 JOB_ID="$1"; TASK_FILE="$2"; shift 2
-TITLE=""; BASE=""; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""
+TITLE=""; BASE=""; MODE="full"; WAIT=1; DRY=0; PRIVATE=1; CHANGE=""; SPEC_TASKS=""; BUG=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
@@ -36,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --mode) MODE="${2:-}"; shift 2 ;;
     --change) CHANGE="${2:-}"; shift 2 ;;
     --tasks) SPEC_TASKS="${2:-}"; shift 2 ;;
+    --bug) BUG="${2:-}"; shift 2 ;;
     --no-private) PRIVATE=0; shift ;;
     --no-wait) WAIT=0; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -84,8 +89,57 @@ if [[ -n "$CHANGE" ]]; then
 elif [[ -n "$SPEC_TASKS" ]]; then
   fail "--tasks needs --change"
 fi
-if [[ "$TASK_FILE" == "-" ]]; then
-  [[ -n "$CHANGE" ]] || fail "task file '-' needs --change"
+
+# --- bug (tùy chọn): steps f-g of the bug flow, after the user approved the root cause in their terminal ---
+BUG_ARGS=()
+if [[ -n "$BUG" ]]; then
+  [[ "$BUG" =~ ^[0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid --bug '$BUG' (<YYYYMMDD>-<slug>)"
+  [[ -z "$CHANGE" && -z "$SPEC_TASKS" ]] || fail "--bug cannot go with --change or --tasks"
+  [[ "$MODE" == full ]] || fail "--bug needs --mode full (the reproduction test must fail before the fix)"
+  BDIR="$ROOT/bugs/$BUG"
+  [[ -f "$BDIR/report.md" && -f "$BDIR/investigation.md" ]] || fail "bugs/$BUG/report.md or investigation.md not found"
+  # root cause + report + reproduction test approved by the user (approval.py approve) and unchanged since
+  python3 "$ROOT/.specify/scripts/approval.py" verify --bug "$BUG" --root "$ROOT" >&2 \
+    || fail "root cause not approved or changed since approval: run approval.py verify --bug $BUG"
+  # report.md, section "## Reproduction test": "- Path: `<file>`", "- Name: `<scenario ID> ...`"
+  REPRO_SECTION="$(awk '/^## Reproduction test[[:space:]]*$/ { f = 1; next } /^##? / { f = 0 } f' "$BDIR/report.md")"
+  REPRO="$(sed -nE 's/^- Path: `([^`]+)`[[:space:]]*$/\1/p' <<<"$REPRO_SECTION" | head -n 1)"
+  REPRO_NAME="$(sed -nE 's/^- Name: `([^`]+)`[[:space:]]*$/\1/p' <<<"$REPRO_SECTION" | head -n 1)"
+  SCENARIO="$(sed -nE 's/^- \*\*Violated scenario:\*\*[^A-Z]*([A-Z]{2,5}-[0-9]{3}-S[0-9]+).*/\1/p' "$BDIR/report.md" | head -n 1)"
+  [[ "$REPRO" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+\.test\.tsx?$ && "$REPRO" != *..* ]] \
+    || fail "bugs/$BUG/report.md: reproduction test '$REPRO' is not a *.test.ts(x) file in backend|frontend/test/public"
+  [[ -f "$ROOT/$REPRO" ]] || fail "reproduction test $REPRO not found"
+  [[ -n "$SCENARIO" ]] || fail "bugs/$BUG/report.md: no scenario ID on the 'Violated scenario' line"
+  [[ "$REPRO_NAME" =~ ^${SCENARIO}([^0-9]|$) ]] \
+    || fail "bugs/$BUG/report.md: reproduction test Name '$REPRO_NAME' must start with the violated scenario $SCENARIO"
+  COPYFILE_DISABLE=1 tar -C "$ROOT" --exclude '.DS_Store' -czf "$TMP/bug.tgz" "bugs/$BUG" "$REPRO"
+  [[ "$(wc -c < "$TMP/bug.tgz")" -lt 900000 ]] || fail "bugs/$BUG/ is too big for a ConfigMap (max ~1 MiB)"
+  BUG_ARGS=(--from-file=bug.tgz="$TMP/bug.tgz" --from-literal=bug.txt="$BUG" --from-literal=repro.txt="$REPRO"
+    --from-literal=scenario.txt="$SCENARIO")
+fi
+
+if [[ "$TASK_FILE" == "-" && -n "$BUG" ]]; then
+  TASK_FILE="$TMP/task.md"
+  cat > "$TASK_FILE" <<EOF
+## Goal
+Fix bug \`${BUG}\` at the approved root cause (see the Bug section below), so that the reproduction test
+\`${REPRO}\` (\`${REPRO_NAME}\`) passes.
+
+## Files you may change
+- Code: \`backend/src\`, \`frontend/src\`, \`frontend/public\` (where the approved root cause is)
+- New tests: \`backend/test/public/\`, \`frontend/test/public/\` (test-writer only, when the review asks)
+
+## Out of scope
+- Any file under \`specs/\` and \`bugs/\`.
+- The reproduction test \`${REPRO}\`: never change, skip or delete it.
+- Anything but the approved fix (no patch in each caller, no wrapper, no new dependency).
+
+## Done when
+- The reproduction test \`${REPRO}\` passes.
+- \`pnpm ci:local\` prints CI PASSED.
+EOF
+elif [[ "$TASK_FILE" == "-" ]]; then
+  [[ -n "$CHANGE" ]] || fail "task file '-' needs --change or --bug"
   TASK_FILE="$TMP/task.md"
   cat > "$TASK_FILE" <<EOF
 ## Goal
@@ -113,11 +167,14 @@ render() {
 if [[ "$DRY" == 1 ]]; then
   # spec.tgz (nhị phân) không in ra: chỉ liệt kê nội dung
   kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" \
-    ${CHANGE:+--from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS"} --dry-run=client -o yaml
+    ${CHANGE:+--from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS"} \
+    ${BUG:+--from-literal=bug.txt="$BUG" --from-literal=repro.txt="$REPRO" --from-literal=scenario.txt="$SCENARIO"} \
+    --dry-run=client -o yaml
   if [[ -n "$CHANGE" ]]; then echo "# spec.tgz ($(wc -c < "$TMP/spec.tgz" | tr -d ' ') bytes):"; tar -tzf "$TMP/spec.tgz" | sed 's/^/#   /'; fi
+  if [[ -n "$BUG" ]]; then echo "# bug.tgz ($(wc -c < "$TMP/bug.tgz" | tr -d ' ') bytes):"; tar -tzf "$TMP/bug.tgz" | sed 's/^/#   /'; fi
   echo "---"
   render
-  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE mode=$MODE${CHANGE:+ change=$CHANGE tasks=${SPEC_TASKS:-all}}"
+  echo "RESULT: DRY-RUN job=agent-$JOB_ID base=$BASE mode=$MODE${CHANGE:+ change=$CHANGE tasks=${SPEC_TASKS:-all}}${BUG:+ bug=$BUG}"
   exit 0
 fi
 
@@ -132,9 +189,10 @@ fi
 kubectl create configmap agent-script --from-file=run.sh="$DIR/run.sh" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl delete job "agent-$JOB_ID" --ignore-not-found --wait=true >/dev/null
 kubectl delete configmap "task-$JOB_ID" --ignore-not-found >/dev/null
-kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"} >/dev/null
+kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" \
+  ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"} ${BUG_ARGS[@]+"${BUG_ARGS[@]}"} >/dev/null
 render | kubectl apply -f - >/dev/null
-echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE${CHANGE:+, change: $CHANGE, tasks: ${SPEC_TASKS:-all}})"
+echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE${CHANGE:+, change: $CHANGE, tasks: ${SPEC_TASKS:-all}}${BUG:+, bug: $BUG})"
 
 [[ "$WAIT" == 1 ]] || { echo "RESULT: DISPATCHED job=agent-$JOB_ID"; exit 0; }
 

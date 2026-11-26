@@ -5,13 +5,16 @@ mỗi lần giao là một file markdown, truyền vào lúc chạy.
 
 ```
 Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) → tasks/<id>.md
-  → dispatch.sh <id> tasks/<id>.md|- --title "..." [--mode full|code-only] [--change NNN-<feature> [--tasks T001,...]]
-                                                       (chạy song song được; --change: làm theo spec, xem "Làm theo spec")
+  → dispatch.sh <id> tasks/<id>.md|- --title "..." [--mode full|code-only] [--change NNN-<feature> [--tasks T001,...] | --bug <id>]
+                                                       (chạy song song được; --change: làm theo spec, xem "Làm theo spec";
+                                                        --bug: bước f-g của luồng bug, xem "Sửa bug")
       pod: clone base branch (CLAUDE.md, mục Branches) → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
         1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
         2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
         3. GREEN   code-writer → gate: chỉ đổi src, không dò môi trường test, pnpm ci:local (≤2 vòng sửa) → commit
-        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic → cần sửa thì quay lại 2/3 (≤2 vòng)
+        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic + security-reviewer → cần sửa thì quay lại 2/3 (≤2 vòng)
+                   security CHANGES: test-writer viết test chứng minh từng lỗ hổng HIGH/MEDIUM, code-writer sửa;
+                   security có SPEC_PROBLEM (quyền trong spec sai/thiếu) → dừng review, PR draft, quay lại spec harness
         5. PR      push → PR vào base branch (review không qua: PR draft + RESULT FAILED)
       (mode code-only: chỉ bước 3 rồi 5)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
@@ -34,7 +37,9 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
 | Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
+| Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
+| Agent sửa hồ sơ bug hay test tái hiện cho dễ pass (`--bug`) | Test tái hiện nằm trong gate root-cause người dùng đã duyệt (`approval.py`, hash). Pod chạy `approval.py verify --bug` lúc đầu và trước khi mở PR; checksum `bugs/<id>/` + test tái hiện trong mọi gate `assert_only`; `DELETE:` không xoá được test tái hiện |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
 
 Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/SKILL.md`.
@@ -92,6 +97,20 @@ bash k8s/agents/dispatch.sh example-be k8s/agents/tasks/example-be.md --title ".
   đọc (`spec.md` requirement + ADR + Data Model, `plan.md`, `tasks.md`) và vai TEST đọc (scenario, Edge Cases, NFR
   Verification, `checklists/edge-cases.md`, `## Test Strategy`). Mọi agent, cả trọng tài, đều nhận mục này.
 - Agent gặp spec sai/thiếu ghi `SPEC_PROBLEM: ...`; các dòng này được gom vào mục "Spec" của PR để quay lại spec harness.
+
+### Sửa bug (`--bug`)
+Bước a–e của luồng bug (skill `bug-fix-flow`: phân loại, `report.md`, test tái hiện, điều tra, duyệt root cause) vẫn
+làm tương tác ở máy local. Sau khi người dùng duyệt root cause trong terminal (`approval.py` gate `root-cause`, gồm cả
+test tái hiện ghi ở mục "Reproduction test" của `report.md`), bước f–g giao cho pod:
+```bash
+python3 .specify/scripts/approval.py verify --bug 20261125-example-bug     # phải exit 0
+bash k8s/agents/dispatch.sh example-bug - --title "<PR title>" --bug 20261125-example-bug --dry-run
+```
+- `dispatch.sh` kiểm `verify --bug`, đọc Path / Name / scenario từ `report.md`, nén `bugs/<id>/` + test tái hiện vào
+  `bug.tgz` (ConfigMap `task-<id>`, kèm `bug.txt`, `repro.txt`, `scenario.txt`). Chỉ mode `full`, không đi cùng `--change`.
+- Pod: `verify --bug` lại → commit `docs: bug record <id>` → bỏ PLAN (code plan = mục Root cause đã duyệt) → RED: test
+  tái hiện phải FAIL, gate scenario theo ID của bug → commit `test: reproduce bug <id>` → GREEN → REVIEW (gồm
+  security-reviewer) → `verify --bug` lần nữa → PR có mục "## Bug".
 
 ## Ghi chú
 - Mỗi lần chạy (và mỗi vòng sửa CI) tính vào giới hạn gói Claude subscription.

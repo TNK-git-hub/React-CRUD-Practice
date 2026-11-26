@@ -19,7 +19,10 @@ What each gate hashes (CRLF read as LF):
   plan        spec.md (only the `status:` line dropped) + plan.md + tasks.md, in this order, each after a
               "=== <file> ===" line. Approving it needs a gate spec that still matches.
   root-cause  bugs/<id>/report.md + the "Root cause" section of investigation.md (from that heading, named as in
-              .claude/skills/bug-fix-flow/templates/investigation.md, up to the next heading of the same or a higher level).
+              .claude/skills/bug-fix-flow/templates/investigation.md, up to the next heading of the same or a higher level)
+              + the reproduction test: the file named on the line "- Path: `<path>`" of the "Reproduction test"
+              section of report.md (inside backend|frontend/test/public, no ".."). Approving the root cause
+              approves the reproduction test too.
 
 verify prints the reason per gate and a unified diff against the copy in .approved/. Exit codes of verify:
   0  every gate asked for exists and matches
@@ -52,6 +55,9 @@ APPROVAL_FILE = "approval.json"
 COPIES_DIR = ".approved"
 TEMPLATE = ".claude/skills/bug-fix-flow/templates/investigation.md"
 ROOT_CAUSE_TITLE = "Root cause"
+REPRO_TITLE = "Reproduction test"  # section of report.md (templates/report.md)
+REPRO_PATH_LINE_RE = re.compile(r"^- Path: `([^`]+)`\s*$")
+REPRO_PATH_RE = re.compile(r"^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$")
 PLAN_START = "## Architecture Decisions"
 PLAN_END = "## Clarifications"
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
@@ -146,6 +152,28 @@ def root_cause_section(root: Path, investigation: str) -> str:
     return "\n".join(lines[start:stop]).rstrip("\n")
 
 
+def repro_test_path(report: str) -> str:
+    """The reproduction test named in report.md: the '- Path: `<path>`' line of its 'Reproduction test' section.
+    Must be inside backend|frontend/test/public, without '..'."""
+    heads = headings(report)
+    starts = [(i, lvl) for i, lvl, title in heads if title == REPRO_TITLE]
+    if not starts:
+        raise ApprovalError(f"report.md has no '{REPRO_TITLE}' section")
+    start, level = starts[0]
+    stop = next((i for i, lvl, _ in heads if i > start and lvl <= level), None)
+    paths = []
+    for line in report.split("\n")[start:stop]:
+        m = REPRO_PATH_LINE_RE.match(line.strip())
+        if m:
+            paths.append(m.group(1))
+    if not paths:
+        raise ApprovalError(f"report.md, section '{REPRO_TITLE}': no line '- Path: `<path>`'")
+    path = paths[0]
+    if ".." in path or not REPRO_PATH_RE.match(path):
+        raise ApprovalError(f"reproduction test '{path}' must be inside backend/test/public or frontend/test/public")
+    return path
+
+
 def folder_of(root: Path, change: str | None, bug: str | None) -> Path:
     if change is not None:
         if not CHANGE_RE.match(change):
@@ -172,9 +200,12 @@ def materials(root: Path, folder: Path, gate: str) -> list[tuple[str, str]]:
             (f"{rel}/tasks.md", read(folder / "tasks.md")),
         ]
     if gate == "root-cause":
+        report = read(folder / "report.md")
+        repro = repro_test_path(report)
         return [
-            (f"{rel}/report.md", read(folder / "report.md")),
+            (f"{rel}/report.md", report),
             (f"{rel}/investigation.md#{ROOT_CAUSE_TITLE}", root_cause_section(root, read(folder / "investigation.md"))),
+            (repro, read(root / repro)),
         ]
     raise ApprovalError(f"unknown gate '{gate}'")
 

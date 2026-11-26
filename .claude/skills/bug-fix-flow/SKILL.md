@@ -30,7 +30,8 @@ Give `test-writer`: `report.md`, the scenario ID, its Given / When / Then. Tell 
 fail now because of the bug; do not make it pass, report the failing output.
 Then run it yourself: `pnpm --filter <package> test -t=<scenario ID>`. Check that it fails on the assertion of the
 bug (expected vs actual as in `report.md`), not on an import, syntax, type or setup error. Paste the failing lines
-into `investigation.md` (Evidence log).
+into `investigation.md` (Evidence log). Before the investigation, write the test into `report.md`, section
+"Reproduction test": `- Path: \`<package>/test/public/<file>.test.ts\`` and `- Name: \`<scenario ID> ...\``.
 - Does not fail, or fails for another reason → do not go on: send it back to `test-writer` with the output, or ask
   the user for more information (steps, data, environment). Cannot reproduce → no investigation, no fix.
 
@@ -43,19 +44,20 @@ same pattern elsewhere.
 ## e) GATE: root cause
 Show the user: the root cause, the evidence (`file:line`, test output), the fix direction, the impact. Then STOP and
 wait. The Stop hook (`stop-gate.sh`) skips `pnpm test` by itself only while the record is complete and waits for
-the root-cause approval: `bugs/<id>/` has uncommitted changes, `report.md` and the Root cause section of
-`investigation.md` are there, and `approval.py verify --bug <id>` exits 1 (gate missing or changed). An incomplete
-record or any error (exit 2) still runs the tests. Do not fix.
+the root-cause approval: `bugs/<id>/` has uncommitted changes, `report.md`, the Root cause section of
+`investigation.md` and the reproduction test are there, and `approval.py verify --bug <id>` exits 1 (gate missing or
+changed). An incomplete record or any error (exit 2) still runs the tests. Do not fix.
 - Approval is the user's, in their own terminal (you cannot run it; `guard.mjs` blocks it): ask the user to run
   `python3 .specify/scripts/approval.py approve --bug <id> --gate root-cause --summary "<one line>"`. It hashes
-  `report.md` and the "Root cause" section of `investigation.md` into `bugs/<id>/approval.json`. Never write an
-  approval line yourself.
+  `report.md`, the "Root cause" section of `investigation.md` and the reproduction test (the "Reproduction test"
+  Path of `report.md`) into `bugs/<id>/approval.json`: approving the root cause approves the reproduction test too,
+  so the test cannot change after it without a new approval. Never write an approval line yourself.
 - Rejected → write the hypothesis as rejected, with the user's reason; back to d) with the new information, or (when
   this chat already holds a long dead-end) suggest going on in a new chat (see "New chat").
 
 ## f) GREEN: fix at the source
 First run `python3 .specify/scripts/approval.py verify --bug <id>`. Not exit 0 (not approved, or `report.md` / the Root
-cause section changed since) → STOP and tell the user; no fix without a matching approval.
+cause section / the reproduction test changed since) → STOP and tell the user; no fix without a matching approval.
 Give `code-writer`: the approved root cause and fix direction from `investigation.md`, the reproduction test. Tell it:
 one change at the source, in the shared code (no patch in each caller, no wrapper, no new dependency); the
 reproduction test must pass and the rest of `pnpm test` stay green.
@@ -76,6 +78,12 @@ Look for the same mistake elsewhere (the investigator's list + a `grep` of the p
 Only with evidence, following skill `verification-before-completion`: `pnpm lint`, `pnpm --filter frontend typecheck`,
 `pnpm test` just ran and passed, and the reproduction test passes (root `CLAUDE.md`, "Thế nào là xong"). Paste the
 outputs into `fix.md`, Verification.
+
+## Hand off to a pod
+Steps a–e stay interactive. Once `python3 .specify/scripts/approval.py verify --bug <id>` exits 0, steps f–g can run in
+a pod instead (skill dispatch-agents): `bash k8s/agents/dispatch.sh <job-id> - --title "<title>" --bug <id>`. The pod
+gets `bugs/<id>/` and the reproduction test, checks the approval again, commits the record, checks that the test
+fails, then runs GREEN and REVIEW and opens a PR. Step h (verification) is the PR's CI and your own check of it.
 
 ## New chat
 `bugs/<id>/` is the whole record: `report.md`, `investigation.md`, `fix.md`. To go on in a new chat, the user opens one

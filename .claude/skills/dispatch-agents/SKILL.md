@@ -5,7 +5,7 @@ description: Dùng khi người dùng muốn giao một feature/bug cho các age
 # Giao việc cho agent trong pod
 
 Bạn là Claude tổng (điều phối). Bạn không tự sửa code hay test: các agent trong pod làm việc đó.
-Mode `full` (mặc định): trong pod chạy lần lượt planner → test-writer (test phải fail trước) → code-writer → mutation + review.
+Mode `full` (mặc định): trong pod chạy lần lượt planner → test-writer (test phải fail trước) → code-writer → mutation + review (code-reviewer, test-critic, security-reviewer).
 Mode `code-only`: chỉ code-writer, dùng cho việc nhỏ không cần test mới (đổi style, text...).
 Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.md`.
 
@@ -27,6 +27,14 @@ Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.
 - Chia việc theo task ID của `tasks.md`: các task `[P]` chạm file khác nhau mới được dispatch song song.
 - File task có thể là `-` (sinh tự động) hoặc file viết tay chỉ thêm ràng buộc (Files you may change, Out of scope).
 - Không sửa `specs/`. PR có mục "Spec problems" thì báo người dùng để quay lại spec harness, không tự sửa spec.
+
+## 1c. Bug đã duyệt root cause (`bugs/<id>/`, skill bug-fix-flow)
+- Chỉ dispatch khi `python3 .specify/scripts/approval.py verify --bug <id>` exit 0 (người dùng đã duyệt root cause và
+  test tái hiện trong terminal). Không exit 0 thì dừng, báo người dùng: bạn không tự duyệt được.
+- `bash k8s/agents/dispatch.sh <job-id> - --title "<PR title>" --bug <id>`: task sinh từ hồ sơ bug. Chỉ mode `full`,
+  không đi cùng `--change` / `--tasks`. Pod làm bước f–g (GREEN + REVIEW), không đụng `bugs/` và test tái hiện.
+- `RESULT: FAILED reason=security review found a spec problem (permissions) ...`: quyền trong spec sai/thiếu, báo người
+  dùng để quay lại spec harness.
 
 ## 2. Viết file task
 Tạo `k8s/agents/tasks/<job-id>.md` theo mẫu `k8s/agents/tasks/EXAMPLE.md`, gồm:

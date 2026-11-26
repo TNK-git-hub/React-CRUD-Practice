@@ -8,8 +8,10 @@
 #   3. GREEN   code-writer viết code → gate: chỉ sửa src, không có code dò môi trường test,
 #              pnpm ci:local pass (tối đa MAX_FIX_ATTEMPTS vòng sửa) → commit
 #              code-writer ghi "TEST_WRONG: ..." → test-critic làm trọng tài (1 lần/task): test sai thì test-writer sửa assert đó
-#   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic (chỉ đọc)
+#   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic + security-reviewer (chỉ đọc)
 #              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
+#              security-reviewer CHANGES: test-writer writes a test per HIGH/MEDIUM finding, code-writer fixes it;
+#              a SPEC_PROBLEM line in the security review (permissions) stops the review: draft PR, back to the spec harness
 #   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
 # MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
 #
@@ -18,6 +20,15 @@
 # spec.md + plan.md + tasks.md, agent TEST đọc scenario + edge case + Test Strategy. Thêm 2 gate:
 #   - không ai được sửa specs/ (checksum, kể cả file spec chưa commit được gửi qua ConfigMap)
 #   - mỗi scenario ID của các task được giao phải có test mang tên bắt đầu bằng ID đó (chặn duyệt ở REVIEW)
+#
+# Bug (optional, dispatch.sh --bug <id>, MODE=full): steps f-g of the bug flow (skill bug-fix-flow), after the user
+# approved the root cause and the reproduction test in their own terminal (steps a-e stay interactive):
+#   - /task/bug.tgz holds bugs/<id>/ and the reproduction test; approval.py verify --bug <id> must pass in the pod
+#   - first commit "docs: bug record <id>" (bugs/<id>/ only); task gets a "## Bug (source of truth)" section
+#   - PLAN is skipped: code plan = the approved Root cause section; RED = the reproduction test (no test-writer) must
+#     FAIL, scenario gate on the bug's scenario ID → commit "test: reproduce bug <id>"; then GREEN, REVIEW, PR as usual
+#   - checksum of bugs/<id>/ + the reproduction test: every gate fails if an agent changed them; the test cannot be
+#     DELETEd; approval.py verify runs again before the PR
 #
 # Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
 # agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
@@ -97,6 +108,12 @@ changed_since() { { git diff --no-renames --name-only "$1"; git ls-files --other
 # Checksum toàn bộ specs/ (cả file đã commit lẫn file spec gửi qua ConfigMap, bị git bỏ qua)
 spec_sum() { find specs -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'; }
 
+# Bug mode: checksum of the bug record and the reproduction test (both approved by the user, read-only in the pod)
+bug_sum() {
+  { find "bugs/${BUG}" -type f -print0 2>/dev/null; printf '%s\0' "$REPRO"; } \
+    | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
 # assert_only <sha> <regex> <vai>: mọi file đổi kể từ <sha> phải khớp <regex>
 assert_only() {
   local sha="$1" re="$2" who="$3" bad
@@ -104,6 +121,10 @@ assert_only() {
   if [[ -n "$CHANGE" && "$(spec_sum)" != "$SPEC_SUM" ]]; then
     log "${who} modified files under specs/ (the spec is read-only for the CODE and TEST harnesses), NOT opening a PR"
     fail "${who} modified the spec"
+  fi
+  if [[ -n "$BUG" && "$(bug_sum)" != "$BUG_SUM" ]]; then
+    log "${who} modified bugs/${BUG}/ or the reproduction test ${REPRO} (approved by the user, read-only here), NOT opening a PR"
+    fail "${who} modified the bug record or the reproduction test"
   fi
   bad="$(changed_since "$sha" | grep -Ev "$re" || true)"
   if [[ -n "$bad" ]]; then
@@ -133,6 +154,9 @@ apply_test_deletions() {
   local out="$1" p
   while read -r p; do
     [[ -n "$p" ]] || continue
+    if [[ -n "$BUG" && "$p" == "$REPRO" ]]; then
+      log "DELETE ignored (reproduction test of bug ${BUG}): $p"; continue
+    fi
     if [[ ! "$p" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$ || "$p" == *..* ]]; then
       log "DELETE ignored (not under test/public): $p"; continue
     fi
@@ -185,6 +209,9 @@ $(cat /tmp/out/arbitration.txt)"
   assert_only "$sha" "$SRC_RE" "code-writer"
   wip="$(commit_stage "wip: ${PR_TITLE} (before test arbitration)")"
   stage "ARBITRATION: test-writer fixes the assertions judged wrong"
+  # The fixed tests may still fail until the code is right: stop-gate must not push the test-writer to weaken them.
+  # The gates of run.sh below (assert_only, ci_gate) still decide.
+  export SKIP_STOP_GATE=1
   run_agent test-writer /tmp/out/test-arb.txt "An independent reviewer judged some of the assertions on this branch wrong (decision below).
 Fix ONLY those assertions so they check what the task asks for and still catch the bug they were written for.
 Do not weaken, skip or remove other tests, and do not change production code.
@@ -197,6 +224,7 @@ $(cat /tmp/out/arbitration.txt)
 
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+  unset SKIP_STOP_GATE
   assert_only "$wip" "$TEST_RE" "test-writer"
   ARB_SHA="$(commit_stage "test: fix assertions after arbitration")"
 }
@@ -248,6 +276,13 @@ run_new_tests() {
     (cd "$pkg" && pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
   done
   return "$rc"
+}
+
+# Bug mode: run only the reproduction test (it may already be on the base branch, so changed_since cannot find it)
+run_repro_test() {
+  local out="$1" pkg="${REPRO%%/*}"
+  echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
+  (cd "$pkg" && pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -330,6 +365,13 @@ scenario_gate() {
 verdict() { { grep -Eo 'VERDICT: (APPROVE|CHANGES)' "$1" || true; } | tail -n 1 | awk '{print $2}'; }
 
 # ---------- chuẩn bị ----------
+# approval.py (verify of a change's plan or a bug's root cause) needs python3: required with a spec change or a bug
+if ! command -v python3 >/dev/null 2>&1; then
+  if [[ -s /task/bug.txt || -s /task/change.txt ]]; then
+    fail "python3 not found in the pod image (needed by approval.py)"
+  fi
+  log "WARNING: python3 not found in the pod image (only needed by approval.py, for --change / --bug)"
+fi
 log "Trusting corporate CA (MWG TLS inspection)"
 update-ca-certificates >/dev/null
 
@@ -414,6 +456,51 @@ Spec rules:
   e.g. \`it('ABC-003-S2 rejects min greater than max', ...)\`. The pipeline checks this."
 fi
 
+# ---------- bug (optional, dispatch.sh --bug <id>): steps f-g of the bug flow ----------
+BUG="$(head -n 1 /task/bug.txt 2>/dev/null || true)"
+REPRO=""; BUG_SCENARIO=""; BUG_SUM=""; ROOT_CAUSE=""
+if [[ -n "$BUG" ]]; then
+  [[ "$BUG" =~ ^[0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid bug '$BUG'"
+  [[ "$MODE" == full ]] || fail "bug mode needs MODE=full"
+  [[ -z "$CHANGE" ]] || fail "bug mode cannot go with a spec change"
+  REPRO="$(head -n 1 /task/repro.txt 2>/dev/null || true)"
+  BUG_SCENARIO="$(head -n 1 /task/scenario.txt 2>/dev/null || true)"
+  [[ "$REPRO" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+\.test\.tsx?$ && "$REPRO" != *..* ]] \
+    || fail "invalid reproduction test path '$REPRO'"
+  [[ "$BUG_SCENARIO" =~ ^[A-Z]{2,5}-[0-9]{3}-S[0-9]+$ ]] || fail "invalid bug scenario '$BUG_SCENARIO'"
+  [[ -f /task/bug.tgz ]] || fail "bug mode: /task/bug.tgz is missing"
+  # The approved copy wins over the base branch (bugs/<id>/ and the reproduction test)
+  tar -xzf /task/bug.tgz --warning=no-unknown-keyword
+  [[ -f "bugs/${BUG}/report.md" && -f "$REPRO" ]] || fail "bug.tgz has no bugs/${BUG}/report.md or ${REPRO}"
+  log "bug: approval.py verify --bug ${BUG}"
+  python3 .specify/scripts/approval.py verify --bug "$BUG" \
+    || fail "root cause not approved or changed since approval (bugs/${BUG})"
+  BUG_SUM="$(bug_sum)"
+  git add -- "bugs/${BUG}"
+  git diff --cached --quiet || git commit -q -m "docs: bug record ${BUG}"
+  SCENARIOS="$BUG_SCENARIO"
+  ROOT_CAUSE="$(awk '/^## Root cause[[:space:]]*$/ { f = 1; print; next } f && /^##? / { exit } f' "bugs/${BUG}/investigation.md")"
+  log "bug: ${BUG}, scenario ${BUG_SCENARIO}, reproduction test ${REPRO}"
+  TASK="${TASK}
+
+## Bug (source of truth)
+This task fixes bug \`${BUG}\` (steps f-g of the bug flow). The user approved the root cause and the reproduction
+test; the pipeline checks that approval again before the PR. Record: \`bugs/${BUG}/\` (\`report.md\`, \`investigation.md\`).
+Reproduction test: \`${REPRO}\` (scenario ${BUG_SCENARIO}). It fails on the current code and must pass after the fix.
+
+### report.md
+$(cat "bugs/${BUG}/report.md")
+
+### Approved root cause and fix direction (investigation.md)
+${ROOT_CAUSE}
+
+Bug rules:
+- Never change, skip or delete the reproduction test \`${REPRO}\` (the pipeline fails the job if it changes).
+- Do not edit anything under \`specs/\` or \`bugs/\`.
+- Fix at the approved root cause, in the shared code: no patch in each caller, no wrapper, no new dependency.
+- If the approved root cause looks wrong, say so in your answer and do not work around it."
+fi
+
 log "Installing project dependencies"
 pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
@@ -421,6 +508,7 @@ FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1; SCN_OK=1
 echo "no spec scenarios for this task" > /tmp/out/scenarios.txt
 ARBITRATED=0; ARB_RESULT=""; ARB_SHA=""; ARB_NOTE=""
 : > /tmp/out/red.txt; : > /tmp/out/review.txt; echo "skipped (code-only mode)" > /tmp/out/mutation.txt
+: > /tmp/out/security-review.txt; SEC_SPEC_PROBLEM=0
 
 if [[ "$MODE" == code-only ]]; then
   # ---------- luồng cũ: chỉ code-writer ----------
@@ -434,6 +522,11 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   REVIEW_DONE=1
 else
   # ---------- 1. PLAN ----------
+  if [[ -n "$BUG" ]]; then
+    stage "PLAN: skipped (bug mode: the approved root cause is the code plan)"
+    printf '%s\n' "$ROOT_CAUSE" > /tmp/plan/code-plan.md
+    echo "Reproduction test already written and approved; add tests only if review asks" > /tmp/plan/test-plan.md
+  else
   stage "PLAN: code-planner + test-planner (read-only)"
   run_agent code-planner /tmp/plan/code-plan.md "Plan the production code change for this task. The code is not written yet.
 ${TASK}" "${TOOLS_PLANNER[@]}"
@@ -441,10 +534,27 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
 plan tests for the target behaviour (they must fail on the current code and pass once the task is done), not for the current behaviour.
 Only plan Vitest tests in backend/test/public or frontend/test/public (no e2e: there is no browser or DB here).
 ${TASK}" "${TOOLS_PLANNER[@]}"
+  fi
   CODE_PLAN="$(cat /tmp/plan/code-plan.md)"
   TEST_PLAN="$(cat /tmp/plan/test-plan.md)"
 
   # ---------- 2. RED ----------
+  if [[ -n "$BUG" ]]; then
+  # Bug mode: no test-writer. The approved reproduction test must fail on the current code, for the same reasons as RED.
+  stage "RED (bug mode): the approved reproduction test must fail on the current code"
+  if run_repro_test /tmp/out/red.txt; then
+    strip_colors < /tmp/out/red.txt | tail -n 40
+    fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)"
+  fi
+  grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate could not run the reproduction test ${REPRO}"
+  strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
+  log "RED: scenario coverage of the bug (${BUG_SCENARIO})"
+  scenario_gate
+  git add -- "$REPRO"
+  git diff --cached --quiet || git commit -q -m "test: reproduce bug ${BUG}"
+  TEST_SHA="$(git rev-parse HEAD)"
+  log "RED gate: PASSED (reproduction test committed as ${TEST_SHA:0:8})"
+  else
   stage "RED: test-writer writes failing tests"
   # Ở bước RED test phải fail -> tắt stop-gate (nó đòi pnpm test pass). Gate RED bên dưới vẫn do script kiểm.
   export SKIP_STOP_GATE=1
@@ -476,6 +586,7 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
   scenario_gate
   TEST_SHA="$(commit_stage "test: ${PR_TITLE}")"
   log "RED gate: PASSED (tests committed as ${TEST_SHA:0:8})"
+  fi
 
   # ---------- 3. GREEN ----------
   stage "GREEN: code-writer makes the tests pass"
@@ -496,9 +607,9 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
 
   # ---------- 4. REVIEW ----------
   round=0
-  CRITIC_HISTORY=""
+  CRITIC_HISTORY=""; SEC_HISTORY=""
   while true; do
-    stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic"
+    stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic + security-reviewer"
     # Mỗi vòng critic là session mới: đưa nhận xét vòng trước + trả lời của test-writer để critic không đổi ý / đòi thứ không làm được
     if (( round > 0 )); then
       CRITIC_HISTORY="## Previous round
@@ -516,6 +627,24 @@ $(cat /tmp/out/test-review-prev.txt)
 
 ### Test-writer's answer
 $(cat /tmp/out/test-fix.txt)
+"
+      # Same rules for the security-reviewer: it sees its previous review and both writers' answers
+      SEC_HISTORY="## Previous round
+This is review round $((round + 1)). Your previous security review and the writers' answers are below.
+Rules for this round:
+- Return CHANGES only for (a) findings of the previous review that are still not addressed and still valid, or
+  (b) a NEW HIGH or MEDIUM finding in the diff.
+- Do not reverse a request from the previous review unless it was plainly wrong; if so, say why.
+- Items a writer explained it cannot do (e.g. needs a new dependency) go under 'Accepted gaps' and do not block.
+
+### Previous security review
+$(cat /tmp/out/security-review-prev.txt)
+
+### Test-writer's answer
+$(cat /tmp/out/test-fix.txt)
+
+### Code-writer's answer
+$(cat /tmp/out/code-fix.txt)
 "
     fi
     mutation_gate
@@ -550,22 +679,51 @@ ${CRITIC_HISTORY}
 The test-writer cannot delete files itself; it asks the pipeline to delete test files added on this branch.
 Put nice-to-have remarks under 'Optional': they do not block.
 End your answer with exactly one line: \`VERDICT: APPROVE\` (tests would catch real bugs in this behaviour) or \`VERDICT: CHANGES\` (list what to fix above it)." "${TOOLS_REVIEWER[@]}"
+    run_agent security-reviewer /tmp/out/security-review.txt "Security-review the change on this branch: \`git diff ${BASE_SHA} HEAD\`.
+Use exactly this diff; do not look up the base branch yourself. Follow your agent file and the security-review skill.
+
+## Task
+${TASK}
+
+${SEC_HISTORY}
+End your answer with exactly one line: \`VERDICT: APPROVE\` (your verdict is PASS) or \`VERDICT: CHANGES\` (your verdict is CHANGES REQUIRED)." "${TOOLS_REVIEWER[@]}"
     CODE_V="$(verdict /tmp/out/code-review.txt)"; TEST_V="$(verdict /tmp/out/test-review.txt)"
+    SEC_V="$(verdict /tmp/out/security-review.txt)"
     cp /tmp/out/test-review.txt /tmp/out/test-review-prev.txt
-    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
+    cp /tmp/out/security-review.txt /tmp/out/security-review-prev.txt
+    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"; SEC_V="${SEC_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
     {
-      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
+      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, security=${SEC_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
     } >> /tmp/out/review.txt
-    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} mutation_ok=${MUT_OK} scenarios_ok=${SCN_OK}"
-    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$MUT_OK" == 1 && "$SCN_OK" == 1 ]]; then
+    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} security=${SEC_V} mutation_ok=${MUT_OK} scenarios_ok=${SCN_OK}"
+    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$SEC_V" == APPROVE && "$MUT_OK" == 1 && "$SCN_OK" == 1 ]]; then
       REVIEW_DONE=1; break
+    fi
+    # Permissions in the spec are wrong or missing: no writer can fix that, go back to the spec harness
+    if [[ "$SEC_V" == CHANGES ]] && grep -Eq '^[[:space:]`*>-]*SPEC_PROBLEM:' /tmp/out/security-review.txt; then
+      log "REVIEW: security-reviewer reported a SPEC_PROBLEM (permissions), stopping the review (draft PR)"
+      echo "### Stopped: security review found a spec problem (permissions)" >> /tmp/out/review.txt
+      SEC_SPEC_PROBLEM=1; REVIEW_DONE=0; break
     fi
     (( round < REVIEW_ROUNDS )) || break
     round=$((round + 1))
     echo "(the test-writer did not run in this round: only the code review asked for changes)" > /tmp/out/test-fix.txt
+    # code-fix.txt keeps the code-writer's answer of this round for the next security review
+    echo "(the code-writer did not run in this round)" > /tmp/out/code-fix.txt
+    if [[ "$SEC_V" == CHANGES ]]; then
+      SEC_FOR_TESTS="## Security review
+$(cat /tmp/out/security-review.txt)
+For each HIGH or MEDIUM finding above, write one test in test/public that proves the vulnerability (e.g. user A
+requesting user B's resource must be denied). Such a test may fail: the code is not fixed yet."
+    else
+      SEC_FOR_TESTS=""
+    fi
 
-    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 ]]; then
+    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 || "$SEC_V" == CHANGES ]]; then
       stage "REVIEW round ${round}: test-writer addresses test review"
+      # Here the test-writer may write failing tests on purpose (a security finding, code it thinks is wrong):
+      # stop-gate must not push it to weaken them. The gates of run.sh after it (assert_only, ci_gate) still decide.
+      export SKIP_STOP_GATE=1
       run_agent test-writer /tmp/out/test-fix.txt "Improve the tests on this branch based on the review below. The production code now exists.
 Tests must check the behaviour asked for in the task; do not weaken them to match the code.
 If you think the code is wrong, write a test that shows it (it may fail) and explain.
@@ -583,6 +741,8 @@ $(cat /tmp/out/mutation.txt)
 $(cat /tmp/out/scenarios.txt)
 Each missing scenario needs a test whose name starts with its ID (see the task's Spec section).
 
+${SEC_FOR_TESTS}
+
 ## Deleting a test file
 You cannot delete files yourself. To delete a test file that was ADDED on this branch, put a line
 \`DELETE: <path from the repo root>\` at the start of a line in your final answer (one line per file, no other text on it),
@@ -595,6 +755,7 @@ The next reviewer reads this.
 
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+      unset SKIP_STOP_GATE
       apply_test_deletions /tmp/out/test-fix.txt
       assert_only "$CODE_SHA" "$TEST_RE" "test-writer"
       if [[ -n "$(changed_since "$CODE_SHA")" ]]; then
@@ -603,21 +764,26 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
     fi
 
     STAGE_SHA="$(git rev-parse HEAD)"
-    if [[ "$CODE_V" == CHANGES ]]; then
-      stage "REVIEW round ${round}: code-writer addresses code review"
-      run_agent code-writer /tmp/out/code-fix.txt "Address the code review below for this task. Tests may have been updated by another agent; make them pass.
+    if [[ "$CODE_V" == CHANGES || "$SEC_V" == CHANGES ]]; then
+      stage "REVIEW round ${round}: code-writer addresses code review + security review"
+      run_agent code-writer /tmp/out/code-fix.txt "Address the code review and the security review below for this task (fix every HIGH / MEDIUM
+security finding at its source). Tests may have been updated by another agent, including tests that prove a security
+finding; make them pass.
 
 ## Task
 ${TASK}
 
-## Code review
+## Code review (verdict: ${CODE_V})
 $(cat /tmp/out/code-review.txt)
+
+## Security review (verdict: ${SEC_V})
+$(cat /tmp/out/security-review.txt)
 
 ## Rules
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
     fi
     # tests mới có thể làm CI fail: code-writer sửa trong gate này
-    ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
+    ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES || "$SEC_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
     if [[ -n "$(changed_since "$STAGE_SHA")" ]]; then
       CODE_SHA="$(commit_stage "fix: address review (round ${round})")"
     else
@@ -628,6 +794,10 @@ fi
 
 # ---------- 5. PR ----------
 stage "PR"
+if [[ -n "$BUG" ]]; then
+  log "bug: approval.py verify --bug ${BUG} (again, before the PR)"
+  python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
+fi
 CI_SUMMARY="$(strip_colors < /tmp/ci.log | sed -n '/== Summary ==/,$p')"
 git --no-pager log --oneline "${BASE_SHA}..HEAD"
 git --no-pager diff --stat "${BASE_SHA}" HEAD
@@ -640,14 +810,19 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
   echo "CI fix rounds: ${FIX_ROUNDS}"; echo
   if [[ "$MODE" == full ]]; then
     cat /tmp/out/review.txt; echo
-    section "Code plan (code-planner)" /tmp/plan/code-plan.md
-    section "Test plan (test-planner)" /tmp/plan/test-plan.md
+    if [[ -n "$BUG" ]]; then
+      section "Code plan (approved root cause, bugs/${BUG}/investigation.md)" /tmp/plan/code-plan.md
+    else
+      section "Code plan (code-planner)" /tmp/plan/code-plan.md
+      section "Test plan (test-planner)" /tmp/plan/test-plan.md
+    fi
     strip_colors < /tmp/out/red.txt | tail -n 60 > /tmp/out/red-tail.txt
     section "RED: new tests failing before the code change" /tmp/out/red-tail.txt
     section "Mutation testing" /tmp/out/mutation.txt
     section "Spec scenario coverage" /tmp/out/scenarios.txt
     section "Code review (last round)" /tmp/out/code-review.txt
     section "Test review (last round)" /tmp/out/test-review.txt
+    section "Security review (last round)" /tmp/out/security-review.txt
   fi
   if [[ -n "$CHANGE" ]]; then
     echo "## Spec"
@@ -657,6 +832,14 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
       echo "**Spec problems reported by the agents** (go back to the spec harness, the spec was not changed):"
       echo '```'; cat /tmp/out/spec-problems.txt; echo '```'; echo
     fi
+  fi
+  if [[ -n "$BUG" ]]; then
+    echo "## Bug"
+    echo "- Bug: \`${BUG}\` (record: \`bugs/${BUG}/\`, committed first)"
+    echo "- Violated scenario: ${BUG_SCENARIO}"
+    echo "- Reproduction test: \`${REPRO}\` (approved with the root cause; failed before the fix, see RED)"
+    echo "- Approved root cause: $(node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
+    echo
   fi
   echo "## Local CI (run in the agent pod before opening this PR)"
   echo '```'; echo "${CI_SUMMARY}"; echo '```'; echo
@@ -673,6 +856,8 @@ PR_URL="$(gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH
 log "Done"
 if [[ "$REVIEW_DONE" == 1 ]]; then
   RESULT="SUCCESS pr=${PR_URL}"
+elif [[ "$SEC_SPEC_PROBLEM" == 1 ]]; then
+  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human) pr=${PR_URL}"
 else
   RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human) pr=${PR_URL}"
 fi

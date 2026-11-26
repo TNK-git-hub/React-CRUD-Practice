@@ -56,7 +56,20 @@ _(Data Model: filled by /speckit-plan)_
 """
 PLAN = "# Plan\n\n## Test Strategy\n\nVitest.\n"
 TASKS = "# Tasks\n\n- [ ] T001 Endpoint. Scenarios: PROD-004-S1, PROD-004-S2\n"
-REPORT = "# Bug report: max ignored\n\n## Expected\n\nmax 100 filters.\n"
+REPRO = "backend/test/public/price-filter.test.ts"
+REPRO_TEST = "it('PROD-002-S2 max filters', () => { expect(filter(100)).toBe(3); });\n"
+REPORT = f"""\
+# Bug report: max ignored
+
+## Expected
+
+max 100 filters.
+
+## Reproduction test
+
+- Path: `{REPRO}`
+- Name: `PROD-002-S2 max filters`
+"""
 INVESTIGATION = """\
 # Investigation: 20261125-price-filter-ignores-max
 
@@ -100,6 +113,7 @@ class ApprovalTest(unittest.TestCase):
         self.write(f"specs/changes/{CHANGE}/tasks.md", TASKS)
         self.write(f"bugs/{BUG}/report.md", REPORT)
         self.write(f"bugs/{BUG}/investigation.md", INVESTIGATION)
+        self.write(REPRO, REPRO_TEST)
         # the real template, so a renamed heading in it fails these tests
         tpl = self.root / approval.TEMPLATE
         tpl.parent.mkdir(parents=True)
@@ -352,8 +366,44 @@ class ApprovalTest(unittest.TestCase):
         data = json.loads((self.root / "bugs" / BUG / "approval.json").read_text())
         self.assertEqual(data["root-cause"]["summary"], "builder drops max")
         self.assertEqual(data["root-cause"]["files"],
-                         [f"bugs/{BUG}/report.md", f"bugs/{BUG}/investigation.md#Root cause"])
+                         [f"bugs/{BUG}/report.md", f"bugs/{BUG}/investigation.md#Root cause", REPRO])
+        self.assertTrue((self.root / "bugs" / BUG / ".approved/root-cause/price-filter.test.ts").is_file())
         self.assertEqual(self.verify("--bug", BUG)[0], 0)
+
+    # ---- reproduction test inside the root-cause gate ----
+    def test_root_cause_gate_changes_with_reproduction_test(self) -> None:
+        self.approve_bug()
+        self.edit(REPRO, "toBe(3)", "toBe(4)")
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 1)
+        self.assertIn("gate root-cause changed since approval", out)
+        self.assertIn("+it('PROD-002-S2 max filters', () => { expect(filter(100)).toBe(4); });", out)
+
+    def test_reproduction_test_missing_is_error(self) -> None:
+        (self.root / REPRO).unlink()
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("price-filter.test.ts not found", out)
+
+    def test_reproduction_section_missing_is_error(self) -> None:
+        self.edit(f"bugs/{BUG}/report.md", "## Reproduction test", "## Test")
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("no 'Reproduction test' section", out)
+
+    def test_reproduction_path_line_missing_is_error(self) -> None:
+        self.edit(f"bugs/{BUG}/report.md", f"- Path: `{REPRO}`", "- Path: (to do)")
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("no line '- Path: `<path>`'", out)
+
+    def test_reproduction_path_outside_test_public_is_error(self) -> None:
+        for bad in ("backend/src/price.ts", "backend/test/public/../../src/price.ts", "frontend/test/private/x.test.ts",
+                    "<package>/test/public/<file>.test.ts"):
+            self.write(f"bugs/{BUG}/report.md", REPORT.replace(REPRO, bad))
+            code, out = self.verify("--bug", BUG)
+            self.assertEqual(code, 2, bad)
+            self.assertIn("must be inside backend/test/public or frontend/test/public", out)
 
     def test_root_cause_gate_changes_with_root_cause_section(self) -> None:
         self.approve_bug()

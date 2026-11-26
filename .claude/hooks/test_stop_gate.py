@@ -21,7 +21,20 @@ import approval  # noqa: E402
 
 COPIED = (".claude/hooks/stop-gate.sh", ".specify/scripts/approval.py", approval.TEMPLATE)
 BUG = "20261125-price-filter-ignores-max"
-REPORT = "# Bug report: max ignored\n\n## Expected\n\nmax 100 filters.\n"
+REPRO = "backend/test/public/price-filter.test.ts"
+REPRO_TEST = "it('PROD-002-S2 max filters', () => { expect(filter(100)).toBe(3); });\n"
+REPORT = f"""\
+# Bug report: max ignored
+
+## Expected
+
+max 100 filters.
+
+## Reproduction test
+
+- Path: `{REPRO}`
+- Name: `PROD-002-S2 max filters`
+"""
 INVESTIGATION = """\
 # Investigation: 20261125-price-filter-ignores-max
 
@@ -105,6 +118,7 @@ class StopGateTest(unittest.TestCase):
     def bug_record(self) -> Path:
         self.write(f"bugs/{BUG}/report.md", REPORT)
         self.write(f"bugs/{BUG}/investigation.md", INVESTIGATION)
+        self.write(REPRO, REPRO_TEST)  # the reproduction test is part of the root-cause gate
         return self.root / "bugs" / BUG
 
     def approve_root_cause(self, folder: Path) -> None:
@@ -185,6 +199,21 @@ class StopGateTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(self.pnpm_called())
         self.assertIn(BUG, err)
+
+    def test_reproduction_test_changed_after_approval_skips_tests(self) -> None:
+        self.with_app()
+        self.approve_root_cause(self.bug_record())
+        self.write(REPRO, REPRO_TEST.replace("toBe(3)", "toBe(4)"))
+        code, err = self.run_gate()
+        self.assertEqual(code, 0)
+        self.assertFalse(self.pnpm_called())
+        self.assertIn(BUG, err)
+
+    def test_reproduction_test_missing_runs_tests(self) -> None:
+        self.with_app()
+        self.bug_record()
+        (self.root / REPRO).unlink()
+        self.assert_tests_ran()
 
     def test_old_committed_bug_does_not_switch_gate_off(self) -> None:
         self.with_app()
