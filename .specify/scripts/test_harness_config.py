@@ -147,6 +147,47 @@ class HarnessConfigTest(unittest.TestCase):
         self.assertEqual(self.cli("get", "packages")[1], "api\nweb\n")
         self.assertEqual(json.loads(self.cli("get", "areas.testPrivate", "--json")[1]), GOOD["areas"]["testPrivate"])
 
+    # ---- --config: a harness.json given as a file or on stdin (collect.sh: the version at base_sha) ----
+    def run_main(self, argv: list[str], stdin: str | None = None) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        old = sys.stdin
+        try:
+            if stdin is not None:
+                sys.stdin = io.StringIO(stdin)
+            with redirect_stdout(out), redirect_stderr(err):
+                code = hc.main(argv)
+        finally:
+            sys.stdin = old
+        return code, out.getvalue(), err.getvalue()
+
+    def test_config_from_stdin(self) -> None:
+        code, out, _ = self.run_main(["get", "pod.agentAreas", "--regex", "--config", "-"], stdin=json.dumps(GOOD))
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), r"^(api/src|web/src|web/static\.files|api/test/public|web/test/public)/")
+
+    def test_config_from_file_ignores_the_root(self) -> None:
+        self.write(self.with_change(packages=["other"], areas__testPublic=["other/t"], areas__testPrivate=[]))
+        f = self.root / "given.json"
+        f.write_text(json.dumps(GOOD), encoding="utf-8")
+        code, out, _ = self.run_main(["get", "packages", "--config", str(f)])
+        self.assertEqual((code, out), (0, "api\nweb\n"))
+
+    def test_config_is_checked_like_the_file(self) -> None:
+        code, _, err = self.run_main(["get", "packages", "--config", "-"], stdin="{not json")
+        self.assertEqual(code, 2)
+        self.assertIn("not valid JSON", err)
+        code, _, err = self.run_main(["get", "packages", "--config", "-"], stdin=json.dumps(self.with_change(version=3)))
+        self.assertEqual(code, 2)
+        self.assertIn("version must be 1", err)
+        code, _, err = self.run_main(["get", "packages", "--config", "-"], stdin="")
+        self.assertEqual(code, 2)
+        code, _, err = self.run_main(["get", "packages", "--config", str(self.root / "nope.json")])
+        self.assertEqual(code, 2)
+        self.assertIn("cannot be read", err)
+
+    def test_config_and_root_are_exclusive(self) -> None:
+        self.assertEqual(self.run_main(["get", "packages", "--config", "-", "--root", str(self.root)], stdin="{}")[0], 2)
+
     def test_unknown_key_or_option_exits_2(self) -> None:
         self.write(GOOD)
         self.assertEqual(self.cli("get", "areas.docs")[0], 2)

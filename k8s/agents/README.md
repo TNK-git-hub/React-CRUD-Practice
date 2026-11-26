@@ -50,7 +50,9 @@ Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/S
 
 **Vùng của agent** (code, test public / e2e / private, tên package, mẫu tên file test) định nghĩa một lần trong
 `.claude/harness.json`. `run.sh` đọc nó ngay sau khi clone (`SRC_RE` = `pod.codeWritable`, `TEST_RE` =
-`pod.testWritable`; lỗi thì FAIL), `collect.sh` kiểm lại branch theo `pod.agentAreas`, `dispatch.sh` lấy vùng test
+`pod.testWritable`; lỗi thì FAIL), `collect.sh` kiểm lại branch theo `pod.agentAreas` của bản config tại `base_sha`
+(`git show <base_sha>:.claude/harness.json | harness_config.py … --config -`, tức đúng bản pod đã dùng, không phải
+working tree của máy này; không đọc được thì FAILED, không push), `dispatch.sh` lấy vùng test
 private và regex test tái hiện từ đó (`python3 .specify/scripts/harness_config.py get <key> --regex|--list`).
 Đổi cấu trúc thư mục = sửa file đó + phần văn xuôi trong `CLAUDE.md` và prompt agent.
 

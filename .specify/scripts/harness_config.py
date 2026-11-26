@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """The agent areas of the harness, from one file: .claude/harness.json.
 
-    python3 .specify/scripts/harness_config.py get <key> [--regex | --list | --json] [--root R]
+    python3 .specify/scripts/harness_config.py get <key> [--regex | --list | --json] [--root R | --config <file>|-]
+
+--config reads that file (or stdin with "-") instead of <root>/.claude/harness.json, with the same checks
+(collect.sh: the version at the pod's base commit, `git show <base_sha>:.claude/harness.json`).
 
 Keys:
   packages, areas.src, areas.testPublic, areas.testE2e, areas.testPrivate, testFile
@@ -55,10 +58,19 @@ def load(root: Path) -> dict:
     """The checked config of the repo at `root` (raises ConfigError)."""
     path = Path(root) / CONFIG
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
     except FileNotFoundError as e:
         raise ConfigError(f"{CONFIG} not found") from e
-    except (OSError, json.JSONDecodeError) as e:
+    except OSError as e:
+        raise ConfigError(f"{CONFIG} cannot be read: {e}") from e
+    return loads(text)
+
+
+def loads(text: str) -> dict:
+    """The checked config from the text of a harness.json (e.g. `git show <sha>:.claude/harness.json`)."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
         raise ConfigError(f"{CONFIG} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
         raise ConfigError(f"{CONFIG} must be a JSON object")
@@ -131,13 +143,26 @@ def main(argv: list[str] | None = None) -> int:
     fmt.add_argument("--regex", action="store_true")
     fmt.add_argument("--list", action="store_true")
     fmt.add_argument("--json", action="store_true")
-    g.add_argument("--root", type=Path, default=None)
+    src = g.add_mutually_exclusive_group()
+    src.add_argument("--root", type=Path, default=None, help="repo root whose .claude/harness.json is read (default: auto)")
+    src.add_argument("--config", default=None,
+                     help="read this harness.json instead ('-' = stdin), e.g. the version at a commit: "
+                          "git show <sha>:.claude/harness.json | harness_config.py get <key> --config -")
     try:
         args = parser.parse_args(argv)
     except SystemExit as e:
         return 2 if e.code else 0
     try:
-        config = load((args.root or default_root()).resolve())
+        if args.config == "-":
+            config = loads(sys.stdin.read())
+        elif args.config is not None:
+            try:
+                text = Path(args.config).read_text(encoding="utf-8")
+            except OSError as e:
+                raise ConfigError(f"{args.config} cannot be read: {e}") from e
+            config = loads(text)
+        else:
+            config = load((args.root or default_root()).resolve())
         value = get(config, args.key)
     except ConfigError as e:
         print(f"harness_config.py: {e}", file=sys.stderr)

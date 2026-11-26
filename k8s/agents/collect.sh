@@ -108,6 +108,12 @@ M_REASON="$(printf '%s' "$M_REASON" | tr -d '\000-\037' | cut -c1-500)"
 # --- bundle into the local repo ---
 git -C "$ROOT" fetch -q origin "$M_BASE" || fail "git fetch origin $M_BASE failed"
 git -C "$ROOT" cat-file -e "${M_SHA}^{commit}" 2>/dev/null || fail "base_sha ${M_SHA:0:12} is not in origin/$M_BASE (fetch it first)"
+# The agent areas the POD used: .claude/harness.json at base_sha (what it cloned), not this working tree, which may
+# have other (uncommitted or newer) areas. Not readable or invalid there -> FAILED, nothing is pushed.
+cfg_at_base="$(git -C "$ROOT" show "${M_SHA}:.claude/harness.json" 2>/dev/null)" \
+  || fail "cannot read .claude/harness.json at base_sha ${M_SHA:0:12}: the agent areas the pod used are unknown"
+AGENT_AREAS="$(python3 "$ROOT/.specify/scripts/harness_config.py" get pod.agentAreas --regex --config - <<<"$cfg_at_base")" \
+  || fail ".claude/harness.json at base_sha ${M_SHA:0:12} is invalid (see harness_config.py above)"
 git -C "$ROOT" bundle verify "$TMP/a/branch.bundle" >/dev/null 2>&1 || fail "branch.bundle does not verify against the local repo"
 git -C "$ROOT" ls-remote --exit-code --heads origin "$M_BRANCH" >/dev/null 2>&1 \
   && fail "branch $M_BRANCH already exists on origin (not forcing; delete it or dispatch again)"
@@ -115,13 +121,13 @@ LOCAL_REF="refs/heads/$M_BRANCH"
 [[ "$DRY" == 1 ]] && LOCAL_REF="refs/collect-dry-run/$M_BRANCH"   # dry run: a scratch ref, removed below
 git -C "$ROOT" rev-parse --verify -q "$LOCAL_REF" >/dev/null && fail "local ref $LOCAL_REF already exists"
 git -C "$ROOT" fetch -q "$TMP/a/branch.bundle" "HEAD:$LOCAL_REF" || fail "git fetch from branch.bundle failed"
-git -C "$ROOT" merge-base --is-ancestor "$M_SHA" "$LOCAL_REF" || fail "the bundle's branch does not start from base_sha"
+git -C "$ROOT" merge-base --is-ancestor "$M_SHA" "$LOCAL_REF" \
+  || { git -C "$ROOT" update-ref -d "$LOCAL_REF"; fail "the bundle's branch does not start from base_sha"; }
 commits="$(git -C "$ROOT" rev-list --count "${M_SHA}..${LOCAL_REF}")"
 
 # --- re-check on the host: every changed path (deleted and renamed ones too: --no-renames lists both sides) must be in
-# an area the pod lets its agents write: pod.agentAreas of .claude/harness.json (the same areas as the gates of run.sh)
-AGENT_AREAS="$(python3 "$ROOT/.specify/scripts/harness_config.py" get pod.agentAreas --regex --root "$ROOT")" \
-  || { git -C "$ROOT" update-ref -d "$LOCAL_REF"; fail "harness.json missing or invalid (see harness_config.py above)"; }
+# an area the pod lets its agents write: pod.agentAreas of .claude/harness.json AT base_sha (read above; the same areas
+# as the gates of run.sh in the pod)
 [[ -n "$M_BUG" ]] && AGENT_AREAS="${AGENT_AREAS%)/}|bugs/${M_BUG})/"   # bug mode: the record of THIS bug only
 outside="$(git -C "$ROOT" diff --no-renames --name-only "${M_SHA}...${LOCAL_REF}" | grep -Ev "$AGENT_AREAS" || true)"
 if [[ -n "$outside" ]]; then
