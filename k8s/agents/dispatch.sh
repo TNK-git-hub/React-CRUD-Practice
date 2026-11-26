@@ -194,7 +194,12 @@ kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-
 render | kubectl apply -f - >/dev/null
 echo "Dispatched job agent-$JOB_ID (base: $BASE, mode: $MODE${CHANGE:+, change: $CHANGE, tasks: ${SPEC_TASKS:-all}}${BUG:+, bug: $BUG})"
 
-[[ "$WAIT" == 1 ]] || { echo "RESULT: DISPATCHED job=agent-$JOB_ID"; exit 0; }
+if [[ "$WAIT" != 1 ]]; then
+  echo "The pod has no GitHub write token: when the job is done, open its PR from this machine with"
+  echo "  bash k8s/agents/collect.sh $JOB_ID --base $BASE"
+  echo "RESULT: DISPATCHED job=agent-$JOB_ID"
+  exit 0
+fi
 
 # --- theo dõi log ---
 mkdir -p "$DIR/logs"
@@ -214,6 +219,16 @@ line="$(grep -E '^==> RESULT: ' "$LOG" | tail -n 1 | sed 's/^==> //')"
 if [[ -z "$line" ]]; then
   status="$(kubectl get job "agent-$JOB_ID" -o jsonpath='{.status.conditions[*].reason}' 2>/dev/null || true)"
   line="RESULT: FAILED reason=pod ended without a result line (job status: ${status:-unknown}); see ${LOG#$ROOT/}"
+fi
+# --- PR: the pod has no GitHub write token; it printed the branch as an artifact, collect.sh pushes and opens the PR ---
+# The final RESULT line is collect.sh's ("... pr=<url>"), so the hidden tests below run on that PR as before.
+if [[ "$line" == *" artifact=ready"* ]]; then
+  echo "Pod: $line"
+  echo "Collecting the artifact: bash k8s/agents/collect.sh $JOB_ID --log ${LOG#$ROOT/} --base $BASE"
+  cout="$(bash "$DIR/collect.sh" "$JOB_ID" --log "$LOG" --base "$BASE" 2>&1)" || true
+  echo "$cout" | grep -vE '^RESULT: ' || true
+  cline="$(grep -E '^RESULT: ' <<<"$cout" | tail -n 1)"
+  line="${cline:-RESULT: FAILED reason=collect.sh printed no result (pod: ${line#RESULT: })}"
 fi
 # --- hidden test: test/private chỉ có trên máy này (gitignore), agent trong pod không bao giờ thấy ---
 # Chạy trên branch của PR trong một git worktree tạm, từng package riêng (package này fail không làm package kia bị bỏ qua).

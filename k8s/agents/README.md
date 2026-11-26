@@ -15,9 +15,11 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
         4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic + security-reviewer → cần sửa thì quay lại 2/3 (≤2 vòng)
                    security CHANGES: test-writer viết test chứng minh từng lỗ hổng HIGH/MEDIUM, code-writer sửa;
                    security có SPEC_PROBLEM (quyền trong spec sai/thiếu) → dừng review, PR draft, quay lại spec harness
-        5. PR      push → PR vào base branch (review không qua: PR draft + RESULT FAILED)
+        5. EXPORT  pod không có token ghi GitHub: in branch ra log (git bundle + meta + PR body, giữa hai dòng ARTIFACT)
       (mode code-only: chỉ bước 3 rồi 5)
-      → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
+      → pod: "RESULT: SUCCESS artifact=ready" | "RESULT: FAILED reason=...[ artifact=ready]"
+  → collect.sh (dispatch.sh tự gọi) trên máy này: kiểm artifact, push branch, mở PR (FAILED sau commit đầu: PR draft)
+      → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=... pr=<url>"
   → dispatch.sh chạy hidden test (test/private, chỉ có trên máy này) trên branch PR → "PRIVATE: PASS|FAIL|SKIPPED"
   → watch-pr.sh <pr>                                   (GitHub Actions chạy ci.yml trên runner ARC)
       → "CHECKS: PASS" | "CHECKS: FAIL" (+ log step lỗi) | "CHECKS: TIMEOUT"
@@ -40,6 +42,8 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
 | Agent sửa hồ sơ bug hay test tái hiện cho dễ pass (`--bug`) | Test tái hiện nằm trong gate root-cause người dùng đã duyệt (`approval.py`, hash). Pod chạy `approval.py verify --bug` lúc đầu và trước khi mở PR; checksum `bugs/<id>/` + test tái hiện trong mọi gate `assert_only`; `DELETE:` không xoá được test tái hiện |
+| Secret trong pod bị agent đọc hay dùng | Pod chỉ có token Claude (`CLAUDE_CODE_OAUTH_TOKEN`), không có token ghi GitHub (có `GH_TOKEN` thì `run.sh` FAIL): clone ẩn danh (repo public) hoặc `GH_READ_TOKEN` chỉ đọc qua credential helper, không nằm trong URL hay `.git/config` (`run.sh` kiểm). Push và mở PR làm ở máy này (`collect.sh`, chỉ coi artifact là dữ liệu, marker cuối của job quyết định — `ARTIFACT NONE` thì không PR —, mọi file đổi phải nằm trong vùng của agent, không force push). Lệnh do script chạy (pnpm install / ci:local, vitest, stryker, `node -e`, `approval.py`) chạy không có token Claude (`noenv`) |
+| Giới hạn còn lại về secret | Lệnh agent tự chạy qua Bash vẫn thừa hưởng token Claude (`claude` cần nó). Mạng đi ra từ pod chưa bị lọc (agent có thể gửi dữ liệu ra ngoài) |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
 
 Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/SKILL.md`.
@@ -48,7 +52,8 @@ Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/S
 |---|---|
 | `run.sh` | Script chạy trong pod (ConfigMap `agent-script`, `dispatch.sh` tự cập nhật) |
 | `job-template.yaml` | Template một Job; `dispatch.sh` điền `JOB_ID`, `BASE_BRANCH`, `MODE`, deadline. Chỉnh `REVIEW_ROUNDS`, `MUTATION_MIN` ở đây |
-| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, chạy hidden test, in `PRIVATE` và `RESULT` |
+| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, gọi `collect.sh`, chạy hidden test, in `PRIVATE` và `RESULT` |
+| `collect.sh` | Trên máy này: lấy artifact của job từ log, kiểm (chỉ coi là dữ liệu), push branch (không force), mở PR bằng `gh` |
 | `watch-pr.sh` | Đợi check của PR, in log step lỗi nếu fail |
 | `tasks/EXAMPLE.md` | Mẫu file task |
 
@@ -63,22 +68,36 @@ Mỗi bước là một session mới: các vai chỉ chia sẻ file (plan, comm
 ```bash
 claude setup-token                       # copy giá trị sk-ant-oat...
 kind create cluster --name claude-demo
+# Chỉ token Claude: pod không push, không mở PR (collect.sh làm việc đó trên máy này, bằng gh của bạn)
 kubectl create secret generic agent-secrets \
-  --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<sk-ant-oat...>' \
-  --from-literal=GH_TOKEN="$(gh auth token)"
+  --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<sk-ant-oat...>'
+# Repo này đang PUBLIC: KHÔNG đặt GH_READ_TOKEN (pod clone ẩn danh). Chỉ khi repo chuyển sang private mới thêm:
+#   --from-literal=GH_READ_TOKEN='<github_pat_...>'
+# Token đó cũng nằm trong /proc/1/environ của container (agent đọc được), nên chỉ dùng token fine-grained, CHỈ repo này,
+# CHỈ quyền "Contents: Read-only", không quyền nào khác.
 security find-certificate -c MWG -p /Library/Keychains/System.keychain > mwg-ca.pem
 kubectl create configmap mwg-ca --from-file=mwg-ca.crt=mwg-ca.pem
 ```
 CI của PR chạy trên runner cloud của GitHub (`.github/workflows/ci.yml`), không cần cài runner trong kind.
+
+**Đã tạo `agent-secrets` có `GH_TOKEN` từ trước: xoá nó khỏi Secret** (`envFrom` nạp mọi key, agent sẽ thấy token ghi).
+Pod có `GH_TOKEN` thì `run.sh` FAIL ngay đầu (không chỉ cảnh báo: `unset` không xoá được biến khỏi `/proc/1/environ`):
+```bash
+kubectl patch secret agent-secrets --type=json -p='[{"op": "remove", "path": "/data/GH_TOKEN"}]'
+```
+Máy này cần `gh` đã đăng nhập (`gh auth login`) cho `collect.sh`, hidden test và `watch-pr.sh`.
 
 ## Dùng
 ```bash
 # xem trước manifest, không tạo gì trong cluster
 bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>" --dry-run
 
-# chạy thật — base branch phải đã push: pod clone từ origin
+# chạy thật — base branch phải đã push: pod clone từ origin. dispatch.sh đợi pod xong rồi gọi collect.sh (mở PR)
 bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>"
 bash k8s/agents/watch-pr.sh <pr-number>
+
+# --no-wait: tự mở PR sau khi job xong (log lấy bằng kubectl logs job/agent-<id>); --dry-run: không push, không mở PR
+bash k8s/agents/collect.sh example-task [--dry-run]
 ```
 
 ### Làm theo spec (`--change`)

@@ -12,8 +12,10 @@
 #              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
 #              security-reviewer CHANGES: test-writer writes a test per HIGH/MEDIUM finding, code-writer fixes it;
 #              a SPEC_PROBLEM line in the security review (permissions) stops the review: draft PR, back to the spec harness
-#   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
-# MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
+#   5. EXPORT  PR body; on exit the branch is printed as an artifact (git bundle + meta.json + pr-body.md) in the log.
+#              The pod has no GitHub write token: k8s/agents/collect.sh on the user's machine pushes the branch and
+#              opens the PR (draft when the run FAILED after its first commit)
+# MODE=code-only: luồng cũ, chỉ có bước 3 rồi EXPORT.
 #
 # Spec (tùy chọn, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): task được nối thêm mục "## Spec" trỏ tới
 # specs/changes/<change>/ (cấu trúc: specs/changes/.gitkeep). Agent CODE đọc
@@ -32,7 +34,8 @@
 #
 # Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
 # agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
-# Dòng cuối log luôn là "==> RESULT: SUCCESS pr=<url>" hoặc "==> RESULT: FAILED reason=<lý do>".
+# Dòng cuối log luôn là "==> RESULT: SUCCESS artifact=ready" hoặc "==> RESULT: FAILED reason=<lý do>[ artifact=ready]"
+# (artifact=ready: the ARTIFACT block above it holds the branch; collect.sh turns it into "RESULT: ... pr=<url>").
 set -euo pipefail
 
 # Không sinh file core dump khi process crash: file "core" ở gốc repo sẽ làm gate assert_only fail oan
@@ -46,10 +49,79 @@ MUTATION_MIN="${MUTATION_MIN:-70}"
 log() { echo "==> [${JOB_ID}] $*"; }
 stage() { echo; echo "==> [${JOB_ID}] ===== $* ====="; }
 strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
+# Commands the SCRIPT runs that execute repo code (pnpm install / ci:local, vitest, stryker, node -e, approval.py) run
+# without the Claude token, so code written by an agent cannot read it through them. Limit: commands an agent runs
+# itself through its Bash tool still inherit the token (`claude` needs it); `claude` is called as before.
+noenv() { env -u CLAUDE_CODE_OAUTH_TOKEN "$@"; }
 
 RESULT="FAILED reason=script exited early (see the last ==> step)"
-trap 'echo "==> RESULT: ${RESULT}"' EXIT
 fail() { RESULT="FAILED reason=$*"; exit 1; }
+
+# >>> export (self-contained: the harness simulation extracts this block and sources it)
+# EXPORT: the pod has no GitHub write token. When the branch has commits, the pod prints them as a git bundle +
+# meta.json + pr-body.md (tar.gz, base64, 76 columns) between the lines "==> ARTIFACT BEGIN <job>" and
+# "==> ARTIFACT END <job>". k8s/agents/collect.sh, on the user's machine, checks it, pushes the branch, opens the PR.
+# Any exit after the first commit exports (a FAILED run becomes a draft PR); no commit -> nothing to export.
+ARTIFACT_MAX=$((5 * 1024 * 1024))   # bytes of base64
+EXPORT_ERR=""
+export_artifact() {
+  local draft="$1" reason="$2" dir=/tmp/export b64
+  rm -rf "$dir"; mkdir -p "$dir" || { EXPORT_ERR="cannot create $dir"; return 1; }
+  git bundle create "$dir/branch.bundle" "${BASE_SHA}..HEAD" >/dev/null 2>&1 || { EXPORT_ERR="git bundle create failed"; return 1; }
+  git bundle verify "$dir/branch.bundle" >/dev/null 2>&1 || { EXPORT_ERR="git bundle verify failed"; return 1; }
+  if [[ -s /tmp/out/pr-body.md ]]; then
+    cp /tmp/out/pr-body.md "$dir/pr-body.md"
+  else
+    printf '## Task\n%s\n\nThe pipeline stopped before the PR step: %s\n' "${TASK:-}" "$reason" > "$dir/pr-body.md"
+  fi
+  env -u CLAUDE_CODE_OAUTH_TOKEN M_BRANCH="${BRANCH:-}" M_BASE="${BASE_BRANCH:-}" M_SHA="${BASE_SHA:-}" \
+    M_TITLE="${PR_TITLE:-}" M_DRAFT="$draft" M_REASON="$reason" M_JOB="${JOB_ID:-}" M_MODE="${MODE:-}" \
+    M_CHANGE="${CHANGE:-}" M_BUG="${BUG:-}" node -e '
+    const e = process.env;
+    require("fs").writeFileSync(process.argv[1], JSON.stringify({
+      branch: e.M_BRANCH, base_branch: e.M_BASE, base_sha: e.M_SHA, title: e.M_TITLE, draft: e.M_DRAFT === "true",
+      result_reason: e.M_REASON, job_id: e.M_JOB, mode: e.M_MODE, change: e.M_CHANGE, bug: e.M_BUG,
+    }, null, 2) + "\n");
+  ' "$dir/meta.json" || { EXPORT_ERR="cannot write meta.json"; return 1; }
+  tar -czf "$dir/artifact.tgz" -C "$dir" branch.bundle meta.json pr-body.md || { EXPORT_ERR="tar failed"; return 1; }
+  b64="$(base64 < "$dir/artifact.tgz" | tr -d '\n')"
+  if (( ${#b64} > ARTIFACT_MAX )); then
+    EXPORT_ERR="artifact is ${#b64} bytes in base64 (max ${ARTIFACT_MAX}): too many or too big commits"; return 1
+  fi
+  echo "==> ARTIFACT BEGIN ${JOB_ID}"
+  fold -w 76 <<<"$b64"
+  echo "==> ARTIFACT END ${JOB_ID}"
+}
+on_exit() {
+  set +e
+  local commits=0 draft=true reason exported=0
+  if [[ -n "${BASE_SHA:-}" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+    commits="$(git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)"
+  fi
+  if (( commits > 0 )); then
+    reason="${RESULT#FAILED reason=}"
+    if [[ "$RESULT" == SUCCESS* ]]; then draft=false; reason=""; fi
+    log "EXPORT: ${commits} commit(s) on ${BRANCH:-?} (draft=${draft}); the host pushes and opens the PR (collect.sh)"
+    if export_artifact "$draft" "$reason"; then
+      RESULT="${RESULT} artifact=ready"; exported=1
+    else
+      RESULT="FAILED reason=artifact export failed: ${EXPORT_ERR} (pipeline result: ${RESULT})"
+    fi
+  fi
+  # No artifact (no commit, or the export failed): say so with the LAST marker of this job, so that an ARTIFACT block
+  # printed earlier by some other output (a test, an agent's code) can never be taken for the real one by collect.sh
+  (( exported )) || echo "==> ARTIFACT NONE ${JOB_ID:-unknown}"
+  echo "==> RESULT: ${RESULT}"
+}
+# <<< export
+trap on_exit EXIT
+
+# No GitHub write token in the pod (the host pushes and opens the PR with collect.sh). A leftover GH_TOKEN in the
+# Secret is a hard error, not a warning: `unset` only clears this shell, the value stays in /proc/1/environ (the
+# container's first process), which any agent can read.
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  fail "GH_TOKEN is set in the pod (a GitHub write token). Remove it from the Secret, then dispatch again: kubectl patch secret agent-secrets --type=json -p='[{\"op\": \"remove\", \"path\": \"/data/GH_TOKEN\"}]'"
+fi
 
 TASK="$(cat /task/task.md)"
 PR_TITLE="$(head -n 1 /task/title.txt)"
@@ -59,6 +131,8 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 [[ "$MODE" == full || "$MODE" == code-only ]] || fail "unknown MODE '$MODE'"
 
 # ---------- phân quyền theo vai (allow-list, không phải deny-list) ----------
+# Keep in sync (one config later): AGENT_AREAS in collect.sh (host re-check before push), SRC / TEST_WRITABLE in
+# .claude/hooks/guard.mjs, "Quyền ghi" in the root CLAUDE.md.
 SRC_RE='^(backend/src|frontend/src|frontend/public)/'
 TEST_RE='^(backend|frontend)/test/public/'
 # Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
@@ -238,7 +312,7 @@ ci_gate() {
     assert_only "$sha" "$SRC_RE" "code-writer"
     assert_no_env_sniff "$sha"
     log "CI gate: running pnpm ci:local (round $((attempt + 1)))"
-    if pnpm ci:local 2>&1 | tee /tmp/ci.log; then
+    if noenv pnpm ci:local 2>&1 | tee /tmp/ci.log; then
       log "CI gate: PASSED"
       FIX_ROUNDS=$((FIX_ROUNDS + attempt))
       return 0
@@ -273,7 +347,7 @@ run_new_tests() {
     [[ -n "$files" ]] || continue
     echo "## ${pkg}: $(echo "$files" | tr '\n' ' ')" >> "$out"
     # shellcheck disable=SC2086
-    (cd "$pkg" && pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
+    (cd "$pkg" && noenv pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
   done
   return "$rc"
 }
@@ -282,7 +356,7 @@ run_new_tests() {
 run_repro_test() {
   local out="$1" pkg="${REPRO%%/*}"
   echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
-  (cd "$pkg" && pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
+  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -295,7 +369,7 @@ mutation_gate() {
     [[ -n "$files" ]] || continue
     mutate="$(echo "$files" | paste -sd, -)"
     log "Mutation: ${pkg} (${mutate})"
-    if ! (cd "$pkg" && pnpm exec stryker run --mutate "$mutate" --reporters json,clear-text) > /tmp/out/stryker-$pkg.log 2>&1; then
+    if ! (cd "$pkg" && noenv pnpm exec stryker run --mutate "$mutate" --reporters json,clear-text) > /tmp/out/stryker-$pkg.log 2>&1; then
       echo "## ${pkg}: stryker failed to run" >> "$report"
       tail -n 40 /tmp/out/stryker-$pkg.log | strip_colors >> "$report"
       ok=0; continue
@@ -306,7 +380,7 @@ mutation_gate() {
       /^\+\+\+ / { f = substr($2, 3); sub("^" pfx, "", f); next }
       /^@@ / { split(substr($3, 2), a, ","); n = (a[2] == "" ? 1 : a[2]); if (n > 0) print f, a[1], a[1] + n - 1 }
     ' > /tmp/out/changed-lines-$pkg.txt
-    node -e '
+    noenv node -e '
       const fs = require("fs");
       const r = require(process.argv[1]); const min = Number(process.argv[2]);
       const ranges = {};
@@ -375,17 +449,30 @@ fi
 log "Trusting corporate CA (MWG TLS inspection)"
 update-ca-certificates >/dev/null
 
-log "Installing gh CLI, Claude Code and pnpm"
-ARCH="$(dpkg --print-architecture)"
-curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" | tar -xz -C /tmp
-mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh
+# No GitHub CLI in the pod: it neither pushes nor opens PRs (collect.sh on the host does)
+log "Installing Claude Code and pnpm"
 npm install -g @anthropic-ai/claude-code >/dev/null
 corepack enable
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 claude --version
 
-log "Cloning ${REPO} (${BASE_BRANCH})"
-git clone --depth 1 --branch "${BASE_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
+# Public repo: anonymous clone. Private repo: GH_READ_TOKEN (fine-grained, Contents: read only), given to git through
+# a credential helper that reads it from the environment of that one command, never in the URL or .git/config.
+READ_TOKEN="${GH_READ_TOKEN:-}"; unset GH_READ_TOKEN
+log "Cloning ${REPO} (${BASE_BRANCH})$([[ -n "$READ_TOKEN" ]] && echo ' with the read-only token' || echo ', anonymous')"
+if [[ -n "$READ_TOKEN" ]]; then
+  GH_READ_TOKEN="$READ_TOKEN" git -c credential.helper= \
+    -c credential.helper='!f() { echo username=x-access-token; echo "password=${GH_READ_TOKEN}"; }; f' \
+    clone --depth 1 --branch "${BASE_BRANCH}" "https://github.com/${REPO}.git" /work
+else
+  GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "${BASE_BRANCH}" "https://github.com/${REPO}.git" /work
+fi
+if [[ -n "$READ_TOKEN" ]] && grep -qF -- "$READ_TOKEN" /work/.git/config; then
+  fail "the read token ended up in /work/.git/config"
+fi
+unset READ_TOKEN
+grep -qE '://[^/[:space:]]+@' /work/.git/config && fail "/work/.git/config has credentials in a URL"
+git -C /work remote -v | grep -q '@' && fail "git remote of /work has credentials in its URL"
 cd /work
 export CLAUDE_PROJECT_DIR=/work
 git config user.name "claude-k8s-agent"
@@ -393,7 +480,7 @@ git config user.email "claude-k8s-agent@users.noreply.github.com"
 BRANCH="${BRANCH_PREFIX}-$(date +%s)"
 git checkout -b "${BRANCH}"
 BASE_SHA="$(git rev-parse HEAD)"
-pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
+noenv pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
 
 # ---------- spec (tùy chọn) ----------
 CHANGE="$(head -n 1 /task/change.txt 2>/dev/null || true)"
@@ -473,7 +560,7 @@ if [[ -n "$BUG" ]]; then
   tar -xzf /task/bug.tgz --warning=no-unknown-keyword
   [[ -f "bugs/${BUG}/report.md" && -f "$REPRO" ]] || fail "bug.tgz has no bugs/${BUG}/report.md or ${REPRO}"
   log "bug: approval.py verify --bug ${BUG}"
-  python3 .specify/scripts/approval.py verify --bug "$BUG" \
+  noenv python3 .specify/scripts/approval.py verify --bug "$BUG" \
     || fail "root cause not approved or changed since approval (bugs/${BUG})"
   BUG_SUM="$(bug_sum)"
   git add -- "bugs/${BUG}"
@@ -502,7 +589,7 @@ Bug rules:
 fi
 
 log "Installing project dependencies"
-pnpm install --frozen-lockfile
+noenv pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
 FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1; SCN_OK=1
 echo "no spec scenarios for this task" > /tmp/out/scenarios.txt
@@ -792,11 +879,11 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   done
 fi
 
-# ---------- 5. PR ----------
-stage "PR"
+# ---------- 5. EXPORT (PR body; the host pushes and opens the PR) ----------
+stage "EXPORT: PR body, then the branch is printed as an artifact (on exit)"
 if [[ -n "$BUG" ]]; then
   log "bug: approval.py verify --bug ${BUG} (again, before the PR)"
-  python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
+  noenv python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
 fi
 CI_SUMMARY="$(strip_colors < /tmp/ci.log | sed -n '/== Summary ==/,$p')"
 git --no-pager log --oneline "${BASE_SHA}..HEAD"
@@ -838,7 +925,7 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
     echo "- Bug: \`${BUG}\` (record: \`bugs/${BUG}/\`, committed first)"
     echo "- Violated scenario: ${BUG_SCENARIO}"
     echo "- Reproduction test: \`${REPRO}\` (approved with the root cause; failed before the fix, see RED)"
-    echo "- Approved root cause: $(node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
+    echo "- Approved root cause: $(noenv node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
     echo
   fi
   echo "## Local CI (run in the agent pod before opening this PR)"
@@ -847,17 +934,13 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
   echo; echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 } > /tmp/out/pr-body.md
 
-log "Pushing and opening PR"
-git push -u origin "${BRANCH}"
-DRAFT=()
-[[ "$REVIEW_DONE" == 1 ]] || DRAFT=(--draft)
-PR_URL="$(gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH}" "${DRAFT[@]}" \
-  --title "${PR_TITLE}" --body-file /tmp/out/pr-body.md)"
-log "Done"
+# No push and no PR from the pod: on_exit prints the artifact, collect.sh on the host pushes and opens the PR
+# (draft unless SUCCESS) and prints the final "RESULT: ... pr=<url>".
+log "Done (branch ${BRANCH}; collect.sh on the host opens the PR)"
 if [[ "$REVIEW_DONE" == 1 ]]; then
-  RESULT="SUCCESS pr=${PR_URL}"
+  RESULT="SUCCESS"
 elif [[ "$SEC_SPEC_PROBLEM" == 1 ]]; then
-  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human) pr=${PR_URL}"
+  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human)"
 else
-  RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human) pr=${PR_URL}"
+  RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human)"
 fi

@@ -2,7 +2,8 @@
 # (đã kiểm tra chỉ gồm ký tự an toàn), còn task và tiêu đề PR nằm trong ConfigMap "task-__JOB_ID__".
 #
 # Cần sẵn trong namespace (xem README.md):
-#   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN)
+#   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN; GH_READ_TOKEN only for a private repo; no GitHub write token:
+#                             the host pushes and opens the PR with collect.sh)
 #   ConfigMap mwg-ca         (CA của proxy công ty)
 #   ConfigMap agent-script   (run.sh; dispatch.sh tự tạo/cập nhật từ k8s/agents/run.sh)
 apiVersion: batch/v1
@@ -48,7 +49,6 @@ spec:
             - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
             - { name: BASE_BRANCH, value: __BASE_BRANCH__ }
             - { name: JOB_ID, value: __JOB_ID__ }
-            - { name: GH_VERSION, value: "2.62.0" }
             - { name: MODE, value: __MODE__ }               # full | code-only
             - { name: MAX_FIX_ATTEMPTS, value: "2" }        # số vòng code-writer sửa khi ci:local fail
             - { name: REVIEW_ROUNDS, value: "2" }           # số vòng quay lại writer sau review
