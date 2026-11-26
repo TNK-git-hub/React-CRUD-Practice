@@ -11,7 +11,9 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
         1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
         2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
         3. GREEN   code-writer → gate: chỉ đổi src, không dò môi trường test, pnpm ci:local (≤2 vòng sửa) → commit
-        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic → cần sửa thì quay lại 2/3 (≤2 vòng)
+        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic + security-reviewer → cần sửa thì quay lại 2/3 (≤2 vòng)
+                   security CHANGES: test-writer viết test chứng minh từng lỗ hổng HIGH/MEDIUM, code-writer sửa;
+                   security có SPEC_PROBLEM (quyền trong spec sai/thiếu) → dừng review, PR draft, quay lại spec harness
         5. PR      push → PR vào base branch (review không qua: PR draft + RESULT FAILED)
       (mode code-only: chỉ bước 3 rồi 5)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=..."
@@ -34,6 +36,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
 | Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
+| Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
 

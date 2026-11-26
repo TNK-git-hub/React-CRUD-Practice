@@ -8,8 +8,10 @@
 #   3. GREEN   code-writer viết code → gate: chỉ sửa src, không có code dò môi trường test,
 #              pnpm ci:local pass (tối đa MAX_FIX_ATTEMPTS vòng sửa) → commit
 #              code-writer ghi "TEST_WRONG: ..." → test-critic làm trọng tài (1 lần/task): test sai thì test-writer sửa assert đó
-#   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic (chỉ đọc)
+#   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic + security-reviewer (chỉ đọc)
 #              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
+#              security-reviewer CHANGES: test-writer writes a test per HIGH/MEDIUM finding, code-writer fixes it;
+#              a SPEC_PROBLEM line in the security review (permissions) stops the review: draft PR, back to the spec harness
 #   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
 # MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
 #
@@ -421,6 +423,7 @@ FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1; SCN_OK=1
 echo "no spec scenarios for this task" > /tmp/out/scenarios.txt
 ARBITRATED=0; ARB_RESULT=""; ARB_SHA=""; ARB_NOTE=""
 : > /tmp/out/red.txt; : > /tmp/out/review.txt; echo "skipped (code-only mode)" > /tmp/out/mutation.txt
+: > /tmp/out/security-review.txt; SEC_SPEC_PROBLEM=0
 
 if [[ "$MODE" == code-only ]]; then
   # ---------- luồng cũ: chỉ code-writer ----------
@@ -496,9 +499,9 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
 
   # ---------- 4. REVIEW ----------
   round=0
-  CRITIC_HISTORY=""
+  CRITIC_HISTORY=""; SEC_HISTORY=""
   while true; do
-    stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic"
+    stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic + security-reviewer"
     # Mỗi vòng critic là session mới: đưa nhận xét vòng trước + trả lời của test-writer để critic không đổi ý / đòi thứ không làm được
     if (( round > 0 )); then
       CRITIC_HISTORY="## Previous round
@@ -516,6 +519,24 @@ $(cat /tmp/out/test-review-prev.txt)
 
 ### Test-writer's answer
 $(cat /tmp/out/test-fix.txt)
+"
+      # Same rules for the security-reviewer: it sees its previous review and both writers' answers
+      SEC_HISTORY="## Previous round
+This is review round $((round + 1)). Your previous security review and the writers' answers are below.
+Rules for this round:
+- Return CHANGES only for (a) findings of the previous review that are still not addressed and still valid, or
+  (b) a NEW HIGH or MEDIUM finding in the diff.
+- Do not reverse a request from the previous review unless it was plainly wrong; if so, say why.
+- Items a writer explained it cannot do (e.g. needs a new dependency) go under 'Accepted gaps' and do not block.
+
+### Previous security review
+$(cat /tmp/out/security-review-prev.txt)
+
+### Test-writer's answer
+$(cat /tmp/out/test-fix.txt)
+
+### Code-writer's answer
+$(cat /tmp/out/code-fix.txt)
 "
     fi
     mutation_gate
@@ -550,21 +571,47 @@ ${CRITIC_HISTORY}
 The test-writer cannot delete files itself; it asks the pipeline to delete test files added on this branch.
 Put nice-to-have remarks under 'Optional': they do not block.
 End your answer with exactly one line: \`VERDICT: APPROVE\` (tests would catch real bugs in this behaviour) or \`VERDICT: CHANGES\` (list what to fix above it)." "${TOOLS_REVIEWER[@]}"
+    run_agent security-reviewer /tmp/out/security-review.txt "Security-review the change on this branch: \`git diff ${BASE_SHA} HEAD\`.
+Use exactly this diff; do not look up the base branch yourself. Follow your agent file and the security-review skill.
+
+## Task
+${TASK}
+
+${SEC_HISTORY}
+End your answer with exactly one line: \`VERDICT: APPROVE\` (your verdict is PASS) or \`VERDICT: CHANGES\` (your verdict is CHANGES REQUIRED)." "${TOOLS_REVIEWER[@]}"
     CODE_V="$(verdict /tmp/out/code-review.txt)"; TEST_V="$(verdict /tmp/out/test-review.txt)"
+    SEC_V="$(verdict /tmp/out/security-review.txt)"
     cp /tmp/out/test-review.txt /tmp/out/test-review-prev.txt
-    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
+    cp /tmp/out/security-review.txt /tmp/out/security-review-prev.txt
+    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"; SEC_V="${SEC_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
     {
-      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
+      echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, security=${SEC_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
     } >> /tmp/out/review.txt
-    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} mutation_ok=${MUT_OK} scenarios_ok=${SCN_OK}"
-    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$MUT_OK" == 1 && "$SCN_OK" == 1 ]]; then
+    log "REVIEW: code-reviewer=${CODE_V} test-critic=${TEST_V} security=${SEC_V} mutation_ok=${MUT_OK} scenarios_ok=${SCN_OK}"
+    if [[ "$CODE_V" == APPROVE && "$TEST_V" == APPROVE && "$SEC_V" == APPROVE && "$MUT_OK" == 1 && "$SCN_OK" == 1 ]]; then
       REVIEW_DONE=1; break
+    fi
+    # Permissions in the spec are wrong or missing: no writer can fix that, go back to the spec harness
+    if [[ "$SEC_V" == CHANGES ]] && grep -Eq '^[[:space:]`*>-]*SPEC_PROBLEM:' /tmp/out/security-review.txt; then
+      log "REVIEW: security-reviewer reported a SPEC_PROBLEM (permissions), stopping the review (draft PR)"
+      echo "### Stopped: security review found a spec problem (permissions)" >> /tmp/out/review.txt
+      SEC_SPEC_PROBLEM=1; REVIEW_DONE=0; break
     fi
     (( round < REVIEW_ROUNDS )) || break
     round=$((round + 1))
     echo "(the test-writer did not run in this round: only the code review asked for changes)" > /tmp/out/test-fix.txt
+    # code-fix.txt keeps the code-writer's answer of this round for the next security review
+    echo "(the code-writer did not run in this round)" > /tmp/out/code-fix.txt
+    if [[ "$SEC_V" == CHANGES ]]; then
+      SEC_FOR_TESTS="## Security review
+$(cat /tmp/out/security-review.txt)
+For each HIGH or MEDIUM finding above, write one test in test/public that proves the vulnerability (e.g. user A
+requesting user B's resource must be denied). Such a test may fail: the code is not fixed yet."
+    else
+      SEC_FOR_TESTS=""
+    fi
 
-    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 ]]; then
+    if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 || "$SEC_V" == CHANGES ]]; then
       stage "REVIEW round ${round}: test-writer addresses test review"
       run_agent test-writer /tmp/out/test-fix.txt "Improve the tests on this branch based on the review below. The production code now exists.
 Tests must check the behaviour asked for in the task; do not weaken them to match the code.
@@ -582,6 +629,8 @@ $(cat /tmp/out/mutation.txt)
 ## Spec scenario coverage
 $(cat /tmp/out/scenarios.txt)
 Each missing scenario needs a test whose name starts with its ID (see the task's Spec section).
+
+${SEC_FOR_TESTS}
 
 ## Deleting a test file
 You cannot delete files yourself. To delete a test file that was ADDED on this branch, put a line
@@ -603,21 +652,26 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
     fi
 
     STAGE_SHA="$(git rev-parse HEAD)"
-    if [[ "$CODE_V" == CHANGES ]]; then
-      stage "REVIEW round ${round}: code-writer addresses code review"
-      run_agent code-writer /tmp/out/code-fix.txt "Address the code review below for this task. Tests may have been updated by another agent; make them pass.
+    if [[ "$CODE_V" == CHANGES || "$SEC_V" == CHANGES ]]; then
+      stage "REVIEW round ${round}: code-writer addresses code review + security review"
+      run_agent code-writer /tmp/out/code-fix.txt "Address the code review and the security review below for this task (fix every HIGH / MEDIUM
+security finding at its source). Tests may have been updated by another agent, including tests that prove a security
+finding; make them pass.
 
 ## Task
 ${TASK}
 
-## Code review
+## Code review (verdict: ${CODE_V})
 $(cat /tmp/out/code-review.txt)
+
+## Security review (verdict: ${SEC_V})
+$(cat /tmp/out/security-review.txt)
 
 ## Rules
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
     fi
     # tests mới có thể làm CI fail: code-writer sửa trong gate này
-    ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
+    ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES || "$SEC_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
     if [[ -n "$(changed_since "$STAGE_SHA")" ]]; then
       CODE_SHA="$(commit_stage "fix: address review (round ${round})")"
     else
@@ -648,6 +702,7 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
     section "Spec scenario coverage" /tmp/out/scenarios.txt
     section "Code review (last round)" /tmp/out/code-review.txt
     section "Test review (last round)" /tmp/out/test-review.txt
+    section "Security review (last round)" /tmp/out/security-review.txt
   fi
   if [[ -n "$CHANGE" ]]; then
     echo "## Spec"
@@ -673,6 +728,8 @@ PR_URL="$(gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH
 log "Done"
 if [[ "$REVIEW_DONE" == 1 ]]; then
   RESULT="SUCCESS pr=${PR_URL}"
+elif [[ "$SEC_SPEC_PROBLEM" == 1 ]]; then
+  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human) pr=${PR_URL}"
 else
   RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human) pr=${PR_URL}"
 fi
