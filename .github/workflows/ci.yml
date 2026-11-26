@@ -97,3 +97,55 @@ jobs:
         env:
           CHANGE: ${{ github.head_ref || github.ref_name }}
         run: python .specify/scripts/spec_check.py --stage spec --change "$CHANGE"
+
+  # RED before GREEN, from the git history of the PR (red_check.py): the first commit that touches the test area only
+  # holds tests, they fail at that commit, and no src change comes before it. Pull requests only (it needs the base
+  # branch); the checkout is the PR head itself (not the merge commit GitHub makes) with the full history.
+  red-check:
+    name: red-check
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code (full history, PR head)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # Harness skeleton (no app yet): nothing to check. Same step as in job ci.
+      - name: Check for app (package.json)
+        id: app
+        run: |
+          if [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json yet (harness skeleton): skipping red-check"
+          fi
+
+      - name: Set up Python 3.12
+        if: steps.app.outputs.present == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node 22
+        if: steps.app.outputs.present == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Enable pnpm (version from package.json)
+        if: steps.app.outputs.present == 'true'
+        run: corepack enable && pnpm --version
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+      - name: red_check.py (RED commit before the code)
+        if: steps.app.outputs.present == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: python3 .specify/scripts/red_check.py --base "origin/$BASE_REF"

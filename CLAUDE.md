@@ -25,6 +25,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 ## Quy trình agent
 - Session chính chỉ điều phối: giao việc cho subagent, tổng hợp kết quả. Không tự sửa `src/` hay `test/` (hook `.claude/hooks/guard.mjs` chặn).
 - Thứ tự: `code-planner` + `test-planner` → `test-writer` (test fail trước) → `code-writer` (code cho pass) → `code-reviewer` + `test-critic` + `security-reviewer` (chạy song song được, cả ba chỉ đọc). Có vấn đề thì quay lại writer tương ứng.
+- Sau `test-writer`: session chính tự chạy test mới (`pnpm --filter <package> test -t=<scenario ID>`), xác nhận test đỏ đúng lý do (assert của hành vi còn thiếu, không phải lỗi import / cú pháp / setup), rồi COMMIT RIÊNG chỉ các file test (`test: <mô tả>`) trước khi giao `code-writer`. Trước khi mở PR: `python3 .specify/scripts/red_check.py --base <base branch>` phải PASS (CI job `red-check` kiểm lại trên lịch sử git).
 - Finding HIGH/MEDIUM của `security-reviewer` là vấn đề nghiêm trọng: `test-writer` viết test chứng minh lỗ hổng (vd user A gọi tài nguyên của user B phải bị từ chối), `code-writer` sửa cho pass. Finding cho thấy spec thiếu scenario: ghi `SPEC_PROBLEM`, quay lại spec harness.
 - Quyền ghi: `code-writer` chỉ `backend/src`, `frontend/src`, `frontend/public`; `test-writer` chỉ `<package>/test/public`, `frontend/test/e2e`; `spec-writer`, `planner` chỉ `specs/changes/`, `.specify/feature.json`. Không ai đọc/sửa `test/private`.
 - Không giao cho writer này sửa phần của writer kia (vd. nhờ `test-writer` sửa test cho khớp code sai).
@@ -54,6 +55,7 @@ Trước khi viết code frontend, đọc `frontend/AGENTS.md`: bản Next.js n�
 - `pnpm ci:local`: install → lint, typecheck, build frontend → build backend → `pnpm test`. Phải ra `CI PASSED`.
 - PR chạy cùng pipeline đó qua `.github/workflows/ci.yml` trên runner cloud của GitHub (`ubuntu-latest`).
 - Job thứ hai `spec-check`: unittest của script spec harness + `python3 .specify/scripts/spec_check.py --stage spec --change <branch>`. Chạy local được bằng chính lệnh đó.
+- Job thứ ba `red-check` (chỉ PR, bỏ qua khi chưa có `package.json`): `python3 .specify/scripts/red_check.py --base origin/<base branch>` kiểm thứ tự RED → GREEN trên lịch sử git (commit test đầu tiên fail tại chính nó, không có `src` nào trước nó). Chạy local: `python3 .specify/scripts/red_check.py --base <base branch>`.
 
 ## Thế nào là xong
 Chỉ được báo hoàn thành khi `pnpm lint`, `pnpm --filter frontend typecheck` và `pnpm test` vừa chạy và pass, có output làm bằng chứng.
