@@ -33,6 +33,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Viết lại lịch sử git để xoá commit test | Gate kiểm tra commit trước bước vẫn là tổ tiên của `HEAD` |
 | Code dò môi trường test (`VITEST`, `NODE_ENV === 'test'`) | Gate grep diff `src` |
 | Test viết sau, khớp theo code | Bước RED: test mới phải fail trên code cũ trước khi code-writer chạy; PR có 2 commit test → code |
+| Thứ tự RED → GREEN bị đảo hay làm giả trong lịch sử git (cả branch của pod lẫn branch làm tay) | CI job `red-check` (`.specify/scripts/red_check.py --base origin/<base>`) kiểm lại trên lịch sử của PR: commit đầu tiên đụng vùng test chỉ chứa test, các test nó thêm/sửa fail tại chính commit đó (chạy trong worktree tạm), không commit nào sửa `src` đứng trước nó; hồ sơ `bugs/<id>/` chỉ được ở commit riêng trước đó |
 | Test yếu | Mutation score ≥ `MUTATION_MIN` trên file src đã đổi + test-critic |
 | Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
 | Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |

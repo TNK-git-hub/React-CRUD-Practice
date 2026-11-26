@@ -34,6 +34,8 @@ into `investigation.md` (Evidence log). Before the investigation, write the test
 "Reproduction test": `- Path: \`<package>/test/public/<file>.test.ts\`` and `- Name: \`<scenario ID> ...\``.
 - Does not fail, or fails for another reason → do not go on: send it back to `test-writer` with the output, or ask
   the user for more information (steps, data, environment). Cannot reproduce → no investigation, no fix.
+- Do not commit yet: the record and the test stay uncommitted until the root-cause gate (the Stop hook relies on it,
+  see e). They get their own two commits at the start of f.
 
 ## d) Investigate
 Give `bug-investigator`: `bugs/<id>/report.md`, the failing line of the test, the test's path. It only reads and
@@ -58,6 +60,9 @@ changed). An incomplete record or any error (exit 2) still runs the tests. Do no
 ## f) GREEN: fix at the source
 First run `python3 .specify/scripts/approval.py verify --bug <id>`. Not exit 0 (not approved, or `report.md` / the Root
 cause section / the reproduction test changed since) → STOP and tell the user; no fix without a matching approval.
+Then, before any fix, two commits of their own (the shape the pod's bug mode makes; `red_check.py` checks it):
+1. `git add bugs/<id>/` → `git commit -m "docs: bug record <id>"` (the record only, with `approval.json` and `.approved/`);
+2. `git add <reproduction test>` → `git commit -m "test: reproduce bug <id>"` (the test only: the RED commit).
 Give `code-writer`: the approved root cause and fix direction from `investigation.md`, the reproduction test. Tell it:
 one change at the source, in the shared code (no patch in each caller, no wrapper, no new dependency); the
 reproduction test must pass and the rest of `pnpm test` stay green.
@@ -78,6 +83,8 @@ Look for the same mistake elsewhere (the investigator's list + a `grep` of the p
 Only with evidence, following skill `verification-before-completion`: `pnpm lint`, `pnpm --filter frontend typecheck`,
 `pnpm test` just ran and passed, and the reproduction test passes (root `CLAUDE.md`, "Thế nào là xong"). Paste the
 outputs into `fix.md`, Verification.
+Before the PR: `python3 .specify/scripts/red_check.py --base <base branch>` must PASS (record, then the failing
+reproduction test, then the fix; CI job `red-check` checks it again).
 
 ## Hand off to a pod
 Steps a–e stay interactive. Once `python3 .specify/scripts/approval.py verify --bug <id>` exits 0, steps f–g can run in

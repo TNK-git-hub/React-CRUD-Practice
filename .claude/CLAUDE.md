@@ -46,7 +46,7 @@ Where this file and the root `CLAUDE.md` disagree on code, tests, CI or git, the
   presets/                  installed presets (speckit-level4)
   scripts/                  next_change.py, spec_check.py + Spec Kit core scripts
 tools/speckit-level4/       local preset replacing the speckit.specify, speckit.clarify and speckit.plan commands
-.github/                    workflows/ci.yml (jobs: ci = pnpm ci:local, spec-check)
+.github/                    workflows/ci.yml (jobs: ci = pnpm ci:local, spec-check, red-check = red_check.py on PRs)
 docs/requirements/          source requirement documents (BA, customer), in English
 docs/examples/              worked example of a delta spec (the target level of detail): _(none yet: điền khi bootstrap hệ thống mới)_
 specs/

@@ -28,7 +28,8 @@
 #   - /task/bug.tgz holds bugs/<id>/ and the reproduction test; approval.py verify --bug <id> must pass in the pod
 #   - first commit "docs: bug record <id>" (bugs/<id>/ only); task gets a "## Bug (source of truth)" section
 #   - PLAN is skipped: code plan = the approved Root cause section; RED = the reproduction test (no test-writer) must
-#     FAIL, scenario gate on the bug's scenario ID → commit "test: reproduce bug <id>"; then GREEN, REVIEW, PR as usual
+#     FAIL, scenario gate on the bug's scenario ID → commit "test: reproduce bug <id>"; then GREEN, REVIEW, PR as usual.
+#     The reproduction test must not be on the base branch as it is (no RED commit then: red_check.py)
 #   - checksum of bugs/<id>/ + the reproduction test: every gate fails if an agent changed them; the test cannot be
 #     DELETEd; approval.py verify runs again before the PR
 #
@@ -336,25 +337,56 @@ $(tail -n 150 /tmp/ci.log | strip_colors)" "${TOOLS_CODE_WRITER[@]}"
   done
 }
 
-# Test file mới/đổi kể từ <sha>, chạy theo từng package; in log ra file
+# Test file mới/đổi kể từ <sha>, chạy theo từng package; in log ra file.
+# Each package that runs also writes a vitest JSON report to RED_JSON/<pkg>.json and its name to RED_JSON/packages.txt
+# (read by red_state).
+RED_JSON=/tmp/out/red-json
 run_new_tests() {
   local sha="$1" out="$2" pkg files rc=0
   : > "$out"
+  rm -rf "$RED_JSON"; mkdir -p "$RED_JSON"
   for pkg in $PACKAGES; do
     files="$(changed_since "$sha" | grep -E "$TEST_RE" | grep -E "^${pkg}/" | grep -E "$TEST_FILE_RE" | sed "s|^${pkg}/||" || true)"
     [[ -n "$files" ]] || continue
     echo "## ${pkg}: $(echo "$files" | tr '\n' ' ')" >> "$out"
+    echo "$pkg" >> "$RED_JSON/packages.txt"
     # shellcheck disable=SC2086
-    (cd "$pkg" && noenv pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
+    (cd "$pkg" && noenv pnpm exec vitest run $files --reporter=default --reporter=json \
+      --outputFile.json="$RED_JSON/${pkg}.json") >> "$out" 2>&1 || rc=1
   done
   return "$rc"
 }
 
+# red_state <dir>: the RED result from the vitest JSON reports of run_new_tests / run_repro_test, same rule as read_report of
+# .specify/scripts/red_check.py. Prints "failed" (a test file in status "failed"; a file that fails to load counts:
+# importing a module that does not exist yet is a valid RED), "passed", or "none" (no package ran, or a package has no
+# report, an unreadable one, or one that lists no test file).
+red_state() {
+  noenv node -e '
+    const fs = require("fs"); const dir = process.argv[1];
+    let pkgs = [];
+    try { pkgs = fs.readFileSync(`${dir}/packages.txt`, "utf8").split("\n").filter(Boolean); } catch {}
+    let failed = 0;
+    for (const p of pkgs) {
+      let r = null;
+      try { r = JSON.parse(fs.readFileSync(`${dir}/${p}.json`, "utf8")); } catch {}
+      const t = r && Array.isArray(r.testResults) ? r.testResults : [];
+      if (!t.length) { console.log("none"); process.exit(0); }
+      failed += t.filter((x) => x && x.status === "failed").length;
+    }
+    console.log(!pkgs.length ? "none" : failed ? "failed" : "passed");
+  ' "$1"
+}
+
 # Bug mode: run only the reproduction test (it may already be on the base branch, so changed_since cannot find it)
+# Like run_new_tests, it writes the vitest JSON report to RED_JSON (read by red_state).
 run_repro_test() {
   local out="$1" pkg="${REPRO%%/*}"
   echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
-  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
+  rm -rf "$RED_JSON"; mkdir -p "$RED_JSON"
+  echo "$pkg" > "$RED_JSON/packages.txt"
+  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}" --reporter=default --reporter=json \
+    --outputFile.json="$RED_JSON/${pkg}.json") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -566,6 +598,11 @@ if [[ -n "$BUG" ]]; then
   # The approved copy wins over the base branch (bugs/<id>/ and the reproduction test)
   tar -xzf /task/bug.tgz --warning=no-unknown-keyword
   [[ -f "bugs/${BUG}/report.md" && -f "$REPRO" ]] || fail "bug.tgz has no bugs/${BUG}/report.md or ${REPRO}"
+  # The RED commit must add or change the reproduction test (red_check.py, CI job red-check): the same file already on
+  # the base branch would give no RED commit at all
+  if git cat-file -e "${BASE_SHA}:${REPRO}" 2>/dev/null && git diff --quiet "$BASE_SHA" -- "$REPRO"; then
+    fail "reproduction test already on the base branch: RED cannot be shown"
+  fi
   log "bug: approval.py verify --bug ${BUG}"
   noenv python3 .specify/scripts/approval.py verify --bug "$BUG" \
     || fail "root cause not approved or changed since approval (bugs/${BUG})"
@@ -636,10 +673,17 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
   if [[ -n "$BUG" ]]; then
   # Bug mode: no test-writer. The approved reproduction test must fail on the current code, for the same reasons as RED.
   stage "RED (bug mode): the approved reproduction test must fail on the current code"
-  if run_repro_test /tmp/out/red.txt; then
-    strip_colors < /tmp/out/red.txt | tail -n 40
-    fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)"
-  fi
+  # Decided by the JSON report (red_state), not by the exit code, as in the RED gate of mode full
+  run_repro_test /tmp/out/red.txt || true
+  case "$(red_state "$RED_JSON")" in
+    failed) ;;
+    passed)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)" ;;
+    *)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "RED gate could not run the reproduction test" ;;
+  esac
   grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate could not run the reproduction test ${REPRO}"
   strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
   log "RED: scenario coverage of the bug (${BUG_SCENARIO})"
@@ -669,11 +713,18 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
   assert_only "$BASE_SHA" "$TEST_RE" "test-writer"
   [[ -n "$(changed_since "$BASE_SHA")" ]] || fail "test-writer wrote no tests"
   log "RED gate: new tests must fail on the current code"
-  if run_new_tests "$BASE_SHA" /tmp/out/red.txt; then
-    [[ -s /tmp/out/red.txt ]] || fail "test-writer wrote no *.test.ts(x) files"
-    strip_colors < /tmp/out/red.txt | tail -n 40
-    fail "new tests already pass before any code change (they do not test the new behaviour)"
-  fi
+  # Decided by the JSON reports (red_state), not by the exit code: vitest that cannot start also exits non-zero
+  run_new_tests "$BASE_SHA" /tmp/out/red.txt || true
+  [[ -s /tmp/out/red.txt ]] || fail "test-writer wrote no *.test.ts(x) files"
+  case "$(red_state "$RED_JSON")" in
+    failed) ;;
+    passed)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "new tests already pass before any code change (they do not test the new behaviour)" ;;
+    *)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "RED gate could not run the new tests" ;;
+  esac
   grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate found no runnable test files"
   strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
   log "RED: spec scenario coverage (checked again at REVIEW, where it blocks approval)"
