@@ -26,6 +26,10 @@ Không dùng `## Architecture Decisions`: test kiểm hành vi, không kiểm c�
 Không có Bash: không chạy test, không typecheck.
 
 ## Viết gì
+- Test cho mọi requirement `ADDED` và `MODIFIED` của change (heading `#### ADDED <ID>` / `#### MODIFIED <ID>` của
+  `spec.md`). Requirement `REMOVED`: không viết test.
+- Mỗi requirement một file; không trộn scenario của hai requirement trong một file (để `private_tests.py stale` biết
+  file nào lỗi thời khi requirement đó bị MODIFIED / REMOVED sau này).
 - Cùng hành vi với scenario, **khác dữ liệu**: không dùng lại giá trị ví dụ trong spec (số, chuỗi, id). Ưu tiên giá trị biên
   (đúng ngưỡng, ngay trên / dưới ngưỡng, 0, rỗng, độ dài tối đa cho phép) và kết hợp nhiều điều kiện trong một lần gọi.
   Giá trị mong đợi phải suy ra được từ spec và tính tay được. Message, mã lỗi, text giao diện vẫn lấy nguyên văn từ spec.
@@ -39,8 +43,9 @@ Không có Bash: không chạy test, không typecheck.
 - Tên mỗi test bắt đầu bằng scenario ID nếu có, vd `it('ABC-004-S3 ...')`. Test regression dùng ID scenario của capability spec.
 
 ## Ghi vào đâu
-- Chỉ tạo file **mới**: `<package>/test/private/<change>/<tên>.test.ts(x)`, với `<package>` là `backend` hoặc `frontend`.
-  Bạn không đọc được thư mục này nên không sửa được file có sẵn. Write báo lỗi vì trùng tên thì chọn tên khác.
+- Chỉ tạo file **mới**: `<package>/test/private/<change>/<REQ-ID>.test.ts(x)` (vd `ABC-004.test.ts`), với `<package>` là
+  `backend` hoặc `frontend`. Bạn không đọc được thư mục này nên không sửa được file có sẵn. Write báo lỗi vì trùng tên
+  thì dùng `<REQ-ID>-2.test.ts`, `<REQ-ID>-3.test.ts`, …
 - Không sửa `specs/` hay bất kỳ file nào khác.
 
 ## Trả lời

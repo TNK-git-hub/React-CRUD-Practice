@@ -12,6 +12,8 @@ Keys:
   pod.testWritable          = areas.testPublic                (test-writer in the pod)
   pod.agentAreas            = areas.src + areas.testPublic    (what a pod branch may change; collect.sh)
   interactive.testWritable  = areas.testPublic + areas.testE2e (test-writer in the interactive session; guard.mjs)
+  scenarioTestCall          not from the file: regex of a test call up to the quote before the name,
+                            `describe|it|test(…)('` (run.sh scenario_gate, private_tests.py)
 
 Output: --list (default) one value per line; --json the value as JSON; --regex an ERE / JS / Python regex:
 a list -> `^(a|b|c)/` (each entry escaped), testFile -> the regex as written in the file.
@@ -37,13 +39,16 @@ NON_EMPTY = ("src", "testPublic")
 IN_PACKAGE = ("testPublic", "testPrivate")
 PACKAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 AREA_RE = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
+# Not from the file: the start of a test call whose name begins with a scenario ID, up to the opening quote.
+# One definition for run.sh (scenario_gate: grep -E "<this><ID>([^0-9]|$)") and private_tests.py (Python re).
+SCENARIO_TEST_CALL = r"""(describe|it|test)(\.[A-Za-z]+)*(\([^)]*\))?\(\s*['"`]"""
 DERIVED = {
     "pod.codeWritable": ("src",),
     "pod.testWritable": ("testPublic",),
     "pod.agentAreas": ("src", "testPublic"),
     "interactive.testWritable": ("testPublic", "testE2e"),
 }
-KEYS = ("packages", *(f"areas.{k}" for k in AREA_KEYS), "testFile", *DERIVED)
+KEYS = ("packages", *(f"areas.{k}" for k in AREA_KEYS), "testFile", *DERIVED, "scenarioTestCall")
 
 
 class ConfigError(Exception):
@@ -113,6 +118,8 @@ def get(config: dict, key: str) -> list[str] | str:
         return list(config["packages"])
     if key == "testFile":
         return config["testFile"]
+    if key == "scenarioTestCall":
+        return SCENARIO_TEST_CALL
     if key.startswith("areas.") and key[len("areas."):] in AREA_KEYS:
         return list(config["areas"][key[len("areas."):]])
     if key in DERIVED:

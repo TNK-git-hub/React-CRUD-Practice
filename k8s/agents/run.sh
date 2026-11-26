@@ -418,7 +418,7 @@ scenario_gate() {
   SCN_OK=1
   if [[ -z "$SCENARIOS" ]]; then echo "no spec scenarios for this task" > "$report"; return 0; fi
   for id in $SCENARIOS; do
-    if grep -rqE "(describe|it|test)(\.[A-Za-z]+)*(\([^)]*\))?\(\s*['\"\`]${id}([^0-9]|$)" "${TEST_PUBLIC_DIRS[@]}" 2>/dev/null; then
+    if grep -rqE "${SCN_CALL_RE}${id}([^0-9]|$)" "${TEST_PUBLIC_DIRS[@]}" 2>/dev/null; then
       found=$((found + 1))
     else
       missing+=("$id")
@@ -474,6 +474,7 @@ hc() { noenv python3 .specify/scripts/harness_config.py get "$@"; }
 SRC_RE="$(hc pod.codeWritable --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
 TEST_RE="$(hc pod.testWritable --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
 TEST_FILE_RE="$(hc testFile --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
+SCN_CALL_RE="$(hc scenarioTestCall --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
 PACKAGES="$(hc packages --list | paste -sd' ' -)" || fail "harness.json missing or invalid (see harness_config.py above)"
 cfg_list="$(hc pod.codeWritable --list)" || fail "harness.json missing or invalid (see harness_config.py above)"
 mapfile -t SRC_DIRS <<<"$cfg_list"
