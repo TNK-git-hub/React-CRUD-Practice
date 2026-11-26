@@ -49,6 +49,10 @@ MUTATION_MIN="${MUTATION_MIN:-70}"
 log() { echo "==> [${JOB_ID}] $*"; }
 stage() { echo; echo "==> [${JOB_ID}] ===== $* ====="; }
 strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
+# Commands the SCRIPT runs that execute repo code (pnpm install / ci:local, vitest, stryker, node -e, approval.py) run
+# without the Claude token, so code written by an agent cannot read it through them. Limit: commands an agent runs
+# itself through its Bash tool still inherit the token (`claude` needs it); `claude` is called as before.
+noenv() { env -u CLAUDE_CODE_OAUTH_TOKEN "$@"; }
 
 RESULT="FAILED reason=script exited early (see the last ==> step)"
 fail() { RESULT="FAILED reason=$*"; exit 1; }
@@ -70,8 +74,9 @@ export_artifact() {
   else
     printf '## Task\n%s\n\nThe pipeline stopped before the PR step: %s\n' "${TASK:-}" "$reason" > "$dir/pr-body.md"
   fi
-  M_BRANCH="${BRANCH:-}" M_BASE="${BASE_BRANCH:-}" M_SHA="${BASE_SHA:-}" M_TITLE="${PR_TITLE:-}" M_DRAFT="$draft" \
-  M_REASON="$reason" M_JOB="${JOB_ID:-}" M_MODE="${MODE:-}" M_CHANGE="${CHANGE:-}" M_BUG="${BUG:-}" node -e '
+  env -u CLAUDE_CODE_OAUTH_TOKEN M_BRANCH="${BRANCH:-}" M_BASE="${BASE_BRANCH:-}" M_SHA="${BASE_SHA:-}" \
+    M_TITLE="${PR_TITLE:-}" M_DRAFT="$draft" M_REASON="$reason" M_JOB="${JOB_ID:-}" M_MODE="${MODE:-}" \
+    M_CHANGE="${CHANGE:-}" M_BUG="${BUG:-}" node -e '
     const e = process.env;
     require("fs").writeFileSync(process.argv[1], JSON.stringify({
       branch: e.M_BRANCH, base_branch: e.M_BASE, base_sha: e.M_SHA, title: e.M_TITLE, draft: e.M_DRAFT === "true",
@@ -295,7 +300,7 @@ ci_gate() {
     assert_only "$sha" "$SRC_RE" "code-writer"
     assert_no_env_sniff "$sha"
     log "CI gate: running pnpm ci:local (round $((attempt + 1)))"
-    if pnpm ci:local 2>&1 | tee /tmp/ci.log; then
+    if noenv pnpm ci:local 2>&1 | tee /tmp/ci.log; then
       log "CI gate: PASSED"
       FIX_ROUNDS=$((FIX_ROUNDS + attempt))
       return 0
@@ -330,7 +335,7 @@ run_new_tests() {
     [[ -n "$files" ]] || continue
     echo "## ${pkg}: $(echo "$files" | tr '\n' ' ')" >> "$out"
     # shellcheck disable=SC2086
-    (cd "$pkg" && pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
+    (cd "$pkg" && noenv pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
   done
   return "$rc"
 }
@@ -339,7 +344,7 @@ run_new_tests() {
 run_repro_test() {
   local out="$1" pkg="${REPRO%%/*}"
   echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
-  (cd "$pkg" && pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
+  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -352,7 +357,7 @@ mutation_gate() {
     [[ -n "$files" ]] || continue
     mutate="$(echo "$files" | paste -sd, -)"
     log "Mutation: ${pkg} (${mutate})"
-    if ! (cd "$pkg" && pnpm exec stryker run --mutate "$mutate" --reporters json,clear-text) > /tmp/out/stryker-$pkg.log 2>&1; then
+    if ! (cd "$pkg" && noenv pnpm exec stryker run --mutate "$mutate" --reporters json,clear-text) > /tmp/out/stryker-$pkg.log 2>&1; then
       echo "## ${pkg}: stryker failed to run" >> "$report"
       tail -n 40 /tmp/out/stryker-$pkg.log | strip_colors >> "$report"
       ok=0; continue
@@ -363,7 +368,7 @@ mutation_gate() {
       /^\+\+\+ / { f = substr($2, 3); sub("^" pfx, "", f); next }
       /^@@ / { split(substr($3, 2), a, ","); n = (a[2] == "" ? 1 : a[2]); if (n > 0) print f, a[1], a[1] + n - 1 }
     ' > /tmp/out/changed-lines-$pkg.txt
-    node -e '
+    noenv node -e '
       const fs = require("fs");
       const r = require(process.argv[1]); const min = Number(process.argv[2]);
       const ranges = {};
@@ -432,10 +437,8 @@ fi
 log "Trusting corporate CA (MWG TLS inspection)"
 update-ca-certificates >/dev/null
 
-log "Installing gh CLI, Claude Code and pnpm"
-ARCH="$(dpkg --print-architecture)"
-curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" | tar -xz -C /tmp
-mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh
+# No GitHub CLI in the pod: it neither pushes nor opens PRs (collect.sh on the host does)
+log "Installing Claude Code and pnpm"
 npm install -g @anthropic-ai/claude-code >/dev/null
 corepack enable
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -471,7 +474,7 @@ git config user.email "claude-k8s-agent@users.noreply.github.com"
 BRANCH="${BRANCH_PREFIX}-$(date +%s)"
 git checkout -b "${BRANCH}"
 BASE_SHA="$(git rev-parse HEAD)"
-pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
+noenv pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
 
 # ---------- spec (tùy chọn) ----------
 CHANGE="$(head -n 1 /task/change.txt 2>/dev/null || true)"
@@ -551,7 +554,7 @@ if [[ -n "$BUG" ]]; then
   tar -xzf /task/bug.tgz --warning=no-unknown-keyword
   [[ -f "bugs/${BUG}/report.md" && -f "$REPRO" ]] || fail "bug.tgz has no bugs/${BUG}/report.md or ${REPRO}"
   log "bug: approval.py verify --bug ${BUG}"
-  python3 .specify/scripts/approval.py verify --bug "$BUG" \
+  noenv python3 .specify/scripts/approval.py verify --bug "$BUG" \
     || fail "root cause not approved or changed since approval (bugs/${BUG})"
   BUG_SUM="$(bug_sum)"
   git add -- "bugs/${BUG}"
@@ -580,7 +583,7 @@ Bug rules:
 fi
 
 log "Installing project dependencies"
-pnpm install --frozen-lockfile
+noenv pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
 FIX_ROUNDS=0; REVIEW_DONE=0; MUT_OK=1; SCN_OK=1
 echo "no spec scenarios for this task" > /tmp/out/scenarios.txt
@@ -874,7 +877,7 @@ fi
 stage "EXPORT: PR body, then the branch is printed as an artifact (on exit)"
 if [[ -n "$BUG" ]]; then
   log "bug: approval.py verify --bug ${BUG} (again, before the PR)"
-  python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
+  noenv python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
 fi
 CI_SUMMARY="$(strip_colors < /tmp/ci.log | sed -n '/== Summary ==/,$p')"
 git --no-pager log --oneline "${BASE_SHA}..HEAD"
@@ -916,7 +919,7 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
     echo "- Bug: \`${BUG}\` (record: \`bugs/${BUG}/\`, committed first)"
     echo "- Violated scenario: ${BUG_SCENARIO}"
     echo "- Reproduction test: \`${REPRO}\` (approved with the root cause; failed before the fix, see RED)"
-    echo "- Approved root cause: $(node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
+    echo "- Approved root cause: $(noenv node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
     echo
   fi
   echo "## Local CI (run in the agent pod before opening this PR)"

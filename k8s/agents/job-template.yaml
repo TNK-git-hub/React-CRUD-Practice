@@ -49,7 +49,6 @@ spec:
             - { name: REPO, value: TNK-git-hub/React-CRUD-Practice }
             - { name: BASE_BRANCH, value: __BASE_BRANCH__ }
             - { name: JOB_ID, value: __JOB_ID__ }
-            - { name: GH_VERSION, value: "2.62.0" }
             - { name: MODE, value: __MODE__ }               # full | code-only
             - { name: MAX_FIX_ATTEMPTS, value: "2" }        # số vòng code-writer sửa khi ci:local fail
             - { name: REVIEW_ROUNDS, value: "2" }           # số vòng quay lại writer sau review
