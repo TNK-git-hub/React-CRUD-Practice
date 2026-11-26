@@ -37,7 +37,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
 | Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |
 | Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
-| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent |
+| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent. Test private đã cách ly (`_stale/`, xem "Test private lỗi thời") không được chép vào worktree, nên không chạy |
 | Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
 | Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
@@ -124,6 +124,22 @@ bash k8s/agents/dispatch.sh example-be k8s/agents/tasks/example-be.md --title ".
   đọc (`spec.md` requirement + ADR + Data Model, `plan.md`, `tasks.md`) và vai TEST đọc (scenario, Edge Cases, NFR
   Verification, `checklists/edge-cases.md`, `## Test Strategy`). Mọi agent, cả trọng tài, đều nhận mục này.
 - Agent gặp spec sai/thiếu ghi `SPEC_PROBLEM: ...`; các dòng này được gom vào mục "Spec" của PR để quay lại spec harness.
+
+### Test private lỗi thời
+Change có requirement `MODIFIED` / `REMOVED` làm test private cũ của requirement đó sai (`dispatch.sh` sẽ báo
+`PRIVATE: FAIL` oan). Khi duyệt plan, `approval.py approve --gate plan` in số file liên quan. Người dùng tự chạy trong
+terminal (agent không chạy được: `guard.mjs` chặn mọi lệnh có tên script):
+```bash
+python3 .specify/scripts/private_tests.py stale --change 004-example          # bảng removed / modified / mixed / unaffected
+python3 .specify/scripts/private_tests.py quarantine --change 004-example --kind removed   # hỏi y/N; --kind modified|all|mixed
+python3 .specify/scripts/private_tests.py restore --change 004-example        # chuyển ngược theo MANIFEST, không ghi đè
+```
+`--kind all` = removed + modified, **không** gồm file mixed (file chứa scenario của nhiều requirement, có cả requirement
+change không đổi): tách tay theo requirement, hoặc `--kind mixed` nếu chấp nhận mất phần không đổi (lệnh in cảnh báo
+kèm các ID đó trước câu hỏi y/N; bảng `stale` có dòng gợi ý này).
+Rồi mở `claude --agent private-test-writer` để viết test mới cho các requirement ADDED / MODIFIED (mỗi requirement
+một file `<REQ-ID>.test.ts`). File cách ly nằm ở `<package>/test/private/_stale/<change>/` kèm `MANIFEST.txt`;
+`run_private` của `dispatch.sh` không chép thư mục `_stale/`.
 
 ### Sửa bug (`--bug`)
 Bước a–e của luồng bug (skill `bug-fix-flow`: phân loại, `report.md`, test tái hiện, điều tra, duyệt root cause) vẫn

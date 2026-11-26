@@ -337,7 +337,22 @@ def approve(root: Path, change: str | None, bug: str | None, gate: str, summary:
     for label, content in mats:
         (copies / copy_name(label)).write_text(content, encoding="utf-8")
     print(f"Approved gate {gate} ({sha[:12]}…). Commit {APPROVAL_FILE} and {COPIES_DIR}/ with the change.")
+    if gate == "plan":
+        stale_reminder(root, change)
     return 0
+
+
+def stale_reminder(root: Path, change: str | None) -> None:
+    """After a plan approval (in the user's terminal, never in verify): hidden tests about the MODIFIED / REMOVED
+    requirements of the change are probably stale. A reminder only: it never fails the approval."""
+    try:
+        import private_tests  # same folder; imported here, not at the top (private_tests -> spec_check -> approval)
+        n = private_tests.related_count(root, change)
+    except Exception:  # noqa: BLE001 - no hidden test folder, bad config...: no reminder, the approval stands
+        return
+    if n:
+        print(f"Note: {n} hidden test file(s) are about MODIFIED / REMOVED requirements of {change}: run "
+              f"`python3 .specify/scripts/private_tests.py stale --change {change}` in your terminal.")
 
 
 def verify(root: Path, change: str | None, bug: str | None, gate: str | None) -> int:

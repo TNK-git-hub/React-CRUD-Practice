@@ -139,6 +139,15 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 9. **STOP — wait for the user to approve plan and tasks.** The user runs, in their own terminal,
    `python3 .specify/scripts/approval.py approve --change <change> --gate plan` (hashes `spec.md` + `plan.md` +
    `tasks.md`; refused while the spec gate is missing or no longer matches: approve the spec again first).
+   **Hidden tests made stale** (change with `MODIFIED` / `REMOVED` requirements; approve prints a reminder with the
+   count): the user, in their own terminal, runs `python3 .specify/scripts/private_tests.py stale --change <change>`
+   (removed / modified / mixed / unaffected per file, from the requirement ID in the file name and the scenario IDs in
+   the test names), then `quarantine --change <change> --kind removed|modified|all` (all = removed + modified; a mixed
+file, which also tests requirements the change does not touch, is split by hand or quarantined with `--kind mixed`
+after a warning; quarantine moves them to
+   `<package>/test/private/_stale/<change>/`, never deletes; `restore` moves them back), then has `private-test-writer`
+   write new ones for the ADDED / MODIFIED requirements (one file per requirement). No agent runs `private_tests.py`
+   (`guard.mjs` blocks it); `dispatch.sh` never copies `_stale/`.
 10. **HANDOFF** (see "Handoff"): `python3 .specify/scripts/approval.py verify --change <change>` and
     `python3 .specify/scripts/spec_check.py --stage spec --change <change>` pass;
     commit the change folder (with `approval.json` and `.approved/`) on branch `NNN-<name>`. Do not open the PR yet:

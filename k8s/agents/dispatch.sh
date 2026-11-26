@@ -250,13 +250,25 @@ private_summary() {
     process.exit(loadErr || r.numFailedTests ? 1 : 0);
   ' "$1"
 }
+# >>> copy_private_tests (self-contained: the harness check extracts this block and sources it)
+# copy_private_tests <from root> <to root> <hidden test folder>...: copies each folder WITHOUT its _stale/ (tests
+# quarantined by private_tests.py), so vitest and typecheck:private in the worktree never see them.
+copy_private_tests() {
+  local from="$1" to="$2" d; shift 2
+  for d in "$@"; do
+    [[ -d "$from/$d" ]] || continue
+    mkdir -p "$to/$d"
+    rsync -a --exclude '/_stale/' "$from/$d/" "$to/$d/"
+  done
+}
+# <<< copy_private_tests
 run_private() {
   local pr_url="$1" branch wt plog pkg sub d private_dirs have=0 json tlog sum nerr ok=1 joined parts=()
   # hidden test folders (areas.testPrivate of .claude/harness.json), each "<package>/<folder in the package>"
   private_dirs="$(python3 "$ROOT/.specify/scripts/harness_config.py" get areas.testPrivate --list --root "$ROOT")" \
     || { echo "PRIVATE: SKIPPED (harness.json missing or invalid)"; return 0; }
-  for d in $private_dirs; do
-    [[ -n "$(find "$ROOT/$d" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
+  for d in $private_dirs; do   # quarantined tests (_stale/) do not count
+    [[ -n "$(find "$ROOT/$d" -path "$ROOT/$d/_stale" -prune -o -name '*.test.ts*' -print 2>/dev/null | head -n 1)" ]] && have=1
   done
   [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
   branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
@@ -265,9 +277,8 @@ run_private() {
   echo "Running hidden tests on $branch -> ${plog#"$ROOT"/}"
   git -C "$ROOT" fetch -q origin "$branch"
   git -C "$ROOT" worktree add -q --detach "$wt" FETCH_HEAD
-  for d in $private_dirs; do
-    if [[ -d "$ROOT/$d" ]]; then mkdir -p "$wt/$(dirname "$d")"; cp -R "$ROOT/$d" "$wt/$(dirname "$d")/"; fi
-  done
+  # shellcheck disable=SC2086
+  copy_private_tests "$ROOT" "$wt" $private_dirs
   if ! (cd "$wt" && pnpm install --frozen-lockfile --prefer-offline) > "$plog" 2>&1; then
     echo "PRIVATE: SKIPPED (pnpm install failed, see ${plog#"$ROOT"/})"
     git -C "$ROOT" worktree remove --force "$wt"; return 0

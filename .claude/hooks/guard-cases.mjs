@@ -281,6 +281,24 @@ const cases = [
   ["code-reviewer", "Bash", { command: "cat > /tmp/n.md <<EOF\nnotes\nEOF" }, B, "code-reviewer cat > /tmp file (subagent writes stay blocked)"],
   ["code-reviewer", "Bash", { command: "cat /tmp/x/test/private/a.md" }, A, "code-reviewer cat test/private path outside the project"],
   ["code-reviewer", "Bash", { command: `cat ${path.join(OUTSIDE, "plink")}/x.test.ts` }, B, "code-reviewer cat through a /tmp symlink into test/private"],
+  // ---- private_tests.py (stale hidden tests): only the user, in their own terminal ----
+  // blocked when the command RUNS it (name as a word + stale|quarantine|restore), main and a subagent
+  ...["main", "code-reviewer"].flatMap((who) => [
+    [who, "Bash", { command: "python3 .specify/scripts/private_tests.py stale --change 004-x" }, B, `${who} private_tests.py stale`],
+    [who, "Bash", { command: "./.specify/scripts/private_tests.py quarantine --change 004-x --kind all" }, B, `${who} ./…/private_tests.py quarantine`],
+    [who, "Bash", { command: "cd .specify/scripts && python3 private_tests.py restore --change 004-x" }, B, `${who} cd … && python3 private_tests.py restore`],
+    [who, "Bash", { command: 'bash -c "python3 .specify/scripts/private_tests.py stale --change 004-x"' }, B, `${who} private_tests.py stale inside bash -c`],
+    [who, "Bash", { command: "script -q /dev/null python3 .specify/scripts/private_tests.py restore --change 004-x" }, B, `${who} private_tests.py restore through script (pty)`],
+    [who, "Bash", { command: "python3 '.specify/scripts/private_tests.py' stale --change 004-x" }, B, `${who} quoted private_tests.py stale`],
+    // a subagent never commits (the older rule: no file writes through Bash), whatever the message says
+    [who, "Bash", { command: 'git commit -m "harness: quarantine stale private tests (human-only private_tests.py)"' }, who === "main" ? A : B,
+      `${who} commit message naming private_tests.py${who === "main" ? "" : " (blocked by the subagent no-write rule)"}`],
+    [who, "Bash", { command: 'git log --format=%s | grep "human-only private_tests.py)"' }, A, `${who} read-only command naming private_tests.py`],
+    [who, "Bash", { command: "python3 -m unittest discover -s .specify/scripts -p test_private_tests.py" }, A, `${who} unittest -p test_private_tests.py`],
+    [who, "Bash", { command: "git grep -n private_tests.py" }, A, `${who} git grep private_tests.py`],
+    [who, "Bash", { command: "python3 .specify/scripts/private_tests.py --help" }, A, `${who} private_tests.py --help`],
+  ]),
+  ["main", "Bash", { command: "python3 -m unittest discover -s .specify/scripts" }, A, "main unittest discover (no script name)"],
   // ---- .claude/harness.json missing / broken JSON / wrong schema: fail-closed (6th element: the fake project root) ----
   ...Object.entries(BAD_ROOTS).flatMap(([name, r]) => [
     ["main", "Write", { file_path: "backend/src/a.ts" }, B, `config ${name}: main Write backend/src`, { root: r }],

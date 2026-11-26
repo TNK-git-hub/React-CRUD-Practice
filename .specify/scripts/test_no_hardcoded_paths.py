@@ -30,6 +30,7 @@ SCRIPTS = (
     "k8s/agents/dispatch.sh",
     ".specify/scripts/approval.py",
     ".specify/scripts/spec_check.py",
+    ".specify/scripts/private_tests.py",
 )
 # (script, regex the line must match, reason). Keep this list short: every entry is a place to edit by hand when the
 # folder layout changes.

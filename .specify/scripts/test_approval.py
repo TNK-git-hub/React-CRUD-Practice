@@ -197,6 +197,23 @@ class ApprovalTest(unittest.TestCase):
         self.assertIn("--gate spec", out)
         self.assertNotIn("plan", json.loads((self.change / "approval.json").read_text()))
 
+    # ---- plan approval: reminder about hidden tests of MODIFIED / REMOVED requirements ----
+    def test_plan_approval_reminds_about_stale_hidden_tests(self) -> None:
+        self.edit(f"specs/changes/{CHANGE}/spec.md", "#### ADDED PROD-004", "#### MODIFIED PROD-004")
+        self.write("backend/test/" + "private" + f"/{CHANGE}/PROD-004.test.ts", "it('PROD-004-S1 hidden', () => {});\n")
+        self.approve_change("spec")
+        code, out = self.cli("approve", "--change", CHANGE, "--gate", "plan", answer="y")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"Note: 1 hidden test file(s) are about MODIFIED / REMOVED requirements of {CHANGE}", out)
+        self.assertIn(f"private_tests.py stale --change {CHANGE}", out)
+
+    def test_plan_approval_no_reminder_for_added_only(self) -> None:
+        self.write("backend/test/" + "private" + f"/{CHANGE}/PROD-004.test.ts", "it('PROD-004-S1 hidden', () => {});\n")
+        self.approve_change("spec")
+        code, out = self.cli("approve", "--change", CHANGE, "--gate", "plan", answer="y")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("hidden test file", out)
+
     def test_root_cause_needs_summary(self) -> None:
         code, out = self.cli("approve", "--bug", BUG, "--gate", "root-cause", answer="y")
         self.assertEqual(code, 1)

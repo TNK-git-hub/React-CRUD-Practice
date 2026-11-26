@@ -14,6 +14,7 @@
 //   Session chính: Bash ghi vào specs/ -> hỏi người dùng.
 // approval.json và .approved/ (lần duyệt khoá bằng hash): không ai ghi, kể cả session chính; không ai chạy
 //   `approval.py approve` qua Claude (chỉ người dùng, trong terminal riêng); `approval.py verify` thì ai cũng chạy được.
+//   `private_tests.py` (test private lỗi thời): không ai chạy qua Claude, kể cả session chính.
 // Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
 // Ngoài private-test-writer, không ai được ghi <package>/test/private.
 // Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
@@ -374,6 +375,14 @@ if (tool === "Bash") {
   // Duyệt: chỉ người dùng (kể cả khi chuỗi nằm trong nháy hay sau `script`, `bash -c`). approval.py verify thì được.
   if (/approval\.py\s+approve\b/.test(cmd)) {
     block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/approval.py approve …`. Agent chỉ được chạy `approval.py verify`.");
+  }
+  // Hidden tests made stale by a change (private_tests.py reads, moves and lists them): only the user runs it, every
+  // agent and the main session included. Blocked when the command RUNS it: the name as a word of its own (not after a
+  // letter, digit, _, . or -; quotes allowed) followed by stale|quarantine|restore. Naming it otherwise (a commit
+  // message, git grep, test_private_tests.py, --help) is fine. This rule is only a reminder: the real barrier is the
+  // TTY check inside private_tests.py (an agent has no terminal).
+  if (/(^|[^a-z0-9_.-])["']?private_tests\.py["']?\s+(stale|quarantine|restore)\b/i.test(cmd)) {
+    block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/private_tests.py stale|quarantine|restore --change <change>`.");
   }
 
   // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
