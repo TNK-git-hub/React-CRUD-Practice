@@ -9,9 +9,9 @@
 #   --base     base branch đã dispatch (mặc định: dòng "Base branch" của CLAUDE.md); meta.json phải khớp một trong hai.
 #   --dry-run  làm mọi bước trừ push và gh pr create, in các lệnh sẽ chạy.
 #
-# Lấy khối CUỐI giữa "==> ARTIFACT BEGIN <job-id>" và "==> ARTIFACT END <job-id>" (khối của job khác: bỏ qua), base64 -d,
-# kiểm tar chỉ có branch.bundle, meta.json, pr-body.md; kiểm meta; git fetch bundle vào refs/heads/<branch>;
-# git push origin <branch> (không force: branch đã có trên origin -> FAILED); gh pr create (--draft khi run FAILED).
+# Marker CUỐI của job-id quyết định (của job khác: bỏ qua): khối BEGIN..END, hoặc "ARTIFACT NONE" -> FAILED, không PR.
+# base64 -d; tar chỉ có branch.bundle, meta.json, pr-body.md; kiểm meta; fetch bundle; mọi file đổi phải nằm trong vùng
+# của agent (AGENT_AREAS); git push origin <branch> (không force: đã có trên origin -> FAILED); gh pr create (--draft).
 # Nội dung artifact do pod (agent) tạo ra: chỉ dùng như dữ liệu. Không eval, không chạy file nào trong đó; branch, title,
 # base kiểm bằng regex chặt trước khi đưa vào lệnh (luôn là đối số riêng, không qua shell).
 # Dòng cuối: "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=<lý do>[ pr=<url>]" (định dạng cũ của dispatch.sh)
@@ -46,14 +46,22 @@ if [[ -z "$LOG" ]]; then
 fi
 [[ -f "$LOG" ]] || fail "log file '$LOG' not found"
 
-# --- the last complete ARTIFACT block of this job id (blocks of other ids are ignored) ---
-awk -v id="$JOB_ID" '
+# --- the LAST marker of this job id wins: a complete BEGIN..END block, or "ARTIFACT NONE" (markers of other ids are
+# ignored). The pod prints its own marker on exit, after everything else, so an ARTIFACT block printed earlier by
+# test output or agent code is never the last one.
+marker="$(awk -v id="$JOB_ID" -v out="$TMP/artifact.b64" '
   $0 == "==> ARTIFACT BEGIN " id { inb = 1; buf = ""; next }
-  $0 == "==> ARTIFACT END " id   { if (inb) { last = buf; found = 1 } inb = 0; next }
+  $0 == "==> ARTIFACT END " id   { if (inb) { last = buf; state = "BLOCK" } inb = 0; next }
+  $0 == "==> ARTIFACT NONE " id  { inb = 0; state = "NONE"; next }
   inb                            { buf = buf $0 "\n" }
-  END                            { if (found) printf "%s", last }
-' "$LOG" > "$TMP/artifact.b64"
-[[ -s "$TMP/artifact.b64" ]] || fail "no ARTIFACT block for job $JOB_ID in the log (the pod made no commit, or the log is cut)"
+  END                            { if (state == "BLOCK") printf "%s", last > out; print (state == "" ? "MISSING" : state) }
+' "$LOG")"
+case "$marker" in
+  BLOCK) ;;
+  NONE) fail "the pod reported ARTIFACT NONE for job $JOB_ID (no commit, or its export failed): no PR" ;;
+  *) fail "no ARTIFACT marker for job $JOB_ID in the log (the log is cut, or the pod did not get to its exit)" ;;
+esac
+[[ -s "$TMP/artifact.b64" ]] || fail "the ARTIFACT block of job $JOB_ID is empty"
 (( $(wc -c < "$TMP/artifact.b64") <= 6 * 1024 * 1024 )) || fail "ARTIFACT block too large"
 grep -qvE '^[A-Za-z0-9+/=]*$' "$TMP/artifact.b64" && fail "artifact is not valid base64 (unexpected characters)"
 base64 --decode < "$TMP/artifact.b64" > "$TMP/artifact.tgz" 2>/dev/null || fail "artifact is not valid base64"
@@ -74,7 +82,7 @@ import json, sys
 m = json.load(open(sys.argv[1], encoding="utf-8"))
 if not isinstance(m, dict):
     sys.exit(1)
-keys = ("job_id", "branch", "base_branch", "base_sha", "title", "draft", "result_reason")
+keys = ("job_id", "branch", "base_branch", "base_sha", "title", "draft", "result_reason", "bug")
 for k in keys:
     v = m.get(k)
     if k == "draft":
@@ -85,9 +93,10 @@ for k in keys:
         sys.exit(1)
     sys.stdout.write(v + "\0")
 ' "$TMP/a/meta.json" 2>/dev/null) || true
-[[ ${#fields[@]} -eq 7 ]] || fail "meta.json is not valid (needs job_id, branch, base_branch, base_sha, title, draft, result_reason)"
+[[ ${#fields[@]} -eq 8 ]] || fail "meta.json is not valid (needs job_id, branch, base_branch, base_sha, title, draft, result_reason, bug)"
 M_JOB="${fields[0]}"; M_BRANCH="${fields[1]}"; M_BASE="${fields[2]}"; M_SHA="${fields[3]}"
-M_TITLE="${fields[4]}"; M_DRAFT="${fields[5]}"; M_REASON="${fields[6]}"
+M_TITLE="${fields[4]}"; M_DRAFT="${fields[5]}"; M_REASON="${fields[6]}"; M_BUG="${fields[7]}"
+[[ -z "$M_BUG" || "$M_BUG" =~ ^[0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "meta.json bug '$M_BUG' is not a bug id"
 [[ "$M_JOB" == "$JOB_ID" ]] || fail "meta.json job_id '$M_JOB' is not $JOB_ID"
 [[ "$M_BRANCH" =~ ^agent/${JOB_ID}-[0-9]+$ ]] || fail "meta.json branch '$M_BRANCH' does not match agent/${JOB_ID}-<number>"
 [[ "$M_BASE" =~ ^[A-Za-z0-9._/-]+$ && ( "$M_BASE" == "$CLAUDE_BASE" || ( -n "$BASE" && "$M_BASE" == "$BASE" ) ) ]] \
@@ -108,6 +117,17 @@ git -C "$ROOT" rev-parse --verify -q "$LOCAL_REF" >/dev/null && fail "local ref 
 git -C "$ROOT" fetch -q "$TMP/a/branch.bundle" "HEAD:$LOCAL_REF" || fail "git fetch from branch.bundle failed"
 git -C "$ROOT" merge-base --is-ancestor "$M_SHA" "$LOCAL_REF" || fail "the bundle's branch does not start from base_sha"
 commits="$(git -C "$ROOT" rev-list --count "${M_SHA}..${LOCAL_REF}")"
+
+# --- re-check on the host: every changed path (deleted and renamed ones too: --no-renames lists both sides) must be in
+# an agent area. Keep in sync (one config later) with SRC_RE / TEST_RE in run.sh, SRC / TEST_WRITABLE in
+# .claude/hooks/guard.mjs and "Quyền ghi" in the root CLAUDE.md (test-writer also owns frontend/test/e2e).
+AGENT_AREAS='^(backend/src|frontend/src|frontend/public|backend/test/public|frontend/test/public|frontend/test/e2e)/'
+[[ -n "$M_BUG" ]] && AGENT_AREAS="${AGENT_AREAS%)/}|bugs/${M_BUG})/"   # bug mode: the record of THIS bug only
+outside="$(git -C "$ROOT" diff --no-renames --name-only "${M_SHA}...${LOCAL_REF}" | grep -Ev "$AGENT_AREAS" || true)"
+if [[ -n "$outside" ]]; then
+  git -C "$ROOT" update-ref -d "$LOCAL_REF"   # never keep a ref that will not be pushed
+  fail "branch touches files outside the agent areas: $(paste -sd' ' - <<<"$outside")"
+fi
 echo "Branch $M_BRANCH: $commits commit(s) on $M_BASE @ ${M_SHA:0:8}, draft=$M_DRAFT"
 git -C "$ROOT" --no-pager log --oneline "${M_SHA}..${LOCAL_REF}"
 

@@ -42,7 +42,7 @@ Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) →
 | Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
 | Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
 | Agent sửa hồ sơ bug hay test tái hiện cho dễ pass (`--bug`) | Test tái hiện nằm trong gate root-cause người dùng đã duyệt (`approval.py`, hash). Pod chạy `approval.py verify --bug` lúc đầu và trước khi mở PR; checksum `bugs/<id>/` + test tái hiện trong mọi gate `assert_only`; `DELETE:` không xoá được test tái hiện |
-| Secret trong pod bị agent đọc hay dùng | Pod chỉ có token Claude (`CLAUDE_CODE_OAUTH_TOKEN`), không có token ghi GitHub: clone ẩn danh (repo public) hoặc `GH_READ_TOKEN` chỉ đọc qua credential helper, không nằm trong URL hay `.git/config` (`run.sh` kiểm). Push và mở PR làm ở máy này (`collect.sh`, chỉ coi artifact là dữ liệu, không force push). Lệnh do script chạy (pnpm install / ci:local, vitest, stryker, `node -e`, `approval.py`) chạy không có token Claude (`noenv`) |
+| Secret trong pod bị agent đọc hay dùng | Pod chỉ có token Claude (`CLAUDE_CODE_OAUTH_TOKEN`), không có token ghi GitHub (có `GH_TOKEN` thì `run.sh` FAIL): clone ẩn danh (repo public) hoặc `GH_READ_TOKEN` chỉ đọc qua credential helper, không nằm trong URL hay `.git/config` (`run.sh` kiểm). Push và mở PR làm ở máy này (`collect.sh`, chỉ coi artifact là dữ liệu, marker cuối của job quyết định — `ARTIFACT NONE` thì không PR —, mọi file đổi phải nằm trong vùng của agent, không force push). Lệnh do script chạy (pnpm install / ci:local, vitest, stryker, `node -e`, `approval.py`) chạy không có token Claude (`noenv`) |
 | Giới hạn còn lại về secret | Lệnh agent tự chạy qua Bash vẫn thừa hưởng token Claude (`claude` cần nó). Mạng đi ra từ pod chưa bị lọc (agent có thể gửi dữ liệu ra ngoài) |
 | Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
 
@@ -71,15 +71,17 @@ kind create cluster --name claude-demo
 # Chỉ token Claude: pod không push, không mở PR (collect.sh làm việc đó trên máy này, bằng gh của bạn)
 kubectl create secret generic agent-secrets \
   --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<sk-ant-oat...>'
-# Repo private thì thêm token CHỈ ĐỌC: fine-grained, đúng repo này, quyền "Contents: Read-only", không quyền nào khác
+# Repo này đang PUBLIC: KHÔNG đặt GH_READ_TOKEN (pod clone ẩn danh). Chỉ khi repo chuyển sang private mới thêm:
 #   --from-literal=GH_READ_TOKEN='<github_pat_...>'
+# Token đó cũng nằm trong /proc/1/environ của container (agent đọc được), nên chỉ dùng token fine-grained, CHỈ repo này,
+# CHỈ quyền "Contents: Read-only", không quyền nào khác.
 security find-certificate -c MWG -p /Library/Keychains/System.keychain > mwg-ca.pem
 kubectl create configmap mwg-ca --from-file=mwg-ca.crt=mwg-ca.pem
 ```
 CI của PR chạy trên runner cloud của GitHub (`.github/workflows/ci.yml`), không cần cài runner trong kind.
 
 **Đã tạo `agent-secrets` có `GH_TOKEN` từ trước: xoá nó khỏi Secret** (`envFrom` nạp mọi key, agent sẽ thấy token ghi).
-`run.sh` có unset `GH_TOKEN` ngay đầu và in WARNING, nhưng đừng dựa vào đó:
+Pod có `GH_TOKEN` thì `run.sh` FAIL ngay đầu (không chỉ cảnh báo: `unset` không xoá được biến khỏi `/proc/1/environ`):
 ```bash
 kubectl patch secret agent-secrets --type=json -p='[{"op": "remove", "path": "/data/GH_TOKEN"}]'
 ```

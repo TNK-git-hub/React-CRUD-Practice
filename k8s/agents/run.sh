@@ -94,7 +94,7 @@ export_artifact() {
 }
 on_exit() {
   set +e
-  local commits=0 draft=true reason
+  local commits=0 draft=true reason exported=0
   if [[ -n "${BASE_SHA:-}" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
     commits="$(git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)"
   fi
@@ -103,15 +103,25 @@ on_exit() {
     if [[ "$RESULT" == SUCCESS* ]]; then draft=false; reason=""; fi
     log "EXPORT: ${commits} commit(s) on ${BRANCH:-?} (draft=${draft}); the host pushes and opens the PR (collect.sh)"
     if export_artifact "$draft" "$reason"; then
-      RESULT="${RESULT} artifact=ready"
+      RESULT="${RESULT} artifact=ready"; exported=1
     else
       RESULT="FAILED reason=artifact export failed: ${EXPORT_ERR} (pipeline result: ${RESULT})"
     fi
   fi
+  # No artifact (no commit, or the export failed): say so with the LAST marker of this job, so that an ARTIFACT block
+  # printed earlier by some other output (a test, an agent's code) can never be taken for the real one by collect.sh
+  (( exported )) || echo "==> ARTIFACT NONE ${JOB_ID:-unknown}"
   echo "==> RESULT: ${RESULT}"
 }
 # <<< export
 trap on_exit EXIT
+
+# No GitHub write token in the pod (the host pushes and opens the PR with collect.sh). A leftover GH_TOKEN in the
+# Secret is a hard error, not a warning: `unset` only clears this shell, the value stays in /proc/1/environ (the
+# container's first process), which any agent can read.
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  fail "GH_TOKEN is set in the pod (a GitHub write token). Remove it from the Secret, then dispatch again: kubectl patch secret agent-secrets --type=json -p='[{\"op\": \"remove\", \"path\": \"/data/GH_TOKEN\"}]'"
+fi
 
 TASK="$(cat /task/task.md)"
 PR_TITLE="$(head -n 1 /task/title.txt)"
@@ -121,6 +131,8 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 [[ "$MODE" == full || "$MODE" == code-only ]] || fail "unknown MODE '$MODE'"
 
 # ---------- phân quyền theo vai (allow-list, không phải deny-list) ----------
+# Keep in sync (one config later): AGENT_AREAS in collect.sh (host re-check before push), SRC / TEST_WRITABLE in
+# .claude/hooks/guard.mjs, "Quyền ghi" in the root CLAUDE.md.
 SRC_RE='^(backend/src|frontend/src|frontend/public)/'
 TEST_RE='^(backend|frontend)/test/public/'
 # Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
@@ -444,12 +456,6 @@ corepack enable
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 claude --version
 
-# No GitHub write token in the pod: the host pushes and opens the PR (collect.sh). An old GH_TOKEN in agent-secrets
-# is dropped here; remove it from the Secret (k8s/agents/README.md).
-if [[ -n "${GH_TOKEN:-}" ]]; then
-  log "WARNING: GH_TOKEN is set in the pod; it is not used any more (remove it from agent-secrets), unsetting it"
-  unset GH_TOKEN
-fi
 # Public repo: anonymous clone. Private repo: GH_READ_TOKEN (fine-grained, Contents: read only), given to git through
 # a credential helper that reads it from the environment of that one command, never in the URL or .git/config.
 READ_TOKEN="${GH_READ_TOKEN:-}"; unset GH_READ_TOKEN
