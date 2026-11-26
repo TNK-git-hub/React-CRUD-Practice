@@ -31,6 +31,12 @@
 <error message, stack trace, log lines; trimmed to what matters>
 ```
 
+## Reproduction test
+
+<!-- Written in step c, before the investigation. The root-cause approval hashes this file too. -->
+- Path: `<package>/test/public/<file>.test.ts`
+- Name: `<scenario ID> ...`
+
 ## Open questions
 
 - <what is still missing; ask the user in one turn>

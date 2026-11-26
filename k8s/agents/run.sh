@@ -21,6 +21,15 @@
 #   - không ai được sửa specs/ (checksum, kể cả file spec chưa commit được gửi qua ConfigMap)
 #   - mỗi scenario ID của các task được giao phải có test mang tên bắt đầu bằng ID đó (chặn duyệt ở REVIEW)
 #
+# Bug (optional, dispatch.sh --bug <id>, MODE=full): steps f-g of the bug flow (skill bug-fix-flow), after the user
+# approved the root cause and the reproduction test in their own terminal (steps a-e stay interactive):
+#   - /task/bug.tgz holds bugs/<id>/ and the reproduction test; approval.py verify --bug <id> must pass in the pod
+#   - first commit "docs: bug record <id>" (bugs/<id>/ only); task gets a "## Bug (source of truth)" section
+#   - PLAN is skipped: code plan = the approved Root cause section; RED = the reproduction test (no test-writer) must
+#     FAIL, scenario gate on the bug's scenario ID → commit "test: reproduce bug <id>"; then GREEN, REVIEW, PR as usual
+#   - checksum of bugs/<id>/ + the reproduction test: every gate fails if an agent changed them; the test cannot be
+#     DELETEd; approval.py verify runs again before the PR
+#
 # Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
 # agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
 # Dòng cuối log luôn là "==> RESULT: SUCCESS pr=<url>" hoặc "==> RESULT: FAILED reason=<lý do>".
@@ -99,6 +108,12 @@ changed_since() { { git diff --no-renames --name-only "$1"; git ls-files --other
 # Checksum toàn bộ specs/ (cả file đã commit lẫn file spec gửi qua ConfigMap, bị git bỏ qua)
 spec_sum() { find specs -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'; }
 
+# Bug mode: checksum of the bug record and the reproduction test (both approved by the user, read-only in the pod)
+bug_sum() {
+  { find "bugs/${BUG}" -type f -print0 2>/dev/null; printf '%s\0' "$REPRO"; } \
+    | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'
+}
+
 # assert_only <sha> <regex> <vai>: mọi file đổi kể từ <sha> phải khớp <regex>
 assert_only() {
   local sha="$1" re="$2" who="$3" bad
@@ -106,6 +121,10 @@ assert_only() {
   if [[ -n "$CHANGE" && "$(spec_sum)" != "$SPEC_SUM" ]]; then
     log "${who} modified files under specs/ (the spec is read-only for the CODE and TEST harnesses), NOT opening a PR"
     fail "${who} modified the spec"
+  fi
+  if [[ -n "$BUG" && "$(bug_sum)" != "$BUG_SUM" ]]; then
+    log "${who} modified bugs/${BUG}/ or the reproduction test ${REPRO} (approved by the user, read-only here), NOT opening a PR"
+    fail "${who} modified the bug record or the reproduction test"
   fi
   bad="$(changed_since "$sha" | grep -Ev "$re" || true)"
   if [[ -n "$bad" ]]; then
@@ -135,6 +154,9 @@ apply_test_deletions() {
   local out="$1" p
   while read -r p; do
     [[ -n "$p" ]] || continue
+    if [[ -n "$BUG" && "$p" == "$REPRO" ]]; then
+      log "DELETE ignored (reproduction test of bug ${BUG}): $p"; continue
+    fi
     if [[ ! "$p" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$ || "$p" == *..* ]]; then
       log "DELETE ignored (not under test/public): $p"; continue
     fi
@@ -250,6 +272,13 @@ run_new_tests() {
     (cd "$pkg" && pnpm exec vitest run $files) >> "$out" 2>&1 || rc=1
   done
   return "$rc"
+}
+
+# Bug mode: run only the reproduction test (it may already be on the base branch, so changed_since cannot find it)
+run_repro_test() {
+  local out="$1" pkg="${REPRO%%/*}"
+  echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
+  (cd "$pkg" && pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -416,6 +445,51 @@ Spec rules:
   e.g. \`it('ABC-003-S2 rejects min greater than max', ...)\`. The pipeline checks this."
 fi
 
+# ---------- bug (optional, dispatch.sh --bug <id>): steps f-g of the bug flow ----------
+BUG="$(head -n 1 /task/bug.txt 2>/dev/null || true)"
+REPRO=""; BUG_SCENARIO=""; BUG_SUM=""; ROOT_CAUSE=""
+if [[ -n "$BUG" ]]; then
+  [[ "$BUG" =~ ^[0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid bug '$BUG'"
+  [[ "$MODE" == full ]] || fail "bug mode needs MODE=full"
+  [[ -z "$CHANGE" ]] || fail "bug mode cannot go with a spec change"
+  REPRO="$(head -n 1 /task/repro.txt 2>/dev/null || true)"
+  BUG_SCENARIO="$(head -n 1 /task/scenario.txt 2>/dev/null || true)"
+  [[ "$REPRO" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+\.test\.tsx?$ && "$REPRO" != *..* ]] \
+    || fail "invalid reproduction test path '$REPRO'"
+  [[ "$BUG_SCENARIO" =~ ^[A-Z]{2,5}-[0-9]{3}-S[0-9]+$ ]] || fail "invalid bug scenario '$BUG_SCENARIO'"
+  [[ -f /task/bug.tgz ]] || fail "bug mode: /task/bug.tgz is missing"
+  # The approved copy wins over the base branch (bugs/<id>/ and the reproduction test)
+  tar -xzf /task/bug.tgz --warning=no-unknown-keyword
+  [[ -f "bugs/${BUG}/report.md" && -f "$REPRO" ]] || fail "bug.tgz has no bugs/${BUG}/report.md or ${REPRO}"
+  log "bug: approval.py verify --bug ${BUG}"
+  python3 .specify/scripts/approval.py verify --bug "$BUG" \
+    || fail "root cause not approved or changed since approval (bugs/${BUG})"
+  BUG_SUM="$(bug_sum)"
+  git add -- "bugs/${BUG}"
+  git diff --cached --quiet || git commit -q -m "docs: bug record ${BUG}"
+  SCENARIOS="$BUG_SCENARIO"
+  ROOT_CAUSE="$(awk '/^## Root cause[[:space:]]*$/ { f = 1; print; next } f && /^##? / { exit } f' "bugs/${BUG}/investigation.md")"
+  log "bug: ${BUG}, scenario ${BUG_SCENARIO}, reproduction test ${REPRO}"
+  TASK="${TASK}
+
+## Bug (source of truth)
+This task fixes bug \`${BUG}\` (steps f-g of the bug flow). The user approved the root cause and the reproduction
+test; the pipeline checks that approval again before the PR. Record: \`bugs/${BUG}/\` (\`report.md\`, \`investigation.md\`).
+Reproduction test: \`${REPRO}\` (scenario ${BUG_SCENARIO}). It fails on the current code and must pass after the fix.
+
+### report.md
+$(cat "bugs/${BUG}/report.md")
+
+### Approved root cause and fix direction (investigation.md)
+${ROOT_CAUSE}
+
+Bug rules:
+- Never change, skip or delete the reproduction test \`${REPRO}\` (the pipeline fails the job if it changes).
+- Do not edit anything under \`specs/\` or \`bugs/\`.
+- Fix at the approved root cause, in the shared code: no patch in each caller, no wrapper, no new dependency.
+- If the approved root cause looks wrong, say so in your answer and do not work around it."
+fi
+
 log "Installing project dependencies"
 pnpm install --frozen-lockfile
 mkdir -p /tmp/plan /tmp/out
@@ -437,6 +511,11 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   REVIEW_DONE=1
 else
   # ---------- 1. PLAN ----------
+  if [[ -n "$BUG" ]]; then
+    stage "PLAN: skipped (bug mode: the approved root cause is the code plan)"
+    printf '%s\n' "$ROOT_CAUSE" > /tmp/plan/code-plan.md
+    echo "Reproduction test already written and approved; add tests only if review asks" > /tmp/plan/test-plan.md
+  else
   stage "PLAN: code-planner + test-planner (read-only)"
   run_agent code-planner /tmp/plan/code-plan.md "Plan the production code change for this task. The code is not written yet.
 ${TASK}" "${TOOLS_PLANNER[@]}"
@@ -444,10 +523,27 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
 plan tests for the target behaviour (they must fail on the current code and pass once the task is done), not for the current behaviour.
 Only plan Vitest tests in backend/test/public or frontend/test/public (no e2e: there is no browser or DB here).
 ${TASK}" "${TOOLS_PLANNER[@]}"
+  fi
   CODE_PLAN="$(cat /tmp/plan/code-plan.md)"
   TEST_PLAN="$(cat /tmp/plan/test-plan.md)"
 
   # ---------- 2. RED ----------
+  if [[ -n "$BUG" ]]; then
+  # Bug mode: no test-writer. The approved reproduction test must fail on the current code, for the same reasons as RED.
+  stage "RED (bug mode): the approved reproduction test must fail on the current code"
+  if run_repro_test /tmp/out/red.txt; then
+    strip_colors < /tmp/out/red.txt | tail -n 40
+    fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)"
+  fi
+  grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate could not run the reproduction test ${REPRO}"
+  strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
+  log "RED: scenario coverage of the bug (${BUG_SCENARIO})"
+  scenario_gate
+  git add -- "$REPRO"
+  git diff --cached --quiet || git commit -q -m "test: reproduce bug ${BUG}"
+  TEST_SHA="$(git rev-parse HEAD)"
+  log "RED gate: PASSED (reproduction test committed as ${TEST_SHA:0:8})"
+  else
   stage "RED: test-writer writes failing tests"
   # Ở bước RED test phải fail -> tắt stop-gate (nó đòi pnpm test pass). Gate RED bên dưới vẫn do script kiểm.
   export SKIP_STOP_GATE=1
@@ -479,6 +575,7 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
   scenario_gate
   TEST_SHA="$(commit_stage "test: ${PR_TITLE}")"
   log "RED gate: PASSED (tests committed as ${TEST_SHA:0:8})"
+  fi
 
   # ---------- 3. GREEN ----------
   stage "GREEN: code-writer makes the tests pass"
@@ -682,6 +779,10 @@ fi
 
 # ---------- 5. PR ----------
 stage "PR"
+if [[ -n "$BUG" ]]; then
+  log "bug: approval.py verify --bug ${BUG} (again, before the PR)"
+  python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
+fi
 CI_SUMMARY="$(strip_colors < /tmp/ci.log | sed -n '/== Summary ==/,$p')"
 git --no-pager log --oneline "${BASE_SHA}..HEAD"
 git --no-pager diff --stat "${BASE_SHA}" HEAD
@@ -694,8 +795,12 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
   echo "CI fix rounds: ${FIX_ROUNDS}"; echo
   if [[ "$MODE" == full ]]; then
     cat /tmp/out/review.txt; echo
-    section "Code plan (code-planner)" /tmp/plan/code-plan.md
-    section "Test plan (test-planner)" /tmp/plan/test-plan.md
+    if [[ -n "$BUG" ]]; then
+      section "Code plan (approved root cause, bugs/${BUG}/investigation.md)" /tmp/plan/code-plan.md
+    else
+      section "Code plan (code-planner)" /tmp/plan/code-plan.md
+      section "Test plan (test-planner)" /tmp/plan/test-plan.md
+    fi
     strip_colors < /tmp/out/red.txt | tail -n 60 > /tmp/out/red-tail.txt
     section "RED: new tests failing before the code change" /tmp/out/red-tail.txt
     section "Mutation testing" /tmp/out/mutation.txt
@@ -712,6 +817,14 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
       echo "**Spec problems reported by the agents** (go back to the spec harness, the spec was not changed):"
       echo '```'; cat /tmp/out/spec-problems.txt; echo '```'; echo
     fi
+  fi
+  if [[ -n "$BUG" ]]; then
+    echo "## Bug"
+    echo "- Bug: \`${BUG}\` (record: \`bugs/${BUG}/\`, committed first)"
+    echo "- Violated scenario: ${BUG_SCENARIO}"
+    echo "- Reproduction test: \`${REPRO}\` (approved with the root cause; failed before the fix, see RED)"
+    echo "- Approved root cause: $(node -e 'try { const a = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(a["root-cause"].summary || "(no summary)") } catch (e) { console.log("(unreadable)") }' "bugs/${BUG}/approval.json")"
+    echo
   fi
   echo "## Local CI (run in the agent pod before opening this PR)"
   echo '```'; echo "${CI_SUMMARY}"; echo '```'; echo
