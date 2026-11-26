@@ -33,6 +33,7 @@ fs.symlinkSync("../backend/src", path.join(FAKE, "specs/dir-link")); // dir syml
 fs.symlinkSync("/nonexistent/nowhere.md", path.join(FAKE, "specs/dangling.md"));
 fs.symlinkSync("../../src", path.join(FAKE, `${PRIV}/escape`)); // dir symlink from private to src
 fs.symlinkSync("/nonexistent/x.test.ts", path.join(FAKE, `${PRIV}/dangle.test.ts`));
+fs.symlinkSync(path.join(FAKE, PRIV), path.join(OUTSIDE, "plink")); // symlink outside the project -> private tests
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
@@ -239,6 +240,33 @@ const cases = [
   ["main", "Bash", { command: "git add specs/changes/001-x/approval.json specs/changes/001-x/.approved" }, A, "main git add approval.json (commit with the change)"],
   ["main", "Bash", { command: "cat specs/changes/001-x/approval.json" }, A, "main cat approval.json"],
   ["main", "Read", { file_path: "specs/changes/001-x/approval.json" }, A, "main Read approval.json"],
+  // ---- Bash path rules: paths outside the project and data-only heredocs do not count ----
+  ["main", "Bash", { command: "mkdir -p /tmp/x/backend/test/public" }, A, "main mkdir test/ path under /tmp (outside the project)"],
+  ["main", "Bash", { command: `mkdir -p ${path.join(OUTSIDE, "y/backend/test/public")}` }, A, "main mkdir test/ path in another temp dir"],
+  ["main", "Bash", { command: 'T=$(mktemp -d /tmp/a.XXXX) && mkdir -p "$T/backend/test/public"' }, A, "main mkdir $T/... with T=$(mktemp -d /tmp/...)"],
+  ["main", "Bash", { command: 'T=$(mktemp -d) && mkdir -p "$T/backend/test/public"' }, A, "main mkdir $T/... with T=$(mktemp -d) (default tmp dir)"],
+  ["main", "Bash", { command: 'mkdir -p "$X/backend/test/public"' }, B, "main mkdir $X/... with X unknown (checked as before)"],
+  ["main", "Bash", { command: "cat /tmp/x/test/private/a.md" }, A, "main cat test/private path outside the project"],
+  ["main", "Bash", { command: "git commit -q -F - <<'EOF'\nAdd backend/test/public/a.test.ts\nEOF" }, A, "main git commit heredoc body with a test/ path"],
+  ["main", "Bash", { command: "cat > /tmp/n.md <<EOF\nsee bugs/x/approval.json\nEOF" }, A, "main cat > /tmp file, heredoc body mentions approval.json"],
+  ["main", "Bash", { command: 'git commit -m "$(cat <<\'EOF\'\nfix backend/test/private/x\nEOF\n)"' }, A, "main commit message via $(cat <<EOF) mentioning test/private"],
+  ["main", "Bash", { command: "mkdir -p backend/test/public/x" }, B, "main mkdir relative test/ path (as before)"],
+  ["main", "Bash", { command: `mkdir -p ${path.join(FAKE, "backend/test/public/x")}` }, B, "main mkdir absolute test/ path inside the project"],
+  ["main", "Bash", { command: `cat ${path.join(OUTSIDE, "plink")}/x.test.ts` }, B, "main cat through a /tmp symlink into test/private"],
+  ["main", "Bash", { command: "python3 - <<EOF\nopen('bugs/x/approval.json', 'w').write('{}')\nEOF" }, B, "main python3 heredoc writing approval.json"],
+  ["main", "Bash", { command: "cat <<EOF | python3\nopen('bugs/x/approval.json', 'w').write('{}')\nEOF" }, B, "main heredoc piped into python3 writing approval.json"],
+  ["main", "Bash", { command: "cat > backend/test/public/a.test.ts <<EOF\nit('x', () => {});\nEOF" }, B, "main cat > test/ file (redirect outside the heredoc)"],
+  ["main", "Bash", { command: "node <<EOF\nrequire('fs').readFileSync('backend/test/private/a.test.ts')\nEOF" }, B, "main node heredoc reading test/private"],
+  ["main", "Bash", { command: "xargs rm <<EOF\nbackend/test/public/a.test.ts\nEOF" }, B, "main xargs rm with paths in the heredoc"],
+  // the rest of the line that opens a heredoc is command text (was dropped with the body before)
+  ["main", "Bash", { command: "cat <<EOF > backend/test/public/a.test.ts\nit('x', () => {});\nEOF" }, B, "main cat <<EOF > test/ file (redirect after the heredoc marker)"],
+  ["main", "Bash", { command: "cat <<EOF > /tmp/n.md\nsee backend/test/private/a.test.ts\nEOF" }, A, "main cat <<EOF > /tmp file, body mentions test/private"],
+  ["test-writer", "Bash", { command: "cat <<EOF > backend/test/public/a.test.ts\nit('x', () => {});\nEOF" }, B, "test-writer cat <<EOF > test/ file (Bash write)"],
+  ["code-writer", "Bash", { command: "cat <<EOF > backend/src/x.ts\nexport const x = 1;\nEOF" }, B, "code-writer cat <<EOF > src file (Bash write)"],
+  ["code-reviewer", "Bash", { command: "mkdir -p /tmp/x/backend/test/public" }, B, "code-reviewer mkdir under /tmp (subagent writes stay blocked)"],
+  ["code-reviewer", "Bash", { command: "cat > /tmp/n.md <<EOF\nnotes\nEOF" }, B, "code-reviewer cat > /tmp file (subagent writes stay blocked)"],
+  ["code-reviewer", "Bash", { command: "cat /tmp/x/test/private/a.md" }, A, "code-reviewer cat test/private path outside the project"],
+  ["code-reviewer", "Bash", { command: `cat ${path.join(OUTSIDE, "plink")}/x.test.ts` }, B, "code-reviewer cat through a /tmp symlink into test/private"],
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----

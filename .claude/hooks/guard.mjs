@@ -21,6 +21,7 @@
 // File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
 // exit 2 = chặn, stderr được gửi lại cho agent.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const block = (msg) => {
@@ -191,14 +192,120 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
 }
 
 // ---------- Bash ----------
+// The guard only reads the command string, never the content of a script file the command runs. The rules on inline
+// code (python3 - <<EOF, node -e, bash -c …) are reminders, not a lock: the real locks are approval.py's TTY check,
+// the hashes CI checks (spec_check / approval.json) and the gates of k8s/agents/run.sh.
 if (tool === "Bash") {
   // fold: `cat …/Private/…` và `PNPM test a` không lọt qua các regex chữ thường bên dưới
-  const cmd = fold(String(input.command || ""));
+  const rawCmd = String(input.command || "");
+  const cmd = fold(rawCmd);
+
+  // ---- Text for the PATH rules (test/, test/private, src/, harness, approval.json / .approved/, specs/) ----
+  // 1. Heredoc bodies fed to a command that does not run code (cat, tee, git commit -F -, …) are data: dropped.
+  //    Bodies fed to an interpreter / shell (directly, through env / npx / pnpm exec, or piped on the same line),
+  //    or to xargs / source / eval / a shell loop / patch / git apply|am, are code or file operations: kept.
+  // 2. A token that is an absolute path (or starts with ~, or $VAR/ for a VAR set on this line to an absolute path or
+  //    to `mktemp -d [abs template]`) is resolved: realpath of its nearest existing ancestor + the rest. Outside the
+  //    project (resolved root) -> dropped; inside (also through a symlink from /tmp) -> replaced by that real path.
+  //    Relative tokens and unknown variables stay as they are (checked as before).
+  const CODE_CONSUMER = /^(node|python[\d.]*|perl|ruby|bash|sh|zsh|dash|deno|bun|tsx|ts-node|eval|source|\.|xargs|while|until|for|do|done|then|else|patch)$/;
+  const runsCode = (seg) => {
+    let w = seg.trim().replace(/^((\w+=\S*|time|command|exec|nice|nohup|sudo|env)\s+)+/, "").split(/\s+/).filter(Boolean);
+    for (let hop = 0; hop < 3 && w.length; hop++) {
+      const p = path.basename(w[0]).toLowerCase();
+      if (CODE_CONSUMER.test(p)) return true;
+      if (p === "git" && w.some((a) => /^(apply|am)$/i.test(a))) return true;
+      if (/^(npx|pnpx|bunx)$/.test(p)) {
+        const j = w.slice(1).findIndex((a) => !a.startsWith("-"));
+        w = j >= 0 ? w.slice(j + 1) : [];
+        continue;
+      }
+      if (/^(pnpm|npm|yarn)$/.test(p)) {
+        const j = w.findIndex((a) => a === "exec" || a === "dlx");
+        w = j >= 0 ? w.slice(j + 1) : [];
+        continue;
+      }
+      return false;
+    }
+    return false;
+  };
+  const stripHeredocs = (text, dropAll) => {
+    const START = /(?<!<)<<(-?)\s*(['"]?)(\w+)\2/g;
+    let out = "", from = 0, m;
+    while ((m = START.exec(text))) {
+      const lineEnd = text.indexOf("\n", m.index);
+      if (lineEnd === -1) break; // no body
+      const lineStart = text.lastIndexOf("\n", m.index) + 1;
+      const term = new RegExp(String.raw`\n${m[1] ? String.raw`\t*` : ""}${m[3]}(?=\n|$)`, "g");
+      term.lastIndex = lineEnd;
+      const t = term.exec(text);
+      const bodyEnd = t ? t.index : text.length;
+      const code = text.slice(lineStart, lineEnd).split(/&&|\|\||\$\(|[;&|()`]/).some(runsCode);
+      if (dropAll || !code) {
+        out += text.slice(from, lineEnd);
+        from = bodyEnd;
+      }
+      START.lastIndex = t ? t.index + t[0].length : text.length;
+    }
+    return out + text.slice(from);
+  };
+  const rootReal = (() => {
+    try {
+      return fs.realpathSync.native(root);
+    } catch {
+      return path.resolve(root);
+    }
+  })();
+  const realish = (p) => {
+    let cur = path.resolve(p);
+    const rest = [];
+    while (!lexists(cur) && path.dirname(cur) !== cur) {
+      rest.unshift(path.basename(cur));
+      cur = path.dirname(cur);
+    }
+    try {
+      return path.join(fs.realpathSync.native(cur), ...rest);
+    } catch {
+      return null; // broken symlink on the way: keep the token as it is
+    }
+  };
+  const vars = {};
+  for (const m of rawCmd.matchAll(/(?:^|[\s;&|(])(\w+)=["']?\$\(\s*mktemp\b([^)]*)\)/g)) {
+    const a = m[2].trim().split(/\s+/).filter(Boolean);
+    const pi = a.indexOf("-p");
+    const tpl = a.filter((x, i) => !x.startsWith("-") && !(pi >= 0 && i === pi + 1)).pop();
+    if (pi >= 0 && a[pi + 1] && path.isAbsolute(a[pi + 1])) vars[m[1]] = path.join(a[pi + 1], tpl || "tmp.X");
+    else if (tpl && path.isAbsolute(tpl)) vars[m[1]] = tpl;
+    else if (!tpl || a.includes("-t")) vars[m[1]] = path.join(os.tmpdir(), tpl || "tmp.X");
+    // a relative template is relative to an unknown cwd: no value, the token stays as it is
+  }
+  for (const m of rawCmd.matchAll(/(?:^|[\s;&|(])(\w+)=(["']?)(\/[^\s'";&|)`$]*)\2(?=[\s;&|)]|$)/g)) vars[m[1]] = m[3];
+  const rewritePaths = (text) =>
+    text.replace(/(^|[\s'"=<>|;&()`])((?:~|\$\{?\w+\}?)?\/[^\s'"<>|;&()`]*)/g, (all, pre, tok) => {
+      let p = tok;
+      if (p.startsWith("~")) p = os.homedir() + p.slice(1);
+      else if (p.startsWith("$")) {
+        const v = /^\$\{?(\w+)\}?/.exec(p);
+        if (!v || !(v[1] in vars)) return all; // unknown variable: as before
+        p = vars[v[1]] + p.slice(v[0].length);
+      }
+      const real = realish(p);
+      if (real === null) return all;
+      const r = path.relative(fold(rootReal), fold(real));
+      const inside = r === "" || (!r.startsWith("..") && !path.isAbsolute(r));
+      return inside ? pre + real : pre;
+    });
+  const pathText = (dropAll) => fold(rewritePaths(stripHeredocs(rawCmd, dropAll)));
+  const pcmd = pathText(false); // data heredoc bodies and paths outside the project removed
+  const pcmdBare = pathText(true); // also code heredoc bodies removed: a rule matching pcmd only came from code
+  const fromCode = (re) => re.test(pcmd) && !re.test(pcmdBare);
+  const HEREDOC_TEST_MSG = "Code trong heredoc nhắc tới test/ (có thể đọc, chạy hay ghi test). Chạy test bằng lệnh theo mẫu cho phép (`pnpm [--filter backend|frontend] test [test/public/…] [-t=<scenario ID>]`); cần thao tác khác thì hỏi người dùng.";
+  const HEREDOC_APPROVAL_MSG = "Code trong heredoc có thể ghi file duyệt. Đọc trạng thái duyệt bằng `python3 .specify/scripts/approval.py verify ...`; cần thao tác khác thì hỏi người dùng.";
 
   // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
   // Dùng cho mọi kiểm tra bên dưới, trừ kiểm tra đường dẫn test/private (chạy trên lệnh gốc, để `cat "…"` không lọt).
-  const ops = cmd
-    .replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2(?=\n|$)/g, "")
+  // stripHeredocs drops only the BODY: the rest of the line that opens it (`| python3`, `> path`) stays visible.
+  const ops = stripHeredocs(cmd, true)
     .replace(/'[^']*'|"[^"]*"/g, "''")
     .replace(/\d?>&\d/g, "")
     .replace(/[\d&]?>>?\s*\/dev\/null/g, "");
@@ -208,7 +315,7 @@ if (tool === "Bash") {
   if (/test:private|typecheck:private|tsconfig\.private/.test(ops)) {
     block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
   }
-  if (/test\/private/.test(cmd)) block("Không được đọc hay chạy test/private qua Claude.");
+  if (/test\/private/.test(pcmd)) block(fromCode(/test\/private/) ? HEREDOC_TEST_MSG : "Không được đọc hay chạy test/private qua Claude.");
   // Duyệt: chỉ người dùng (kể cả khi chuỗi nằm trong nháy hay sau `script`, `bash -c`). approval.py verify thì được.
   if (/approval\.py\s+approve\b/.test(cmd)) {
     block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/approval.py approve …`. Agent chỉ được chạy `approval.py verify`.");
@@ -242,8 +349,7 @@ if (tool === "Bash") {
   // ---- Lệnh ghi file bằng Bash ----
   // Như ops, nhưng bỏ nháy quanh chuỗi chỉ gồm ký tự an toàn ("specs/a" -> specs/a, 'rm' -> rm): để đọc được tên lệnh
   // và đường dẫn trong nháy. Chuỗi có khoảng trắng, > ; | & $ ` vẫn thành '' như ops.
-  const opsU = cmd
-    .replace(/<<-?\s*(['"]?)(\w+)\1[\s\S]*?\n\2(?=\n|$)/g, "")
+  const opsU = stripHeredocs(cmd, true)
     .replace(/'([\w./:@+=,-]*)'|"([\w./:@+=,-]*)"/g, "$1$2")
     .replace(/'[^']*'|"[^"]*"/g, "''")
     .replace(/\d?>&\d/g, "")
@@ -336,8 +442,10 @@ if (tool === "Bash") {
   };
 
   // Ghi vào approval.json / .approved/ bằng Bash: chặn với mọi agent, kể cả session chính (git add / commit vẫn được)
-  if (APPROVAL_REF.test(cmd) && segsU.some((s) => bashWrite(s, false))) {
-    block(`${who} không được ghi approval.json hay .approved/ bằng Bash: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
+  if (APPROVAL_REF.test(pcmd) && segsU.some((s) => bashWrite(s, false))) {
+    block(fromCode(APPROVAL_REF)
+      ? HEREDOC_APPROVAL_MSG
+      : `${who} không được ghi approval.json hay .approved/ bằng Bash: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
   }
 
   // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
@@ -372,19 +480,20 @@ if (tool === "Bash") {
   }
 
   // Session chính ghi vào specs/ bằng Bash -> hỏi (sau các luật chặn test/ và src/ bên dưới)
-  const mentionsSpecs = cmd.split(/[\s'"=<>|;&()`]+/).some((t) => t && /^specs(\/|$)/.test(relCmd(t)));
+  const mentionsSpecs = pcmd.split(/[\s'"=<>|;&()`]+/).some((t) => t && /^specs(\/|$)/.test(relCmd(t)));
   const mainSpecsWrite = agent === "main" && mentionsSpecs && segsU.some((s) => bashWrite(s, false));
 
   const writes = /(\bsed\s+-i|>|\brm\b|\brmdir\b|\bmv\b|\bcp\b|\btee\b|\btouch\b|\bmkdir\b|\bchmod\b|\btruncate\b|\bgit\s+(checkout|restore|rm|mv|clean)\b)/;
   if (!writes.test(ops) && !mainSpecsWrite) allow();
 
-  if (/(^|[\s/'"=])test\//.test(cmd)) block("Không được sửa/tạo/xoá file trong test/ bằng Bash.");
-  if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(cmd) && agent !== "code-writer") {
+  const TEST_DIR_RE = /(^|[\s/'"=])test\//;
+  if (TEST_DIR_RE.test(pcmd)) block(fromCode(TEST_DIR_RE) ? HEREDOC_TEST_MSG : "Không được sửa/tạo/xoá file trong test/ bằng Bash.");
+  if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(pcmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
   }
   if (mainSpecsWrite) ask("Session chính muốn ghi vào specs/ bằng Bash.");
   // Cờ i: CLAUDE.md phải khớp cả sau fold
-  if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/i.test(cmd)) {
+  if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/i.test(pcmd)) {
     if (agent === "main") ask("Session chính muốn sửa file harness bằng Bash.");
     block(`${who} không được sửa file harness.`);
   }
