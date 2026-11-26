@@ -106,8 +106,13 @@ if [[ -n "$BUG" ]]; then
   REPRO="$(sed -nE 's/^- Path: `([^`]+)`[[:space:]]*$/\1/p' <<<"$REPRO_SECTION" | head -n 1)"
   REPRO_NAME="$(sed -nE 's/^- Name: `([^`]+)`[[:space:]]*$/\1/p' <<<"$REPRO_SECTION" | head -n 1)"
   SCENARIO="$(sed -nE 's/^- \*\*Violated scenario:\*\*[^A-Z]*([A-Z]{2,5}-[0-9]{3}-S[0-9]+).*/\1/p' "$BDIR/report.md" | head -n 1)"
-  [[ "$REPRO" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+\.test\.tsx?$ && "$REPRO" != *..* ]] \
-    || fail "bugs/$BUG/report.md: reproduction test '$REPRO' is not a *.test.ts(x) file in backend|frontend/test/public"
+  # public test areas and the test-file pattern: .claude/harness.json
+  TEST_RE="$(python3 "$ROOT/.specify/scripts/harness_config.py" get pod.testWritable --regex --root "$ROOT")" \
+    || fail "harness.json missing or invalid (see harness_config.py above)"
+  TEST_FILE_RE="$(python3 "$ROOT/.specify/scripts/harness_config.py" get testFile --regex --root "$ROOT")" \
+    || fail "harness.json missing or invalid (see harness_config.py above)"
+  [[ "$REPRO" =~ ${TEST_RE}[A-Za-z0-9._/-]+${TEST_FILE_RE} && "$REPRO" != *..* ]] \
+    || fail "bugs/$BUG/report.md: reproduction test '$REPRO' is not a test file (${TEST_FILE_RE}) under ${TEST_RE}"
   [[ -f "$ROOT/$REPRO" ]] || fail "reproduction test $REPRO not found"
   [[ -n "$SCENARIO" ]] || fail "bugs/$BUG/report.md: no scenario ID on the 'Violated scenario' line"
   [[ "$REPRO_NAME" =~ ^${SCENARIO}([^0-9]|$) ]] \
@@ -246,9 +251,12 @@ private_summary() {
   ' "$1"
 }
 run_private() {
-  local pr_url="$1" branch wt plog pkg have=0 json tlog sum nerr ok=1 joined parts=()
-  for pkg in backend frontend; do
-    [[ -n "$(find "$ROOT/$pkg/test/private" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
+  local pr_url="$1" branch wt plog pkg sub d private_dirs have=0 json tlog sum nerr ok=1 joined parts=()
+  # hidden test folders (areas.testPrivate of .claude/harness.json), each "<package>/<folder in the package>"
+  private_dirs="$(python3 "$ROOT/.specify/scripts/harness_config.py" get areas.testPrivate --list --root "$ROOT")" \
+    || { echo "PRIVATE: SKIPPED (harness.json missing or invalid)"; return 0; }
+  for d in $private_dirs; do
+    [[ -n "$(find "$ROOT/$d" -name '*.test.ts*' 2>/dev/null | head -n 1)" ]] && have=1
   done
   [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
   branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
@@ -257,18 +265,19 @@ run_private() {
   echo "Running hidden tests on $branch -> ${plog#"$ROOT"/}"
   git -C "$ROOT" fetch -q origin "$branch"
   git -C "$ROOT" worktree add -q --detach "$wt" FETCH_HEAD
-  for pkg in backend frontend; do
-    if [[ -d "$ROOT/$pkg/test/private" ]]; then cp -R "$ROOT/$pkg/test/private" "$wt/$pkg/test/"; fi
+  for d in $private_dirs; do
+    if [[ -d "$ROOT/$d" ]]; then mkdir -p "$wt/$(dirname "$d")"; cp -R "$ROOT/$d" "$wt/$(dirname "$d")/"; fi
   done
   if ! (cd "$wt" && pnpm install --frozen-lockfile --prefer-offline) > "$plog" 2>&1; then
     echo "PRIVATE: SKIPPED (pnpm install failed, see ${plog#"$ROOT"/})"
     git -C "$ROOT" worktree remove --force "$wt"; return 0
   fi
-  for pkg in backend frontend; do
-    [[ -d "$wt/$pkg/test/private" ]] || continue
+  for d in $private_dirs; do
+    pkg="${d%%/*}"; sub="${d#*/}"
+    [[ -d "$wt/$d" ]] || continue
     json="$wt/private-$pkg.json"; tlog="$wt/private-$pkg-tsc.log"
     echo "## $pkg: vitest" >> "$plog"
-    (cd "$wt/$pkg" && pnpm exec vitest run test/private --passWithNoTests \
+    (cd "$wt/$pkg" && pnpm exec vitest run "$sub" --passWithNoTests \
       --reporter=default --reporter=json --outputFile.json="$json") >> "$plog" 2>&1 || true
     if [[ -s "$json" ]]; then
       sum="$(private_summary "$json")" || ok=0

@@ -131,10 +131,8 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 [[ "$MODE" == full || "$MODE" == code-only ]] || fail "unknown MODE '$MODE'"
 
 # ---------- phân quyền theo vai (allow-list, không phải deny-list) ----------
-# Keep in sync (one config later): AGENT_AREAS in collect.sh (host re-check before push), SRC / TEST_WRITABLE in
-# .claude/hooks/guard.mjs, "Quyền ghi" in the root CLAUDE.md.
-SRC_RE='^(backend/src|frontend/src|frontend/public)/'
-TEST_RE='^(backend|frontend)/test/public/'
+# Agent areas (SRC_RE, TEST_RE, PACKAGES, SRC_DIRS, TEST_PUBLIC_DIRS, TEST_FILE_RE): read from .claude/harness.json
+# right after the clone (see "Agent areas" below).
 # Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
 ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test'
 
@@ -210,7 +208,7 @@ assert_only() {
 
 assert_no_env_sniff() {
   local hits
-  hits="$(git diff "$1" -- backend/src frontend/src | grep -E '^\+' | grep -Ei "$ENV_SNIFF_RE" || true)"
+  hits="$(git diff "$1" -- "${SRC_DIRS[@]}" | grep -E '^\+' | grep -Ei "$ENV_SNIFF_RE" || true)"
   if [[ -n "$hits" ]]; then
     log "production code checks for the test environment:"
     echo "$hits" | sed 's/^/    /'
@@ -231,8 +229,8 @@ apply_test_deletions() {
     if [[ -n "$BUG" && "$p" == "$REPRO" ]]; then
       log "DELETE ignored (reproduction test of bug ${BUG}): $p"; continue
     fi
-    if [[ ! "$p" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$ || "$p" == *..* ]]; then
-      log "DELETE ignored (not under test/public): $p"; continue
+    if [[ ! "$p" =~ ${TEST_RE}[A-Za-z0-9._/-]+$ || "$p" == *..* ]]; then
+      log "DELETE ignored (not in a public test folder): $p"; continue
     fi
     if git cat-file -e "${BASE_SHA}:${p}" 2>/dev/null; then
       log "DELETE ignored (file existed before this branch): $p"; continue
@@ -342,8 +340,8 @@ $(tail -n 150 /tmp/ci.log | strip_colors)" "${TOOLS_CODE_WRITER[@]}"
 run_new_tests() {
   local sha="$1" out="$2" pkg files rc=0
   : > "$out"
-  for pkg in backend frontend; do
-    files="$(changed_since "$sha" | grep -E "^${pkg}/test/public/.*\.test\.tsx?$" | sed "s|^${pkg}/||" || true)"
+  for pkg in $PACKAGES; do
+    files="$(changed_since "$sha" | grep -E "$TEST_RE" | grep -E "^${pkg}/" | grep -E "$TEST_FILE_RE" | sed "s|^${pkg}/||" || true)"
     [[ -n "$files" ]] || continue
     echo "## ${pkg}: $(echo "$files" | tr '\n' ' ')" >> "$out"
     # shellcheck disable=SC2086
@@ -363,7 +361,7 @@ run_repro_test() {
 mutation_gate() {
   local pkg files mutate report="/tmp/out/mutation.txt" ok=1
   : > "$report"
-  for pkg in backend frontend; do
+  for pkg in $PACKAGES; do
     files="$(git diff --no-renames --name-only --diff-filter=AM "$BASE_SHA" -- "$pkg/src" \
       | grep -E '\.tsx?$' | grep -Ev '\.d\.ts$|/(main|seed)\.tsx?$' | sed "s|^${pkg}/||" || true)"
     [[ -n "$files" ]] || continue
@@ -420,7 +418,7 @@ scenario_gate() {
   SCN_OK=1
   if [[ -z "$SCENARIOS" ]]; then echo "no spec scenarios for this task" > "$report"; return 0; fi
   for id in $SCENARIOS; do
-    if grep -rqE "(describe|it|test)(\.[A-Za-z]+)*(\([^)]*\))?\(\s*['\"\`]${id}([^0-9]|$)" backend/test/public frontend/test/public 2>/dev/null; then
+    if grep -rqE "(describe|it|test)(\.[A-Za-z]+)*(\([^)]*\))?\(\s*['\"\`]${id}([^0-9]|$)" "${TEST_PUBLIC_DIRS[@]}" 2>/dev/null; then
       found=$((found + 1))
     else
       missing+=("$id")
@@ -439,13 +437,8 @@ scenario_gate() {
 verdict() { { grep -Eo 'VERDICT: (APPROVE|CHANGES)' "$1" || true; } | tail -n 1 | awk '{print $2}'; }
 
 # ---------- chuẩn bị ----------
-# approval.py (verify of a change's plan or a bug's root cause) needs python3: required with a spec change or a bug
-if ! command -v python3 >/dev/null 2>&1; then
-  if [[ -s /task/bug.txt || -s /task/change.txt ]]; then
-    fail "python3 not found in the pod image (needed by approval.py)"
-  fi
-  log "WARNING: python3 not found in the pod image (only needed by approval.py, for --change / --bug)"
-fi
+# python3: harness_config.py (the agent areas, every run) and approval.py (--change / --bug) need it
+command -v python3 >/dev/null 2>&1 || fail "python3 not found in the pod image (needed by harness_config.py and approval.py)"
 log "Trusting corporate CA (MWG TLS inspection)"
 update-ca-certificates >/dev/null
 
@@ -475,6 +468,19 @@ grep -qE '://[^/[:space:]]+@' /work/.git/config && fail "/work/.git/config has c
 git -C /work remote -v | grep -q '@' && fail "git remote of /work has credentials in its URL"
 cd /work
 export CLAUDE_PROJECT_DIR=/work
+
+# ---------- Agent areas: .claude/harness.json of the base branch, read once (fail if missing or invalid) ----------
+hc() { noenv python3 .specify/scripts/harness_config.py get "$@"; }
+SRC_RE="$(hc pod.codeWritable --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
+TEST_RE="$(hc pod.testWritable --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
+TEST_FILE_RE="$(hc testFile --regex)" || fail "harness.json missing or invalid (see harness_config.py above)"
+PACKAGES="$(hc packages --list | paste -sd' ' -)" || fail "harness.json missing or invalid (see harness_config.py above)"
+cfg_list="$(hc pod.codeWritable --list)" || fail "harness.json missing or invalid (see harness_config.py above)"
+mapfile -t SRC_DIRS <<<"$cfg_list"
+cfg_list="$(hc pod.testWritable --list)" || fail "harness.json missing or invalid (see harness_config.py above)"
+mapfile -t TEST_PUBLIC_DIRS <<<"$cfg_list"
+log "agent areas (.claude/harness.json): code ${SRC_RE}, tests ${TEST_RE}, packages ${PACKAGES}"
+
 git config user.name "claude-k8s-agent"
 git config user.email "claude-k8s-agent@users.noreply.github.com"
 BRANCH="${BRANCH_PREFIX}-$(date +%s)"
@@ -552,7 +558,7 @@ if [[ -n "$BUG" ]]; then
   [[ -z "$CHANGE" ]] || fail "bug mode cannot go with a spec change"
   REPRO="$(head -n 1 /task/repro.txt 2>/dev/null || true)"
   BUG_SCENARIO="$(head -n 1 /task/scenario.txt 2>/dev/null || true)"
-  [[ "$REPRO" =~ ^(backend|frontend)/test/public/[A-Za-z0-9._/-]+\.test\.tsx?$ && "$REPRO" != *..* ]] \
+  [[ "$REPRO" =~ ${TEST_RE}[A-Za-z0-9._/-]+${TEST_FILE_RE} && "$REPRO" != *..* ]] \
     || fail "invalid reproduction test path '$REPRO'"
   [[ "$BUG_SCENARIO" =~ ^[A-Z]{2,5}-[0-9]{3}-S[0-9]+$ ]] || fail "invalid bug scenario '$BUG_SCENARIO'"
   [[ -f /task/bug.tgz ]] || fail "bug mode: /task/bug.tgz is missing"

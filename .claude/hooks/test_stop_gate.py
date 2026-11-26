@@ -19,7 +19,8 @@ REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO / ".specify/scripts"))
 import approval  # noqa: E402
 
-COPIED = (".claude/hooks/stop-gate.sh", ".specify/scripts/approval.py", approval.TEMPLATE)
+COPIED = (".claude/hooks/stop-gate.sh", ".specify/scripts/approval.py", ".specify/scripts/harness_config.py",
+          ".claude/harness.json", approval.TEMPLATE)
 BUG = "20261125-price-filter-ignores-max"
 REPRO = "backend/test/public/price-filter.test.ts"
 REPRO_TEST = "it('PROD-002-S2 max filters', () => { expect(filter(100)).toBe(3); });\n"

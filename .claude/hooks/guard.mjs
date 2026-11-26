@@ -73,6 +73,59 @@ const fold = (s) => (CASE_INSENSITIVE_FS ? s.toLowerCase() : s);
 const relRaw = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).join("/");
 const rel = (p) => fold(relRaw(p));
 
+// ---- Agent areas: .claude/harness.json (the one source of truth; .specify/scripts/harness_config.py reads the same
+// file with the same checks). Missing or invalid -> FAIL-CLOSED: every Edit / Write / MultiEdit / NotebookEdit and every
+// Bash write is blocked below. Read / Grep / Glob keep the hard test/private rule (PRIVATE), which does not depend on it.
+const HARNESS_CONFIG = ".claude/harness.json";
+const AREA_KEYS = ["src", "testPublic", "testE2e", "testPrivate"];
+const checkConfig = (c) => {
+  const isList = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
+  if (!c || typeof c !== "object" || Array.isArray(c)) throw new Error("must be a JSON object");
+  const extra = Object.keys(c).filter((k) => !["version", "packages", "areas", "testFile"].includes(k));
+  if (extra.length) throw new Error(`unknown key(s) ${extra.join(", ")}`);
+  if (c.version !== 1) throw new Error("version must be 1");
+  if (!isList(c.packages) || !c.packages.length || !c.packages.every((p) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(p)) ||
+      new Set(c.packages).size !== c.packages.length) throw new Error("packages must be a non-empty list of names");
+  const a = c.areas;
+  if (!a || typeof a !== "object" || Object.keys(a).sort().join() !== [...AREA_KEYS].sort().join()) {
+    throw new Error(`areas must have exactly the keys ${AREA_KEYS.join(", ")}`);
+  }
+  for (const k of AREA_KEYS) {
+    if (!isList(a[k])) throw new Error(`areas.${k} must be a list of paths`);
+    if ((k === "src" || k === "testPublic") && !a[k].length) throw new Error(`areas.${k} must not be empty`);
+    for (const v of a[k]) {
+      if (!/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(v) || v.split("/").some((s) => s === "." || s === "..")) {
+        throw new Error(`areas.${k}: '${v}' must be a relative path without '.', '..' or a trailing '/'`);
+      }
+      if ((k === "testPublic" || k === "testPrivate") && !c.packages.includes(v.split("/")[0])) {
+        throw new Error(`areas.${k}: '${v}' is not inside one of the packages`);
+      }
+    }
+  }
+  if (typeof c.testFile !== "string" || !c.testFile) throw new Error("testFile must be a regex string");
+  new RegExp(c.testFile); // throws on a bad regex
+};
+let CFG = null;
+let CONFIG_ERR = "";
+try {
+  CFG = JSON.parse(fs.readFileSync(path.join(root, HARNESS_CONFIG), "utf8"));
+  checkConfig(CFG);
+} catch (e) {
+  CFG = null;
+  CONFIG_ERR = e && e.code === "ENOENT" ? "file not found" : String((e && e.message) || e);
+}
+const CONFIG_MSG = `${HARNESS_CONFIG} missing or invalid (${CONFIG_ERR}): every file write is blocked until it is fixed (by hand, outside Claude).`;
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+const alt = (list) => (list.length ? list.map(reEsc).join("|") : "(?!)"); // empty list -> matches nothing
+const areasOf = (...keys) => (CFG ? [...new Set(keys.flatMap((k) => CFG.areas[k]))] : []);
+const PACKAGES = CFG ? CFG.packages : [];
+const SRC_AREAS = areasOf("src");
+const TEST_WRITABLE_AREAS = areasOf("testPublic", "testE2e"); // interactive.testWritable
+const PRIVATE_AREAS = areasOf("testPrivate");
+// testPublic inside its package ("test/public"): the path arguments a test command may take
+const PKG_TEST_DIRS = [...new Set(areasOf("testPublic").map((a) => a.slice(a.indexOf("/") + 1)))];
+const TEST_FILE = CFG ? CFG.testFile.replace(/\$$/, "") : "(?!)"; // without its "$", to append \s*$
+// Paths and commands are compared folded (see fold above): the regexes are built from folded areas too
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 // Lần duyệt khoá bằng hash (.specify/scripts/approval.py): approval.json và bản sao trong .approved/ chỉ approval.py ghi,
 // khi người dùng chạy approve trong terminal của họ. Không agent nào (kể cả session chính) ghi hay chạy approve.
@@ -80,8 +133,8 @@ const APPROVAL = /(^|\/)(approval\.json$|\.approved(\/|$))/;
 const APPROVAL_REF = /(^|[\s/'"=<>])(approval\.json|\.approved)(?=$|[\s/'"<>;&|)`])/;
 const PRIVATE = /(^|\/)test\/private(\/|$)/;
 const TEST_ANY = /(^|\/)test(\/|$)/;
-const TEST_WRITABLE = /^((backend|frontend)\/test\/public|frontend\/test\/e2e)(\/|$)/;
-const SRC = /^(backend\/src|frontend\/src|frontend\/public)(\/|$)/;
+const TEST_WRITABLE = new RegExp(`^(${alt(TEST_WRITABLE_AREAS.map(fold))})(\\/|$)`);
+const SRC = new RegExp(`^(${alt(SRC_AREAS.map(fold))})(\\/|$)`);
 const SPEC_WRITABLE = /^(specs\/changes\/|\.specify\/feature\.json$)/;
 // spec-writer (/speckit-specify) may also append rows to these three files; the allow_paths.py rule in its frontmatter allows exactly the same three.
 const SPEC_SYSTEM_APPEND = /^specs\/_system\/(traceability|glossary|domain-model)\.md$/;
@@ -93,7 +146,8 @@ const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.m
 const PTW = "private-test-writer";
 const PTW_TOOLS = ["Read", "Grep", "Glob", "Write"];
 const PTW_READABLE = /^specs(\/|$)/;
-const PTW_WRITABLE = /^(backend|frontend)\/test\/private\/[\w./-]+\.tsx?$/;
+// compared on the unfolded path (exact lowercase on disk, see ptwPathOk): built from the areas as written
+const PTW_WRITABLE = new RegExp(`^(${alt(PRIVATE_AREAS)})\\/[\\w./-]+\\.tsx?$`);
 
 // Như rel() nhưng theo symlink: realpath của tổ tiên gần nhất đang tồn tại + phần chưa tồn tại (file sắp tạo).
 // Symlink hỏng (realpath lỗi) -> null, nơi gọi chặn.
@@ -138,11 +192,12 @@ if (agent === PTW && !PTW_TOOLS.includes(tool)) {
 
 // ---------- Edit / Write ----------
 if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
+  if (CONFIG_ERR) block(CONFIG_MSG);
   const target = input.file_path || input.notebook_path || "";
   if (agent === PTW) {
     // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
     if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
-    block(`${PTW} chỉ được tạo file .ts/.tsx trong backend/test/private/ hoặc frontend/test/private/ (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+    block(`${PTW} chỉ được tạo file .ts/.tsx trong ${PRIVATE_AREAS.map((a) => `${a}/`).join(" hoặc ")} (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
   }
   if (!target) allow();
   const r = rel(target);
@@ -153,7 +208,7 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   if (APPROVAL.test(r)) block(`${who} không được sửa ${r}: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
   if (TEST_ANY.test(r)) {
     if (agent === "test-writer" && TEST_WRITABLE.test(r)) allow();
-    block(`${who} không được sửa ${r}. Chỉ test-writer được ghi vào test/public và frontend/test/e2e.`);
+    block(`${who} không được sửa ${r}. Chỉ test-writer được ghi vào ${TEST_WRITABLE_AREAS.join(", ")}.`);
   }
   if (SRC.test(r)) {
     if (agent === "code-writer") allow();
@@ -299,7 +354,7 @@ if (tool === "Bash") {
   const pcmd = pathText(false); // data heredoc bodies and paths outside the project removed
   const pcmdBare = pathText(true); // also code heredoc bodies removed: a rule matching pcmd only came from code
   const fromCode = (re) => re.test(pcmd) && !re.test(pcmdBare);
-  const HEREDOC_TEST_MSG = "Code trong heredoc nhắc tới test/ (có thể đọc, chạy hay ghi test). Chạy test bằng lệnh theo mẫu cho phép (`pnpm [--filter backend|frontend] test [test/public/…] [-t=<scenario ID>]`); cần thao tác khác thì hỏi người dùng.";
+  const HEREDOC_TEST_MSG = "Code trong heredoc nhắc tới test/ (có thể đọc, chạy hay ghi test). Chạy test bằng lệnh theo mẫu cho phép (`pnpm [--filter " + PACKAGES.join("|") + "] test [" + PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ") + "] [-t=<scenario ID>]`); cần thao tác khác thì hỏi người dùng.";
   const HEREDOC_APPROVAL_MSG = "Code trong heredoc có thể ghi file duyệt. Đọc trạng thái duyệt bằng `python3 .specify/scripts/approval.py verify ...`; cần thao tác khác thì hỏi người dùng.";
 
   // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
@@ -326,9 +381,10 @@ if (tool === "Bash") {
   // đường dẫn bắt đầu bằng test/public/ (có thể có tiền tố backend/ frontend/) hoặc flag (giá trị không có "/", "..").
   // Đoạn lệnh của pnpm/npx/… có chuỗi trong nháy hay "$" cũng phải khớp mẫu (chặn `pnpm "test:pri"vate`, `pnpm $X`).
   const JS_TOOL = /^(pnpm|pnpx|npx|npm|yarn|bunx?|vitest|tsc)$/;
-  const ARG = String.raw`(--|--?[\w.-]+(=(?![^\s]*\.\.)[\w.:,@+*-]+)?|((backend|frontend)\/)?test\/public\/[\w./-]*)`;
+  const PKG_ALT = alt(PACKAGES.map(fold));
+  const ARG = String.raw`(--|--?[\w.-]+(=(?![^\s]*\.\.)[\w.:,@+*-]+)?|((${PKG_ALT})\/)?(${alt(PKG_TEST_DIRS.map(fold))})\/[\w./-]*)`;
   const STRICT_TEST = new RegExp(
-    String.raw`^pnpm(\s+--filter[\s=](backend|frontend))?(\s+run)?\s+(test|typecheck|typecheck:test|ci:local)(\s+${ARG})*$`,
+    String.raw`^pnpm(\s+--filter[\s=](${PKG_ALT}))?(\s+run)?\s+(test|typecheck|typecheck:test|ci:local)(\s+${ARG})*$`,
   );
   const segments = ops.split(/&&|\|\||\$\(|[;&|\n()`]/).map((s) => s.trim()).filter(Boolean);
   let testSegments = 0;
@@ -340,7 +396,7 @@ if (tool === "Bash") {
       (prog === "node" && /\b(vitest|tsc)\b/.test(seg));
     if (!testLike) continue;
     if (!STRICT_TEST.test(seg)) {
-      block(`Lệnh test / typecheck không đúng mẫu: \`${seg}\`. Chỉ dùng \`pnpm [--filter backend|frontend] test|typecheck|typecheck:test|ci:local [test/public/…] [--flag]\`.`);
+      block(`Lệnh test / typecheck không đúng mẫu: \`${seg}\`. Chỉ dùng \`pnpm [--filter ${PACKAGES.join("|")}] test|typecheck|typecheck:test|ci:local [${PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ")}] [--flag]\`.`);
     }
     testSegments++;
   }
@@ -441,6 +497,9 @@ if (tool === "Bash") {
     planner: [mkdirIn(new RegExp(`^specs/changes/${CHANGE}/checklists/?$`))],
   };
 
+  // harness.json missing or invalid: no Bash write at all (fail-closed, like Edit / Write above)
+  if (CONFIG_ERR && segsU.some((s) => bashWrite(s))) block(CONFIG_MSG);
+
   // Ghi vào approval.json / .approved/ bằng Bash: chặn với mọi agent, kể cả session chính (git add / commit vẫn được)
   if (APPROVAL_REF.test(pcmd) && segsU.some((s) => bashWrite(s, false))) {
     block(fromCode(APPROVAL_REF)
@@ -449,13 +508,14 @@ if (tool === "Bash") {
   }
 
   // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
-  const TEST_RM =
-    /^\s*(git\s+)?rm\s+(-f\s+)?((backend|frontend)\/test\/public|frontend\/test\/e2e)\/[\w./-]+\.test\.tsx?\s*$/;
+  const TEST_RM = new RegExp(
+    String.raw`^\s*(git\s+)?rm\s+(-f\s+)?(${alt(TEST_WRITABLE_AREAS.map(fold))})\/[\w./-]+${TEST_FILE}\s*$`,
+  );
   if (agent === "test-writer" && TEST_RM.test(cmd) && !cmd.includes("..")) allow();
 
   // code-writer, cũng chỉ một lệnh, không nối lệnh khác, không glob, không "..", mọi đường dẫn trong vùng src:
   //   rm [-f] <một file>; git mv <file> <file>; git restore|checkout -- <file...> (hoàn tác một lần sửa hỏng, bug flow)
-  const SRC_FILE = /^(backend\/src|frontend\/src|frontend\/public)\/[^/]/;
+  const SRC_FILE = new RegExp(`^(${alt(SRC_AREAS.map(fold))})\\/[^/]`);
   const srcFile = (p) => !/[*?[\]{}~]/.test(p) && !p.includes("..") && SRC_FILE.test(relCmd(p));
   if (agent === "code-writer" && segsU.length === 1 && !segsU[0].includes(">")) {
     const w = words(segsU[0]);
@@ -488,7 +548,7 @@ if (tool === "Bash") {
 
   const TEST_DIR_RE = /(^|[\s/'"=])test\//;
   if (TEST_DIR_RE.test(pcmd)) block(fromCode(TEST_DIR_RE) ? HEREDOC_TEST_MSG : "Không được sửa/tạo/xoá file trong test/ bằng Bash.");
-  if (/\b(backend\/src|frontend\/src|frontend\/public)\b/.test(pcmd) && agent !== "code-writer") {
+  if (new RegExp(`\\b(${alt(SRC_AREAS.map(fold))})\\b`).test(pcmd) && agent !== "code-writer") {
     block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
   }
   if (mainSpecsWrite) ask("Session chính muốn ghi vào specs/ bằng Bash.");
