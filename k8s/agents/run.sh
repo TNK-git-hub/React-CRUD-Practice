@@ -12,8 +12,10 @@
 #              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
 #              security-reviewer CHANGES: test-writer writes a test per HIGH/MEDIUM finding, code-writer fixes it;
 #              a SPEC_PROBLEM line in the security review (permissions) stops the review: draft PR, back to the spec harness
-#   5. PR      push, mở PR (review không qua thì mở PR draft và báo FAILED)
-# MODE=code-only: luồng cũ, chỉ có bước 3 rồi mở PR.
+#   5. EXPORT  PR body; on exit the branch is printed as an artifact (git bundle + meta.json + pr-body.md) in the log.
+#              The pod has no GitHub write token: k8s/agents/collect.sh on the user's machine pushes the branch and
+#              opens the PR (draft when the run FAILED after its first commit)
+# MODE=code-only: luồng cũ, chỉ có bước 3 rồi EXPORT.
 #
 # Spec (tùy chọn, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): task được nối thêm mục "## Spec" trỏ tới
 # specs/changes/<change>/ (cấu trúc: specs/changes/.gitkeep). Agent CODE đọc
@@ -32,7 +34,8 @@
 #
 # Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
 # agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
-# Dòng cuối log luôn là "==> RESULT: SUCCESS pr=<url>" hoặc "==> RESULT: FAILED reason=<lý do>".
+# Dòng cuối log luôn là "==> RESULT: SUCCESS artifact=ready" hoặc "==> RESULT: FAILED reason=<lý do>[ artifact=ready]"
+# (artifact=ready: the ARTIFACT block above it holds the branch; collect.sh turns it into "RESULT: ... pr=<url>").
 set -euo pipefail
 
 # Không sinh file core dump khi process crash: file "core" ở gốc repo sẽ làm gate assert_only fail oan
@@ -48,8 +51,62 @@ stage() { echo; echo "==> [${JOB_ID}] ===== $* ====="; }
 strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
 
 RESULT="FAILED reason=script exited early (see the last ==> step)"
-trap 'echo "==> RESULT: ${RESULT}"' EXIT
 fail() { RESULT="FAILED reason=$*"; exit 1; }
+
+# >>> export (self-contained: the harness simulation extracts this block and sources it)
+# EXPORT: the pod has no GitHub write token. When the branch has commits, the pod prints them as a git bundle +
+# meta.json + pr-body.md (tar.gz, base64, 76 columns) between the lines "==> ARTIFACT BEGIN <job>" and
+# "==> ARTIFACT END <job>". k8s/agents/collect.sh, on the user's machine, checks it, pushes the branch, opens the PR.
+# Any exit after the first commit exports (a FAILED run becomes a draft PR); no commit -> nothing to export.
+ARTIFACT_MAX=$((5 * 1024 * 1024))   # bytes of base64
+EXPORT_ERR=""
+export_artifact() {
+  local draft="$1" reason="$2" dir=/tmp/export b64
+  rm -rf "$dir"; mkdir -p "$dir" || { EXPORT_ERR="cannot create $dir"; return 1; }
+  git bundle create "$dir/branch.bundle" "${BASE_SHA}..HEAD" >/dev/null 2>&1 || { EXPORT_ERR="git bundle create failed"; return 1; }
+  git bundle verify "$dir/branch.bundle" >/dev/null 2>&1 || { EXPORT_ERR="git bundle verify failed"; return 1; }
+  if [[ -s /tmp/out/pr-body.md ]]; then
+    cp /tmp/out/pr-body.md "$dir/pr-body.md"
+  else
+    printf '## Task\n%s\n\nThe pipeline stopped before the PR step: %s\n' "${TASK:-}" "$reason" > "$dir/pr-body.md"
+  fi
+  M_BRANCH="${BRANCH:-}" M_BASE="${BASE_BRANCH:-}" M_SHA="${BASE_SHA:-}" M_TITLE="${PR_TITLE:-}" M_DRAFT="$draft" \
+  M_REASON="$reason" M_JOB="${JOB_ID:-}" M_MODE="${MODE:-}" M_CHANGE="${CHANGE:-}" M_BUG="${BUG:-}" node -e '
+    const e = process.env;
+    require("fs").writeFileSync(process.argv[1], JSON.stringify({
+      branch: e.M_BRANCH, base_branch: e.M_BASE, base_sha: e.M_SHA, title: e.M_TITLE, draft: e.M_DRAFT === "true",
+      result_reason: e.M_REASON, job_id: e.M_JOB, mode: e.M_MODE, change: e.M_CHANGE, bug: e.M_BUG,
+    }, null, 2) + "\n");
+  ' "$dir/meta.json" || { EXPORT_ERR="cannot write meta.json"; return 1; }
+  tar -czf "$dir/artifact.tgz" -C "$dir" branch.bundle meta.json pr-body.md || { EXPORT_ERR="tar failed"; return 1; }
+  b64="$(base64 < "$dir/artifact.tgz" | tr -d '\n')"
+  if (( ${#b64} > ARTIFACT_MAX )); then
+    EXPORT_ERR="artifact is ${#b64} bytes in base64 (max ${ARTIFACT_MAX}): too many or too big commits"; return 1
+  fi
+  echo "==> ARTIFACT BEGIN ${JOB_ID}"
+  fold -w 76 <<<"$b64"
+  echo "==> ARTIFACT END ${JOB_ID}"
+}
+on_exit() {
+  set +e
+  local commits=0 draft=true reason
+  if [[ -n "${BASE_SHA:-}" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+    commits="$(git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)"
+  fi
+  if (( commits > 0 )); then
+    reason="${RESULT#FAILED reason=}"
+    if [[ "$RESULT" == SUCCESS* ]]; then draft=false; reason=""; fi
+    log "EXPORT: ${commits} commit(s) on ${BRANCH:-?} (draft=${draft}); the host pushes and opens the PR (collect.sh)"
+    if export_artifact "$draft" "$reason"; then
+      RESULT="${RESULT} artifact=ready"
+    else
+      RESULT="FAILED reason=artifact export failed: ${EXPORT_ERR} (pipeline result: ${RESULT})"
+    fi
+  fi
+  echo "==> RESULT: ${RESULT}"
+}
+# <<< export
+trap on_exit EXIT
 
 TASK="$(cat /task/task.md)"
 PR_TITLE="$(head -n 1 /task/title.txt)"
@@ -384,8 +441,29 @@ corepack enable
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 claude --version
 
-log "Cloning ${REPO} (${BASE_BRANCH})"
-git clone --depth 1 --branch "${BASE_BRANCH}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /work
+# No GitHub write token in the pod: the host pushes and opens the PR (collect.sh). An old GH_TOKEN in agent-secrets
+# is dropped here; remove it from the Secret (k8s/agents/README.md).
+if [[ -n "${GH_TOKEN:-}" ]]; then
+  log "WARNING: GH_TOKEN is set in the pod; it is not used any more (remove it from agent-secrets), unsetting it"
+  unset GH_TOKEN
+fi
+# Public repo: anonymous clone. Private repo: GH_READ_TOKEN (fine-grained, Contents: read only), given to git through
+# a credential helper that reads it from the environment of that one command, never in the URL or .git/config.
+READ_TOKEN="${GH_READ_TOKEN:-}"; unset GH_READ_TOKEN
+log "Cloning ${REPO} (${BASE_BRANCH})$([[ -n "$READ_TOKEN" ]] && echo ' with the read-only token' || echo ', anonymous')"
+if [[ -n "$READ_TOKEN" ]]; then
+  GH_READ_TOKEN="$READ_TOKEN" git -c credential.helper= \
+    -c credential.helper='!f() { echo username=x-access-token; echo "password=${GH_READ_TOKEN}"; }; f' \
+    clone --depth 1 --branch "${BASE_BRANCH}" "https://github.com/${REPO}.git" /work
+else
+  GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "${BASE_BRANCH}" "https://github.com/${REPO}.git" /work
+fi
+if [[ -n "$READ_TOKEN" ]] && grep -qF -- "$READ_TOKEN" /work/.git/config; then
+  fail "the read token ended up in /work/.git/config"
+fi
+unset READ_TOKEN
+grep -qE '://[^/[:space:]]+@' /work/.git/config && fail "/work/.git/config has credentials in a URL"
+git -C /work remote -v | grep -q '@' && fail "git remote of /work has credentials in its URL"
 cd /work
 export CLAUDE_PROJECT_DIR=/work
 git config user.name "claude-k8s-agent"
@@ -792,8 +870,8 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   done
 fi
 
-# ---------- 5. PR ----------
-stage "PR"
+# ---------- 5. EXPORT (PR body; the host pushes and opens the PR) ----------
+stage "EXPORT: PR body, then the branch is printed as an artifact (on exit)"
 if [[ -n "$BUG" ]]; then
   log "bug: approval.py verify --bug ${BUG} (again, before the PR)"
   python3 .specify/scripts/approval.py verify --bug "$BUG" || fail "reproduction test or bug record changed during the run"
@@ -847,17 +925,13 @@ section() { echo "<details><summary>$1</summary>"; echo; echo '```'; head -c "${
   echo; echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 } > /tmp/out/pr-body.md
 
-log "Pushing and opening PR"
-git push -u origin "${BRANCH}"
-DRAFT=()
-[[ "$REVIEW_DONE" == 1 ]] || DRAFT=(--draft)
-PR_URL="$(gh pr create --repo "${REPO}" --base "${BASE_BRANCH}" --head "${BRANCH}" "${DRAFT[@]}" \
-  --title "${PR_TITLE}" --body-file /tmp/out/pr-body.md)"
-log "Done"
+# No push and no PR from the pod: on_exit prints the artifact, collect.sh on the host pushes and opens the PR
+# (draft unless SUCCESS) and prints the final "RESULT: ... pr=<url>".
+log "Done (branch ${BRANCH}; collect.sh on the host opens the PR)"
 if [[ "$REVIEW_DONE" == 1 ]]; then
-  RESULT="SUCCESS pr=${PR_URL}"
+  RESULT="SUCCESS"
 elif [[ "$SEC_SPEC_PROBLEM" == 1 ]]; then
-  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human) pr=${PR_URL}"
+  RESULT="FAILED reason=security review found a spec problem (permissions): back to the spec harness (draft PR for a human)"
 else
-  RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human) pr=${PR_URL}"
+  RESULT="FAILED reason=review not approved after ${REVIEW_ROUNDS} rounds (draft PR for a human)"
 fi

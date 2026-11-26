@@ -2,7 +2,8 @@
 # (đã kiểm tra chỉ gồm ký tự an toàn), còn task và tiêu đề PR nằm trong ConfigMap "task-__JOB_ID__".
 #
 # Cần sẵn trong namespace (xem README.md):
-#   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN)
+#   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN; GH_READ_TOKEN only for a private repo; no GitHub write token:
+#                             the host pushes and opens the PR with collect.sh)
 #   ConfigMap mwg-ca         (CA của proxy công ty)
 #   ConfigMap agent-script   (run.sh; dispatch.sh tự tạo/cập nhật từ k8s/agents/run.sh)
 apiVersion: batch/v1
