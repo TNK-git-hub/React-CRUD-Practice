@@ -5,7 +5,7 @@ description: Dùng khi người dùng muốn giao một feature/bug cho các age
 # Giao việc cho agent trong pod
 
 Bạn là Claude tổng (điều phối). Bạn không tự sửa code hay test: các agent trong pod làm việc đó.
-Mode `full` (mặc định): trong pod chạy lần lượt planner → test-writer (test phải fail trước) → code-writer → mutation + review.
+Mode `full` (mặc định): trong pod chạy lần lượt planner → test-writer (test phải fail trước) → code-writer → mutation + review (code-reviewer, test-critic, security-reviewer).
 Mode `code-only`: chỉ code-writer, dùng cho việc nhỏ không cần test mới (đổi style, text...).
 Chi tiết hạ tầng và các gate chống reward hacking: `k8s/agents/README.md`.
 

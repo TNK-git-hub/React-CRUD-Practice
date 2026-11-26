@@ -209,6 +209,9 @@ $(cat /tmp/out/arbitration.txt)"
   assert_only "$sha" "$SRC_RE" "code-writer"
   wip="$(commit_stage "wip: ${PR_TITLE} (before test arbitration)")"
   stage "ARBITRATION: test-writer fixes the assertions judged wrong"
+  # The fixed tests may still fail until the code is right: stop-gate must not push the test-writer to weaken them.
+  # The gates of run.sh below (assert_only, ci_gate) still decide.
+  export SKIP_STOP_GATE=1
   run_agent test-writer /tmp/out/test-arb.txt "An independent reviewer judged some of the assertions on this branch wrong (decision below).
 Fix ONLY those assertions so they check what the task asks for and still catch the bug they were written for.
 Do not weaken, skip or remove other tests, and do not change production code.
@@ -221,6 +224,7 @@ $(cat /tmp/out/arbitration.txt)
 
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+  unset SKIP_STOP_GATE
   assert_only "$wip" "$TEST_RE" "test-writer"
   ARB_SHA="$(commit_stage "test: fix assertions after arbitration")"
 }
@@ -361,6 +365,13 @@ scenario_gate() {
 verdict() { { grep -Eo 'VERDICT: (APPROVE|CHANGES)' "$1" || true; } | tail -n 1 | awk '{print $2}'; }
 
 # ---------- chuẩn bị ----------
+# approval.py (verify of a change's plan or a bug's root cause) needs python3: required with a spec change or a bug
+if ! command -v python3 >/dev/null 2>&1; then
+  if [[ -s /task/bug.txt || -s /task/change.txt ]]; then
+    fail "python3 not found in the pod image (needed by approval.py)"
+  fi
+  log "WARNING: python3 not found in the pod image (only needed by approval.py, for --change / --bug)"
+fi
 log "Trusting corporate CA (MWG TLS inspection)"
 update-ca-certificates >/dev/null
 
@@ -710,6 +721,9 @@ requesting user B's resource must be denied). Such a test may fail: the code is 
 
     if [[ "$TEST_V" == CHANGES || "$MUT_OK" == 0 || "$SCN_OK" == 0 || "$SEC_V" == CHANGES ]]; then
       stage "REVIEW round ${round}: test-writer addresses test review"
+      # Here the test-writer may write failing tests on purpose (a security finding, code it thinks is wrong):
+      # stop-gate must not push it to weaken them. The gates of run.sh after it (assert_only, ci_gate) still decide.
+      export SKIP_STOP_GATE=1
       run_agent test-writer /tmp/out/test-fix.txt "Improve the tests on this branch based on the review below. The production code now exists.
 Tests must check the behaviour asked for in the task; do not weaken them to match the code.
 If you think the code is wrong, write a test that shows it (it may fail) and explain.
@@ -741,6 +755,7 @@ The next reviewer reads this.
 
 ## Rules
 ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
+      unset SKIP_STOP_GATE
       apply_test_deletions /tmp/out/test-fix.txt
       assert_only "$CODE_SHA" "$TEST_RE" "test-writer"
       if [[ -n "$(changed_since "$CODE_SHA")" ]]; then
