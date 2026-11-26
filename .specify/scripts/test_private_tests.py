@@ -135,16 +135,30 @@ class PrivateTestsTest(unittest.TestCase):
         self.assertEqual(manifest[1], f"{BE}/{CHANGE}/ABC-005.test.ts\tremoved\tABC-005\t2026-11-26T00:00:00+00:00")
         self.assertNotIn(f"{BE}/{CHANGE}/ABC-005.test.ts", self.states())  # _stale is skipped from now on
 
-    def test_quarantine_all_takes_mixed_too_and_appends(self) -> None:
+    def test_quarantine_all_excludes_mixed_and_appends(self) -> None:
         pt.quarantine(self.root, CHANGE, "removed")
         moved = pt.quarantine(self.root, CHANGE, "all")
-        self.assertEqual(sorted(e.state for e in moved), ["mixed", "modified", "modified"])
+        self.assertEqual(sorted(e.state for e in moved), ["modified", "modified"])
+        self.assertTrue((self.root / f"{BE}/{CHANGE}/mixed.test.ts").is_file())  # mixed stays where it is
         lines = [l for l in (self.root / f"{BE}/_stale/{CHANGE}/MANIFEST.txt").read_text().splitlines() if not l.startswith("#")]
-        self.assertEqual(len(lines), 3)  # ABC-005 (removed) + ABC-002 + mixed in backend; the frontend file has its own
+        self.assertEqual(len(lines), 2)  # ABC-005 (removed) + ABC-002 in backend; the frontend file has its own MANIFEST
         self.assertTrue((self.root / f"{FE}/_stale/{CHANGE}/MANIFEST.txt").is_file())
+
+    def test_quarantine_mixed_only_with_its_own_kind(self) -> None:
+        moved = pt.quarantine(self.root, CHANGE, "mixed")
+        self.assertEqual([(e.path, e.state, e.unchanged) for e in moved],
+                         [(f"{BE}/{CHANGE}/mixed.test.ts", "mixed", ["ABC-007"])])
+        self.assertTrue((self.root / f"{BE}/_stale/{CHANGE}/{CHANGE}/mixed.test.ts").is_file())
+
+    def test_unchanged_ids(self) -> None:
+        by_path = {e.path: e.unchanged for e in pt.classify(self.root, CHANGE)}
+        self.assertEqual(by_path[f"{BE}/{CHANGE}/mixed.test.ts"], ["ABC-007"])
+        self.assertEqual(by_path[f"{BE}/{CHANGE}/ABC-002.test.ts"], [])
 
     def test_restore_moves_back_and_cleans_up(self) -> None:
         pt.quarantine(self.root, CHANGE, "all")
+        pt.quarantine(self.root, CHANGE, "mixed")
+        pt.quarantine(self.root, CHANGE, "removed")
         restored = pt.restore(self.root, CHANGE)
         self.assertEqual(len(restored), 4)
         for rel in (f"{BE}/{CHANGE}/ABC-002.test.ts", f"{BE}/{CHANGE}/ABC-005.test.ts", f"{BE}/{CHANGE}/mixed.test.ts",
@@ -165,6 +179,37 @@ class PrivateTestsTest(unittest.TestCase):
     def test_restore_without_quarantine_is_an_error(self) -> None:
         with self.assertRaises(pt.PrivateTestsError):
             pt.restore(self.root, CHANGE)
+
+    # ---- CLI in a (fake) terminal ----
+    def tty_cli(self, *argv: str, answer: str = "n") -> str:
+        class TTY(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+        out = TTY()
+        with mock.patch.object(sys, "stdin", TTY(answer + "\n")), mock.patch.object(sys, "stdout", out), \
+                redirect_stderr(io.StringIO()):
+            pt.main([*argv, "--root", str(self.root)])
+        return out.getvalue()
+
+    def test_stale_table_has_the_mixed_hint(self) -> None:
+        out = self.tty_cli("stale", "--change", CHANGE)
+        self.assertIn("hint: 1 mixed file(s) also test requirements this change does not touch", out)
+        self.assertIn("--kind mixed", out)
+
+    def test_quarantine_mixed_warns_before_the_question(self) -> None:
+        out = self.tty_cli("quarantine", "--change", CHANGE, "--kind", "mixed", answer="n")
+        warning = out.index("WARNING: these files also hold scenarios of requirements this change does NOT touch")
+        self.assertLess(warning, out.index("Proceed? [y/N]"))
+        self.assertIn(f"{BE}/{CHANGE}/mixed.test.ts: ABC-007", out)
+        self.assertIn("Nothing moved.", out)
+        self.assertTrue((self.root / f"{BE}/{CHANGE}/mixed.test.ts").is_file())
+
+    def test_quarantine_all_says_mixed_files_are_left(self) -> None:
+        out = self.tty_cli("quarantine", "--change", CHANGE, "--kind", "all", answer="y")
+        self.assertIn("1 mixed file(s) left alone", out)
+        self.assertNotIn("WARNING", out)
+        self.assertTrue((self.root / f"{BE}/{CHANGE}/mixed.test.ts").is_file())
+        self.assertFalse((self.root / f"{BE}/{CHANGE}/ABC-005.test.ts").exists())
 
     # ---- CLI ----
     def test_cli_refuses_without_a_terminal(self) -> None:

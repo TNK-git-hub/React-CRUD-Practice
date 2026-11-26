@@ -131,9 +131,12 @@ Change có requirement `MODIFIED` / `REMOVED` làm test private cũ của requir
 terminal (agent không chạy được: `guard.mjs` chặn mọi lệnh có tên script):
 ```bash
 python3 .specify/scripts/private_tests.py stale --change 004-example          # bảng removed / modified / mixed / unaffected
-python3 .specify/scripts/private_tests.py quarantine --change 004-example --kind removed   # hỏi y/N; --kind modified|all
+python3 .specify/scripts/private_tests.py quarantine --change 004-example --kind removed   # hỏi y/N; --kind modified|all|mixed
 python3 .specify/scripts/private_tests.py restore --change 004-example        # chuyển ngược theo MANIFEST, không ghi đè
 ```
+`--kind all` = removed + modified, **không** gồm file mixed (file chứa scenario của nhiều requirement, có cả requirement
+change không đổi): tách tay theo requirement, hoặc `--kind mixed` nếu chấp nhận mất phần không đổi (lệnh in cảnh báo
+kèm các ID đó trước câu hỏi y/N; bảng `stale` có dòng gợi ý này).
 Rồi mở `claude --agent private-test-writer` để viết test mới cho các requirement ADDED / MODIFIED (mỗi requirement
 một file `<REQ-ID>.test.ts`). File cách ly nằm ở `<package>/test/private/_stale/<change>/` kèm `MANIFEST.txt`;
 `run_private` của `dispatch.sh` không chép thư mục `_stale/`.

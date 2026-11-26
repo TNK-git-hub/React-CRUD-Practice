@@ -142,7 +142,9 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
    **Hidden tests made stale** (change with `MODIFIED` / `REMOVED` requirements; approve prints a reminder with the
    count): the user, in their own terminal, runs `python3 .specify/scripts/private_tests.py stale --change <change>`
    (removed / modified / mixed / unaffected per file, from the requirement ID in the file name and the scenario IDs in
-   the test names), then `quarantine --change <change> --kind removed|modified|all` (moves them to
+   the test names), then `quarantine --change <change> --kind removed|modified|all` (all = removed + modified; a mixed
+file, which also tests requirements the change does not touch, is split by hand or quarantined with `--kind mixed`
+after a warning; quarantine moves them to
    `<package>/test/private/_stale/<change>/`, never deletes; `restore` moves them back), then has `private-test-writer`
    write new ones for the ADDED / MODIFIED requirements (one file per requirement). No agent runs `private_tests.py`
    (`guard.mjs` blocks it); `dispatch.sh` never copies `_stale/`.

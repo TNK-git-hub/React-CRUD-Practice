@@ -2,7 +2,7 @@
 """Find and quarantine hidden (private) tests made stale by a change. Human-only: run it in your own terminal.
 
     python3 .specify/scripts/private_tests.py stale      --change NNN-<name>
-    python3 .specify/scripts/private_tests.py quarantine --change NNN-<name> --kind removed|modified|all
+    python3 .specify/scripts/private_tests.py quarantine --change NNN-<name> --kind removed|modified|all|mixed
     python3 .specify/scripts/private_tests.py restore    --change NNN-<name>
 
 Every command refuses when stdin or stdout is not a terminal (an agent has none; guard.mjs also blocks any Bash
@@ -19,7 +19,8 @@ scenario_gate, harness_config.SCENARIO_TEST_CALL) plus the REQ-ID of its name (`
   mixed       it touches a MODIFIED / REMOVED requirement AND holds scenarios of more than one requirement
   removed     its only requirement is REMOVED
   modified    its only requirement is MODIFIED
-quarantine MOVES (never deletes) the files of the chosen kind (all = removed + modified + mixed) to
+quarantine MOVES (never deletes) the files of the chosen kind (all = removed + modified; mixed only with
+--kind mixed, after a warning listing the requirement IDs the change does not touch: their scenarios stop running too) to
 <private folder>/_stale/<change>/<path inside the folder> and appends a line to _stale/<change>/MANIFEST.txt
 (original path, state, requirement IDs, time). restore moves them back from the MANIFEST and never overwrites a file.
 Exit codes: 0 ok; 1 error (no such change, a conflict) or not confirmed; 2 no terminal.
@@ -43,7 +44,8 @@ STALE_DIR = "_stale"
 MANIFEST = "MANIFEST.txt"
 SCENARIO_IN_NAME_RE = re.compile(harness_config.SCENARIO_TEST_CALL + rf"(?P<sid>{spec_check.REQ_ID}-S\d+)(?![0-9])")
 FILE_REQ_RE = re.compile(rf"^(?P<req>{spec_check.REQ_ID})(-\d+)?\.")
-KINDS = {"removed": ("removed",), "modified": ("modified",), "all": ("removed", "modified", "mixed")}
+# "all" leaves mixed files alone: they also hold scenarios of requirements the change does not touch
+KINDS = {"removed": ("removed",), "modified": ("modified",), "all": ("removed", "modified"), "mixed": ("mixed",)}
 
 
 class PrivateTestsError(Exception):
@@ -56,6 +58,7 @@ class Entry:
     state: str  # removed | modified | mixed | unaffected
     reqs: list[str]  # requirement IDs of the file, sorted
     private_root: str  # the hidden test folder it lives in (relative to the repo root)
+    unchanged: list[str]  # its requirement IDs the change does NOT modify or remove (what quarantining a mixed file loses)
 
 
 def default_root() -> Path:
@@ -133,7 +136,7 @@ def classify(root: Path, change: str) -> list[Entry]:
             state = "removed"
         else:
             state = "modified"
-        entries.append(Entry(f.relative_to(root).as_posix(), state, sorted(reqs), proot))
+        entries.append(Entry(f.relative_to(root).as_posix(), state, sorted(reqs), proot, sorted(reqs - changed)))
     return entries
 
 
@@ -207,11 +210,23 @@ def restore(root: Path, change: str) -> list[str]:
     return [o.relative_to(root).as_posix() for _, o, _, _ in items]
 
 
-def print_table(entries: list[Entry]) -> None:
+def print_table(entries: list[Entry], hint: bool = False) -> None:
     for e in entries:
         print(f"  {e.state:<11} {e.path}  [{', '.join(e.reqs) or '-'}]")
     counts = {s: sum(1 for e in entries if e.state == s) for s in ("removed", "modified", "mixed", "unaffected")}
     print("  " + ", ".join(f"{n} {s}" for s, n in counts.items()) + f" ({len(entries)} file(s))")
+    if hint and counts["mixed"]:
+        print(f"  hint: {counts['mixed']} mixed file(s) also test requirements this change does not touch: split them by "
+              "hand, one file per requirement, or `quarantine --kind mixed` if losing those scenarios is acceptable "
+              "(--kind all leaves mixed files alone)")
+
+
+def mixed_warning(entries: list[Entry]) -> list[str]:
+    """Lines printed before the y/N of `quarantine --kind mixed`: what stops running besides the stale part."""
+    lines = ["WARNING: these files also hold scenarios of requirements this change does NOT touch; quarantined, those "
+             "scenarios stop running too:"]
+    lines += [f"  {e.path}: {', '.join(e.unchanged)}" for e in entries if e.unchanged]
+    return lines
 
 
 def confirm() -> bool:
@@ -240,15 +255,21 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "stale":
             ids = delta_ids(root, args.change)
             print(f"Change {args.change}: MODIFIED {sorted(ids['MODIFIED']) or '-'}, REMOVED {sorted(ids['REMOVED']) or '-'}")
-            print_table(classify(root, args.change))
+            print_table(classify(root, args.change), hint=True)
             return 0
         if args.command == "quarantine":
-            picked = [e for e in classify(root, args.change) if e.state in KINDS[args.kind]]
+            entries = classify(root, args.change)
+            picked = [e for e in entries if e.state in KINDS[args.kind]]
+            left = sum(1 for e in entries if e.state == "mixed")
+            if args.kind == "all" and left:
+                print(f"{left} mixed file(s) left alone (split them by hand, or `--kind mixed`).")
             if not picked:
                 print(f"No hidden test of kind '{args.kind}' for change {args.change}.")
                 return 0
             print(f"To move into <hidden test folder>/{STALE_DIR}/{args.change}/ (kind {args.kind}):")
             print_table(picked)
+            if args.kind == "mixed":
+                print("\n".join(mixed_warning(picked)))
             if not confirm():
                 print("Nothing moved.")
                 return 1
