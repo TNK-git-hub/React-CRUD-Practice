@@ -357,7 +357,7 @@ run_new_tests() {
   return "$rc"
 }
 
-# red_state <dir>: the RED result from the vitest JSON reports of run_new_tests, same rule as read_report of
+# red_state <dir>: the RED result from the vitest JSON reports of run_new_tests / run_repro_test, same rule as read_report of
 # .specify/scripts/red_check.py. Prints "failed" (a test file in status "failed"; a file that fails to load counts:
 # importing a module that does not exist yet is a valid RED), "passed", or "none" (no package ran, or a package has no
 # report, an unreadable one, or one that lists no test file).
@@ -379,10 +379,14 @@ red_state() {
 }
 
 # Bug mode: run only the reproduction test (it may already be on the base branch, so changed_since cannot find it)
+# Like run_new_tests, it writes the vitest JSON report to RED_JSON (read by red_state).
 run_repro_test() {
   local out="$1" pkg="${REPRO%%/*}"
   echo "## ${pkg}: ${REPRO#"${pkg}"/}" > "$out"
-  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}") >> "$out" 2>&1
+  rm -rf "$RED_JSON"; mkdir -p "$RED_JSON"
+  echo "$pkg" > "$RED_JSON/packages.txt"
+  (cd "$pkg" && noenv pnpm exec vitest run "${REPRO#"${pkg}"/}" --reporter=default --reporter=json \
+    --outputFile.json="$RED_JSON/${pkg}.json") >> "$out" 2>&1
 }
 
 # Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
@@ -669,10 +673,17 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
   if [[ -n "$BUG" ]]; then
   # Bug mode: no test-writer. The approved reproduction test must fail on the current code, for the same reasons as RED.
   stage "RED (bug mode): the approved reproduction test must fail on the current code"
-  if run_repro_test /tmp/out/red.txt; then
-    strip_colors < /tmp/out/red.txt | tail -n 40
-    fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)"
-  fi
+  # Decided by the JSON report (red_state), not by the exit code, as in the RED gate of mode full
+  run_repro_test /tmp/out/red.txt || true
+  case "$(red_state "$RED_JSON")" in
+    failed) ;;
+    passed)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "reproduction test ${REPRO} already passes before any code change (it does not reproduce the bug)" ;;
+    *)
+      strip_colors < /tmp/out/red.txt | tail -n 40
+      fail "RED gate could not run the reproduction test" ;;
+  esac
   grep -q 'No test files found' /tmp/out/red.txt && fail "RED gate could not run the reproduction test ${REPRO}"
   strip_colors < /tmp/out/red.txt | tail -n 60 | sed 's/^/    /'
   log "RED: scenario coverage of the bug (${BUG_SCENARIO})"
