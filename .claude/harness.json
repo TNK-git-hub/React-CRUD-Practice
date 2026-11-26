@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "packages": ["backend", "frontend"],
+  "areas": {
+    "src": ["backend/src", "frontend/src", "frontend/public"],
+    "testPublic": ["backend/test/public", "frontend/test/public"],
+    "testE2e": ["frontend/test/e2e"],
+    "testPrivate": ["backend/test/private", "frontend/test/private"]
+  },
+  "testFile": "\\.test\\.tsx?$"
+}

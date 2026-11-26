@@ -119,9 +119,9 @@ git -C "$ROOT" merge-base --is-ancestor "$M_SHA" "$LOCAL_REF" || fail "the bundl
 commits="$(git -C "$ROOT" rev-list --count "${M_SHA}..${LOCAL_REF}")"
 
 # --- re-check on the host: every changed path (deleted and renamed ones too: --no-renames lists both sides) must be in
-# an agent area. Keep in sync (one config later) with SRC_RE / TEST_RE in run.sh, SRC / TEST_WRITABLE in
-# .claude/hooks/guard.mjs and "Quyền ghi" in the root CLAUDE.md (test-writer also owns frontend/test/e2e).
-AGENT_AREAS='^(backend/src|frontend/src|frontend/public|backend/test/public|frontend/test/public|frontend/test/e2e)/'
+# an area the pod lets its agents write: pod.agentAreas of .claude/harness.json (the same areas as the gates of run.sh)
+AGENT_AREAS="$(python3 "$ROOT/.specify/scripts/harness_config.py" get pod.agentAreas --regex --root "$ROOT")" \
+  || { git -C "$ROOT" update-ref -d "$LOCAL_REF"; fail "harness.json missing or invalid (see harness_config.py above)"; }
 [[ -n "$M_BUG" ]] && AGENT_AREAS="${AGENT_AREAS%)/}|bugs/${M_BUG})/"   # bug mode: the record of THIS bug only
 outside="$(git -C "$ROOT" diff --no-renames --name-only "${M_SHA}...${LOCAL_REF}" | grep -Ev "$AGENT_AREAS" || true)"
 if [[ -n "$outside" ]]; then

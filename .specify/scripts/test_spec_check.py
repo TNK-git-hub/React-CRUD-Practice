@@ -185,6 +185,8 @@ class SpecCheckTest(unittest.TestCase):
         self.write("specs/capabilities/products/history.md", HISTORY.format(removed="| _(none yet)_ | | | | |"))
         self.write(f"specs/archive/{CHANGE}/spec.md", "---\nkind: delta\n---\n#### ADDED PROD-001: x\n")
         self.write("tests/products/create.test.ts", TEST)
+        # the test folders searched for scenario IDs come from the agent areas: the repo's own config
+        self.write(".claude/harness.json", (Path(__file__).resolve().parents[2] / ".claude/harness.json").read_text())
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -225,6 +227,12 @@ class SpecCheckTest(unittest.TestCase):
         code, out = self.run_check("002-other")
         self.assertEqual(code, 1)
         self.assertIn("specs/archive/002-other/ does not exist", out)
+
+    def test_archive_stage_needs_the_harness_config(self) -> None:
+        (self.root / ".claude/harness.json").unlink()
+        code, out = self.run_check()
+        self.assertEqual(code, 1)
+        self.assertIn("cannot find the test folders: .claude/harness.json not found", out)
 
     def test_pr_b_missing_test(self) -> None:
         self.write("tests/products/create.test.ts", 'test("PROD-001-S1 creates", () => {});\n')

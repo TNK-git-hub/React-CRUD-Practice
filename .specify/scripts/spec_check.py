@@ -27,8 +27,8 @@
      spec that matches; plan.md + tasks.md present needs a gate plan that matches
 --stage archive — after /spec-archive (CODE + TEST harnesses done): all of the above, plus
   6. for a change branch (`NNN-<name>`): specs/changes/<change>/ is gone and specs/archive/<change>/ exists
-  7. every scenario ID in specs/capabilities/ is mentioned by some file under TEST_DIRS
-     (tests/, backend|frontend/test/public/, frontend/test/e2e/)
+  7. every scenario ID in specs/capabilities/ is mentioned by some file under tests/ or a public / e2e test area of
+     .claude/harness.json (areas.testPublic, areas.testE2e)
 
 Exit 0 = all checks pass; exit 1 = at least one failure (each printed, also as a GitHub annotation).
 """
@@ -43,6 +43,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import approval  # noqa: E402  (same folder: the gate hashes live in one place)
+import harness_config  # noqa: E402  (same folder: the agent areas of .claude/harness.json)
 
 CHANGE_RE = re.compile(r"^\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 REQ_ID = r"[A-Z]{2,5}-\d{3}"
@@ -276,14 +277,20 @@ def check_ids(req_locs: dict[str, list[str]], removed: dict[str, str], nfr_locs:
     return errors
 
 
-# Test folders of this repo (pnpm monorepo); "tests" is kept for the harness's own unit tests.
-# The hidden test folders are never read.
-TEST_DIRS = ("tests", "backend/test/public", "frontend/test/public", "frontend/test/e2e")
+def test_dirs(root: Path) -> tuple[str, ...]:
+    """Folders searched for scenario IDs: "tests" (the harness's own unit tests) + the public and e2e test areas of
+    .claude/harness.json. The hidden test folders are never read."""
+    config = harness_config.load(root)
+    return ("tests", *harness_config.get(config, "areas.testPublic"), *harness_config.get(config, "areas.testE2e"))
 
 
 def check_tests(root: Path, scenarios: dict[str, str]) -> list[str]:
+    try:
+        dirs = test_dirs(root)
+    except harness_config.ConfigError as e:
+        return [f"cannot find the test folders: {e}"]
     corpus = []
-    for d in TEST_DIRS:
+    for d in dirs:
         tests_dir = root / d
         if not tests_dir.is_dir():
             continue
@@ -298,7 +305,7 @@ def check_tests(root: Path, scenarios: dict[str, str]) -> list[str]:
     for sid, loc in sorted(scenarios.items()):
         # PROD-003-S1 must not be satisfied by PROD-003-S10
         if not re.search(rf"(?<![A-Za-z0-9-]){re.escape(sid)}(?!\d)", text):
-            errors.append(f"scenario {sid} ({loc}) has no test: no file under {', '.join(TEST_DIRS)} mentions it")
+            errors.append(f"scenario {sid} ({loc}) has no test: no file under {', '.join(dirs)} mentions it")
     return errors
 
 

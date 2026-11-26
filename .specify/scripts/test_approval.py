@@ -118,6 +118,8 @@ class ApprovalTest(unittest.TestCase):
         tpl = self.root / approval.TEMPLATE
         tpl.parent.mkdir(parents=True)
         shutil.copy(REPO / approval.TEMPLATE, tpl)
+        # the agent areas (the reproduction test must be in a public test area): the repo's own config
+        shutil.copy(REPO / ".claude/harness.json", self.root / ".claude/harness.json")
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -378,6 +380,12 @@ class ApprovalTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("gate root-cause changed since approval", out)
         self.assertIn("+it('PROD-002-S2 max filters', () => { expect(filter(100)).toBe(4); });", out)
+
+    def test_missing_harness_config_is_error(self) -> None:
+        (self.root / ".claude/harness.json").unlink()
+        code, out = self.verify("--bug", BUG)
+        self.assertEqual(code, 2)
+        self.assertIn("harness.json not found", out)
 
     def test_reproduction_test_missing_is_error(self) -> None:
         (self.root / REPRO).unlink()

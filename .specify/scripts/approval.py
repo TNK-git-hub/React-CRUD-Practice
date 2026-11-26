@@ -47,6 +47,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harness_config  # noqa: E402  (same folder: the agent areas of .claude/harness.json)
+
 CHANGE_RE = re.compile(r"^\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 BUG_RE = re.compile(r"^\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 CHANGE_GATES = ("spec", "plan")
@@ -57,7 +60,7 @@ TEMPLATE = ".claude/skills/bug-fix-flow/templates/investigation.md"
 ROOT_CAUSE_TITLE = "Root cause"
 REPRO_TITLE = "Reproduction test"  # section of report.md (templates/report.md)
 REPRO_PATH_LINE_RE = re.compile(r"^- Path: `([^`]+)`\s*$")
-REPRO_PATH_RE = re.compile(r"^(backend|frontend)/test/public/[A-Za-z0-9._/-]+$")
+# the reproduction test must be in a public test area (areas.testPublic of .claude/harness.json)
 PLAN_START = "## Architecture Decisions"
 PLAN_END = "## Clarifications"
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
@@ -152,9 +155,14 @@ def root_cause_section(root: Path, investigation: str) -> str:
     return "\n".join(lines[start:stop]).rstrip("\n")
 
 
-def repro_test_path(report: str) -> str:
+def repro_test_path(root: Path, report: str) -> str:
     """The reproduction test named in report.md: the '- Path: `<path>`' line of its 'Reproduction test' section.
-    Must be inside backend|frontend/test/public, without '..'."""
+    Must be inside a public test area of .claude/harness.json (areas.testPublic), without '..'."""
+    try:
+        public = harness_config.get(harness_config.load(root), "areas.testPublic")
+    except harness_config.ConfigError as e:
+        raise ApprovalError(str(e)) from e
+    path_re = re.compile(harness_config.as_regex(public) + r"[A-Za-z0-9._/-]+$")
     heads = headings(report)
     starts = [(i, lvl) for i, lvl, title in heads if title == REPRO_TITLE]
     if not starts:
@@ -169,8 +177,8 @@ def repro_test_path(report: str) -> str:
     if not paths:
         raise ApprovalError(f"report.md, section '{REPRO_TITLE}': no line '- Path: `<path>`'")
     path = paths[0]
-    if ".." in path or not REPRO_PATH_RE.match(path):
-        raise ApprovalError(f"reproduction test '{path}' must be inside backend/test/public or frontend/test/public")
+    if ".." in path or not path_re.match(path):
+        raise ApprovalError(f"reproduction test '{path}' must be inside {' or '.join(public)}")
     return path
 
 
@@ -201,7 +209,7 @@ def materials(root: Path, folder: Path, gate: str) -> list[tuple[str, str]]:
         ]
     if gate == "root-cause":
         report = read(folder / "report.md")
-        repro = repro_test_path(report)
+        repro = repro_test_path(root, report)
         return [
             (f"{rel}/report.md", report),
             (f"{rel}/investigation.md#{ROOT_CAUSE_TITLE}", root_cause_section(root, read(folder / "investigation.md"))),

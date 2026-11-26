@@ -34,6 +34,20 @@ fs.symlinkSync("/nonexistent/nowhere.md", path.join(FAKE, "specs/dangling.md"));
 fs.symlinkSync("../../src", path.join(FAKE, `${PRIV}/escape`)); // dir symlink from private to src
 fs.symlinkSync("/nonexistent/x.test.ts", path.join(FAKE, `${PRIV}/dangle.test.ts`));
 fs.symlinkSync(path.join(FAKE, PRIV), path.join(OUTSIDE, "plink")); // symlink outside the project -> private tests
+// The agent areas come from .claude/harness.json: the fake project gets the repo's own file
+const REAL_CONFIG = fs.readFileSync(path.join(here, "..", "harness.json"), "utf8");
+mk(".claude/harness.json", REAL_CONFIG);
+// Fail-closed: three more fake projects whose harness.json is missing, broken JSON, or does not follow the schema
+const BAD_ROOTS = {};
+for (const [name, body] of [["missing", null], ["broken-json", "{not json"], ["bad-schema", JSON.stringify({ ...JSON.parse(REAL_CONFIG), version: 2 })]]) {
+  const r = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `guard-cfg-${name}-`)));
+  fs.mkdirSync(path.join(r, "backend/src"), { recursive: true });
+  if (body !== null) {
+    fs.mkdirSync(path.join(r, ".claude"));
+    fs.writeFileSync(path.join(r, ".claude/harness.json"), body);
+  }
+  BAD_ROOTS[name] = r;
+}
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
@@ -267,6 +281,16 @@ const cases = [
   ["code-reviewer", "Bash", { command: "cat > /tmp/n.md <<EOF\nnotes\nEOF" }, B, "code-reviewer cat > /tmp file (subagent writes stay blocked)"],
   ["code-reviewer", "Bash", { command: "cat /tmp/x/test/private/a.md" }, A, "code-reviewer cat test/private path outside the project"],
   ["code-reviewer", "Bash", { command: `cat ${path.join(OUTSIDE, "plink")}/x.test.ts` }, B, "code-reviewer cat through a /tmp symlink into test/private"],
+  // ---- .claude/harness.json missing / broken JSON / wrong schema: fail-closed (6th element: the fake project root) ----
+  ...Object.entries(BAD_ROOTS).flatMap(([name, r]) => [
+    ["main", "Write", { file_path: "backend/src/a.ts" }, B, `config ${name}: main Write backend/src`, { root: r }],
+    ["code-writer", "Write", { file_path: "backend/src/a.ts" }, B, `config ${name}: code-writer Write backend/src`, { root: r }],
+    ["main", "Read", { file_path: `${PRIV}/x.test.ts` }, B, `config ${name}: main Read test/private (hard rule)`, { root: r }],
+    ["main", "Write", { file_path: "README.md" }, B, `config ${name}: main Write README.md (every write blocked)`, { root: r }],
+    ["main", "Bash", { command: "echo x > notes.md" }, B, `config ${name}: main Bash write (every write blocked)`, { root: r }],
+    ["main", "Bash", { command: "ls -la" }, A, `config ${name}: main Bash read-only still allowed`, { root: r }],
+    ["code-reviewer", "Read", { file_path: "backend/src/app.ts" }, A, `config ${name}: code-reviewer Read src still allowed`, { root: r }],
+  ]),
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----
@@ -304,11 +328,12 @@ const run = (label, extraEnv, withCaseCases) => {
   const all = withCaseCases ? [...cases, ...caseCases] : cases;
   let pass = 0, failN = 0;
   console.log(`\n=== ${label}${withCaseCases ? "" : ` (case-sensitive file system: skipping ${caseCases.length} case-change cases)`}`);
-  for (const [agent, tool, input, want, name] of all) {
-    const payload = { tool_name: tool, tool_input: input, cwd: FAKE, ...(agent === "main" ? {} : { agent_type: agent }) };
+  for (const [agent, tool, input, want, name, opts = {}] of all) {
+    const projectRoot = opts.root || FAKE;
+    const payload = { tool_name: tool, tool_input: input, cwd: projectRoot, ...(agent === "main" ? {} : { agent_type: agent }) };
     const r = spawnSync(process.execPath, [GUARD], {
       input: JSON.stringify(payload),
-      env: { ...process.env, GUARD_CASE_INSENSITIVE: "", ...extraEnv, CLAUDE_PROJECT_DIR: FAKE },
+      env: { ...process.env, GUARD_CASE_INSENSITIVE: "", ...extraEnv, CLAUDE_PROJECT_DIR: projectRoot },
       encoding: "utf8",
     });
     const got =
@@ -328,6 +353,7 @@ try {
 } finally {
   fs.rmSync(FAKE, { recursive: true, force: true });
   fs.rmSync(OUTSIDE, { recursive: true, force: true });
+  for (const r of Object.values(BAD_ROOTS)) fs.rmSync(r, { recursive: true, force: true });
 }
 console.log(`\n${failures ? `FAILED: ${failures} case(s)` : "ALL PASSED"}`);
 process.exit(failures ? 1 : 0);
