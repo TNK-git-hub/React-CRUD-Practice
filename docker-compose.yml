@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: crud-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-crud_practice}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Redis cho cache (nếu ko dùng brew services start redis)
+  redis:
+    image: redis:8-alpine
+    container_name: crud-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+
+volumes:
+  pgdata:

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redis Before vs After</title>
+<style>
+  /* same tokens as the app (frontend/src/styles/index.css) */
+  :root {
+    --bg: #FBFAF8; --surface: #FFFFFF; --ink: #17160F; --muted: #5E5C52; --line: #E4E1D9;
+    --chip: #F1EFE8; --accent: #B4531F; --accent-soft: #F7EAE1; --ok: #2F6B42; --ok-soft: #E6F0E8;
+    --before: #A8A59A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141310; --surface: #1D1C17; --ink: #F3F1EA; --muted: #A8A59A; --line: #302E27;
+      --chip: #25231D; --accent: #E39061; --accent-soft: #2A211B; --ok: #8FCFA3; --ok-soft: #1C2A21;
+      --before: #5E5C52;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.5 "Public Sans", system-ui, -apple-system, sans-serif;
+    padding: 40px 16px 64px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+  h1 { font: 400 40px/1.1 "Instrument Serif", Georgia, serif; }
+  h2 { font: 400 24px/1.2 "Instrument Serif", Georgia, serif; margin-bottom: 4px; }
+  .sub { color: var(--muted); }
+  code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: var(--chip); padding: 2px 6px; border-radius: 5px; }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+
+  /* KPI cards */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi .tag { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .kpi .big { font-size: 34px; font-weight: 700; letter-spacing: -.02em; color: var(--accent); line-height: 1.1; }
+  .kpi .small { font-size: 12.5px; color: var(--muted); }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; }
+  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--muted); margin: 6px 0 18px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+
+  /* bar chart: 1 row per scenario, 2 bars (before / after) */
+  .chart { display: flex; flex-direction: column; gap: 18px; }
+  .row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; align-items: center; }
+  .row .label { font-weight: 600; font-size: 13px; }
+  .row .label small { display: block; font-weight: 400; color: var(--muted); font-size: 11.5px; }
+  .bars { display: flex; flex-direction: column; gap: 5px; }
+  .bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .bar i { display: block; height: 18px; border-radius: 5px; min-width: 2px; background: var(--c); transition: width .6s ease; }
+  .bar b { color: var(--ink); font-weight: 600; white-space: nowrap; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  td.up { color: var(--ok); font-weight: 700; }
+  .scroll { overflow-x: auto; }
+
+  .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .note { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .note h3 { font-size: 14px; margin-bottom: 6px; }
+  .note p, .note li { color: var(--muted); font-size: 13px; }
+  .note ul { padding-left: 18px; }
+  .caveat { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--accent); padding: 4px 0 4px 12px; }
+
+  @media (max-width: 720px) {
+    h1 { font-size: 32px; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .notes { grid-template-columns: minmax(0, 1fr); }
+    .panel { padding: 18px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Redis cache: before vs after</h1>
+    <p class="sub">The same stress test on the read endpoints, before and after adding Redis cache-aside to the NestJS backend.</p>
+    <div class="meta">
+      <span class="pill">185 products</span>
+      <span class="pill">50 connections × 20s per scenario</span>
+      <span class="pill">before <code>544ade5</code></span>
+      <span class="pill">after <code>5ff2f78</code></span>
+      <span class="pill">Apple M1 · Node 24 · autocannon 8</span>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="panel">
+    <h2>Requests per second</h2>
+    <p class="sub">Higher is better. How many requests the server answered each second.</p>
+    <div class="legend"><span style="--c: var(--before)">Before (Postgres only)</span><span style="--c: var(--accent)">After (Redis cache)</span></div>
+    <div class="chart" id="rps"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Average latency</h2>
+    <p class="sub">Lower is better. How long one request waited, in milliseconds.</p>
+    <div class="legend"><span style="--c: var(--before)">Before</span><span style="--c: var(--accent)">After</span></div>
+    <div class="chart" id="lat"></div>
+  </section>
+
+  <section class="panel">
+    <h2>All numbers</h2>
+    <p class="sub">p99 = 99% of requests were faster than this. From <code>raw/*-redis-*.json</code>.</p>
+    <div class="scroll"><table id="table"></table></div>
+  </section>
+
+  <section class="notes">
+    <div class="note">
+      <h3>Why lists gain less (≈3×) than detail (≈6–7×)</h3>
+      <ul>
+        <li><b>2 Redis calls</b> per list: <code>GET products:list:version</code>, then the list key. Detail needs 1.</li>
+        <li><b>Bigger payload</b>: 10–20 products to parse and send again, versus 1.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h3>Why random IDs (D) are as fast as one hot item (C)</h3>
+      <p>Only 185 products: after the first ~185 requests every detail is cached for 60s. With a large catalog, D would have more cache misses than C.</p>
+    </div>
+  </section>
+
+  <p class="caveat">The load generator and the server run on the same laptop, so compare the <b>ratios</b>, not the absolute numbers. Errors in both runs: 0.</p>
+</div>
+
+<script>
+  // from docs/performance/raw/{before,after}-redis-{A..D}.json
+  const DATA = [
+    { key: 'A', name: 'List first page',       path: '/products?limit=10&skip=0',
+      before: { rps: 2726, avg: 17.84, p50: 17, p99: 29, max: 87,  total: 54515 },
+      after:  { rps: 8917, avg: 5.15,  p50: 5,  p99: 10, max: 21,  total: 178333 } },
+    { key: 'B', name: 'Search + sort',         path: '/products?q=phone&limit=20&sortBy=price&order=desc',
+      before: { rps: 1867, avg: 26.28, p50: 26, p99: 35, max: 116, total: 37334 },
+      after:  { rps: 5923, avg: 7.93,  p50: 8,  p99: 15, max: 73,  total: 118442 } },
+    { key: 'C', name: 'Detail, same hot item', path: '/products/1',
+      before: { rps: 2378,  avg: 20.53, p50: 20, p99: 30, max: 149, total: 47544 },
+      after:  { rps: 15091, avg: 3.10,  p50: 3,  p99: 5,  max: 69,  total: 301804 } },
+    { key: 'D', name: 'Detail, random IDs',    path: '/products/:id (random)',
+      before: { rps: 2114,  avg: 23.14, p50: 23, p99: 32, max: 95, total: 42263 },
+      after:  { rps: 14531, avg: 3.12,  p50: 3,  p99: 5,  max: 73, total: 290611 } },
+  ];
+
+  const fmt = (n) => n.toLocaleString('en-US');
+  const x = (a, b) => (a / b).toFixed(1) + '×';
+
+  document.getElementById('kpis').innerHTML = DATA.map(d => `
+    <div class="kpi">
+      <span class="tag">${d.key} · ${d.name}</span>
+      <span class="big">${x(d.after.rps, d.before.rps)}</span>
+      <span class="small">${fmt(d.before.rps)} → ${fmt(d.after.rps)} req/s</span>
+    </div>`).join('');
+
+  function chart(id, field, unit, digits) {
+    const max = Math.max(...DATA.flatMap(d => [d.before[field], d.after[field]]));
+    const bar = (v, color) => `<div class="bar"><i style="--c:${color};width:${(v / max) * 82}%"></i><b>${v.toFixed(digits)}</b> ${unit}</div>`;
+    document.getElementById(id).innerHTML = DATA.map(d => `
+      <div class="row">
+        <div class="label">${d.key} · ${d.name}<small>${d.path}</small></div>
+        <div class="bars">${bar(d.before[field], 'var(--before)')}${bar(d.after[field], 'var(--accent)')}</div>
+      </div>`).join('');
+  }
+  chart('rps', 'rps', 'req/s', 0);
+  chart('lat', 'avg', 'ms', 1);
+
+  document.getElementById('table').innerHTML = `
+    <tr><th>#</th><th>Scenario</th><th>Req/s before</th><th>Req/s after</th><th>Speed-up</th>
+        <th>Avg ms</th><th>p50 ms</th><th>p99 ms</th><th>Max ms</th><th>Total requests</th></tr>` +
+    DATA.map(d => `
+    <tr><td>${d.key}</td><td>${d.name}</td><td>${fmt(d.before.rps)}</td><td>${fmt(d.after.rps)}</td>
+        <td class="up">${x(d.after.rps, d.before.rps)}</td>
+        <td>${d.before.avg.toFixed(1)} → ${d.after.avg.toFixed(1)}</td>
+        <td>${d.before.p50} → ${d.after.p50}</td>
+        <td>${d.before.p99} → ${d.after.p99}</td>
+        <td>${d.before.max} → ${d.after.max}</td>
+        <td>${fmt(d.before.total)} → ${fmt(d.after.total)}</td></tr>`).join('');
+</script>
+</body>
+</html>

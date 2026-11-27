@@ -1,0 +1,6 @@
+# Shell scripts and manifests run on Linux: keep LF on every OS,
+# also on Windows checkouts with core.autocrlf=true (otherwise bash fails with "pipefail\r").
+*.sh   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+

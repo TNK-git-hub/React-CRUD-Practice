@@ -1,0 +1,173 @@
+/* Tailwind v4: preflight (reset) + theme + utilities, đều nằm trong @layer
+   -> CSS cũ ko có layer luôn thắng utilities, migrate component nào thì xoá file .css của nó luôn */
+@import "tailwindcss";
+
+/* đưa design tokens ở :root vào Tailwind -> viết được bg-accent, text-muted, rounded-card...
+   inline: class dùng thẳng var(--accent) -> [data-theme="dark"] đổi biến là class đổi màu theo, ko cần dark: */
+@theme inline {
+  --color-*: initial; /* bỏ bảng màu mặc định (red-500, blue-600...) -> chỉ dùng màu của design */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-chip: var(--chip);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--bt-hover-color);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus-ring: var(--focus-ring-color);
+  --color-ok: var(--status-pill-text);
+  --color-ok-soft: var(--ok-bg);
+  --color-danger: var(--focus-ring-error-color);
+  --color-danger-soft: var(--danger-bg);
+  --color-media: var(--media-bg);
+  --color-skeleton: var(--skeleton);
+  --color-star-empty: var(--star-empty);
+
+  /* font-display (Instrument Serif) / font-sans (Public Sans, cũng là font mặc định) / font-mono */
+  --font-display: var(--typeface-dis-h1);
+  --font-sans: var(--typeface-body);
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* text-h1, text-h2, text-body... (chỉ size, ko kèm line-height) */
+  --text-h1: var(--fs-dis-h1);
+  --text-h2: var(--fs-h2);
+  --text-body: var(--fs-body);
+  --text-price: var(--fs-price);
+  --text-meta: var(--fs-cap-meta);
+  --text-overline: var(--fs-overline);
+
+  /* rounded-pill, rounded-panel, rounded-card, rounded-control, rounded-badge */
+  --radius-pill: var(--bd-pill);
+  --radius-panel: var(--bd-panel);
+  --radius-card: var(--bd-card);
+  --radius-control: var(--bd-control);
+  --radius-badge: var(--bd-badge);
+
+  /* max-xs: = màn hình <= 400px (thay cho @media (max-width: 400px) cũ)
+     max-xs nghĩa là "nhỏ hơn 401px" vì max-* của Tailwind ko tính đúng mốc */
+  --breakpoint-xs: 401px;
+
+  /* animate-skeleton: nhấp nháy nhẹ cho card đang loading (animate-pulse mặc định chậm + mờ hơn design) */
+  --animate-skeleton: skeleton-pulse 1.4s ease-in-out infinite;
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  /* spacing ko cần khai báo: mặc định 1 bước = 4px -> p-1 = 4px, p-3 = 12px, gap-6 = 24px, p-11 = 44px
+     = đúng scale 4 / 8 / 12 / 16 / 20 / 24 / 32 / 44 của design */
+}
+
+/* styles border-box full screen
+   @layer base: CSS ko có layer thắng MỌI utility (kể cả * {padding: 0} thắng p-4)
+   -> reset + style global để trong base, utility mới ghi đè được */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* styles design tokens */
+
+:root {
+  /* Chỗ lưu design tokens */
+  /* Default light theme */
+  --bg: #FBFAF8;
+  --surface: #FFFFFF;
+  --ink: #17160F;
+  --muted: #5E5C52;
+  --line: #E4E1D9;
+  --accent: #B4531F;
+  --chip: #F1EFE8;
+  --ok-bg: #E6F0E8;
+  --danger-bg: #F8E7E3;
+
+  /* token tự thêm */
+  --bt-hover-color: #8E3F15;
+  --focus-ring-color: #f7eae1;
+  --focus-ring-error-color: #9a2c1e;
+
+  /* màu nền ảnh chọn sản phẩm */
+  --media-bg: #f3f1ea;
+
+  /* màu nền pill trên badge của product detail */
+  --accent-soft: #F7EAE1;
+
+  /* chữ status pill tại product detail chỗ "in stock" (nền = --ok-bg) */
+  --status-pill-text: #2f6b42;
+
+  /* màu nền skeleton */
+  --skeleton: #edeae2;
+
+  /* màu nền svg star */
+  --star-empty: #D9D4C8;
+
+  /* --- Typography --- */
+  /*  Typeface*/
+  --typeface-dis-h1: "Instrument Serif",
+    Georgia,
+    serif;
+  --typeface-h2: "Instrument Serif",
+    Georgia,
+    serif;
+  --typeface-body: "Public Sans", system-ui, sans-serif;
+  --typeface-cap-meta: "Public Sans",
+    system-ui,
+    sans-serif;
+
+  /* Font Size */
+  --fs-dis-h1: 42px;
+  --fs-h2: 24px;
+  --fs-body: 14px;
+  --fs-price: 18px;
+  --fs-cap-meta: 12px;
+  --fs-overline: 10px;
+
+  /* Font weight */
+  --fw-others: 400;
+
+  /* Font color */
+  --fc-text: var(--ink);
+
+  /* ---- Border Radius ---- */
+  --bd-pill: 999px;
+  --bd-panel: 16px;
+  --bd-card: 14px;
+  --bd-control: 10px;
+  --bd-badge: 7px;
+}
+
+/* Dark theme */
+
+[data-theme="dark"] {
+  --bg: #141310;
+  --surface: #1D1C17;
+  --ink: #F3F1EA;
+  --muted: #A8A59A;
+  --line: #302E27;
+  --accent: #E39061;
+  --chip: #25231D;
+  --ok-bg: #1C2A21;
+  --danger-bg: #2C1B18;
+
+  --accent-soft: #2a211b;
+  --status-pill-text: #8fcfa3;
+}
