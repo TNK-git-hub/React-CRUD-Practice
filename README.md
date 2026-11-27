@@ -239,6 +239,33 @@ Steps 5–6 can run in a pod instead: `bash k8s/agents/dispatch.sh <job-id> - --
 | Check RED before GREEN on the branch | `python3 .specify/scripts/red_check.py --base harness-base` |
 | Check an approval | `python3 .specify/scripts/approval.py verify --change NNN-<name>` (or `--bug <id>`) |
 
+## Stack profiles
+
+What is specific to the language and test runner lives in one place: the `stack` object of `.claude/harness.json`, a
+verbatim copy of a profile of `.claude/stacks/`:
+
+| Profile | Test files | Scenario ID in a test | Report |
+| --- | --- | --- | --- |
+| `ts-pnpm-vitest` (active) | `*.test.ts(x)`, `ABC-003.test.ts` | `it('ABC-003-S2 ...')` | vitest JSON |
+| `python-pytest` | `*_test.py`, `abc_003_test.py` (→ `ABC-003`) | `@pytest.mark.scenario("ABC-003-S2")` | JUnit XML |
+
+A profile holds the app marker (`package.json` / `pyproject.toml`), the test-file pattern, the scenario test call, the
+file-name → requirement rule and the commands (argv arrays, never shell strings): install, test, the code-writer gate
+steps, the lint of one file, the run of given test files and of the hidden tests. The stop-gate and code-gate hooks,
+`lint-changed.mjs`, `red_check.py`, `dispatch.sh` (hidden tests) and `private_tests.py` read it; `stack_adapter.py`
+turns each runner's report into one shape. RED is a failing test; a test that imports what does not exist yet
+counts too (vitest: a file that fails to load; pytest: a collection error of `ModuleNotFoundError` / `ImportError`),
+any other load error (pytest: `SyntaxError`, `NameError`, a fixture error) does not.
+
+Known limits:
+- Profiles assume this package layout: the TS profile names the `frontend` package (`--filter frontend typecheck`, the
+  lint scope), the pytest profile ignores `*/test/private/*` in its `test` command. A layout with other package names
+  needs its own profile.
+- Only the host-side checks read the profile so far: the pod pipeline (`k8s/agents/run.sh`), the command allow-list of
+  `guard.mjs`, `settings.json` and `ci/local-ci.sh` are still pnpm / vitest only.
+- Before a Python app is used, `guard.mjs` must also protect `pyproject.toml`, `conftest.py`, `pytest.ini`, `setup.cfg`
+  and `tox.ini` as harness files (they change how tests run, e.g. `addopts = --deselect`).
+
 ## Rules to remember
 
 - **Two mandatory stops** to wait for a person's approval: after the spec, and after plan + tasks (in the bug flow: the root-cause approval).
@@ -249,6 +276,8 @@ Steps 5–6 can run in a pod instead: `bash k8s/agents/dispatch.sh <job-id> - --
   `code-writer` → `src` (and `frontend/public`). Nobody reads / edits `test/private`.
 - A red test means fix the code; never change the test to make it green.
 - Editing harness files (`.claude/`, `CLAUDE.md`, `package.json`, `.github/`, `ci/`, `k8s/`) needs asking the user.
+  Hooks (`.claude/hooks/`) are live the moment they are saved: build and test a new version outside the repo, then
+  replace the file in one step ([.claude/hooks/README.md](.claude/hooks/README.md), "Editing a hook").
 - Report "done" only when `pnpm lint`, `pnpm --filter frontend typecheck`, `pnpm test` have just run and passed, with their output as evidence.
 - Every file in the repo is written in English (CI job `spec-check` runs `test_language.py` on the harness files); text shown to
   end users stays in the product's language.
