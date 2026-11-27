@@ -25,6 +25,9 @@ import harness_config as hc  # noqa: E402
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = (
     ".claude/hooks/guard.mjs",
+    ".claude/hooks/stop-gate.sh",
+    ".claude/hooks/code-gate.sh",
+    ".claude/hooks/lint-changed.mjs",
     "k8s/agents/run.sh",
     "k8s/agents/collect.sh",
     "k8s/agents/dispatch.sh",
