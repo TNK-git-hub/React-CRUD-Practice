@@ -19,6 +19,9 @@ The folder layout follows `docs/BaseHarness.drawio` (the source of truth for str
   CLAUDE.md
   context/
     constitution/        # generated: mission.md, techstack.md, roadmap.md (.gitkeep for now)
+    log/
+      harness/           # tracks changes to the harness itself (.gitkeep for now)
+      event/             # tracks what work is being done, e.g. onboard, a feature (.gitkeep for now)
   template/
     constitution/        # templates: mission.md, techstack.md, roadmap.md
   commands/
@@ -46,6 +49,9 @@ together with the harness.
 
 - `context/constitution/` — non-negotiable project principles (mission, tech stack, roadmap),
   generated from `template/constitution/`; overrides everything else.
+- `context/log/harness/` — record of changes to the harness itself.
+- `context/log/event/` — record of the work being done (for example `onboard`, a feature).
+  The log file format and which commands write logs are not decided yet.
 
 Rules:
 - Save new project knowledge here (not in any other location), one fact/topic per file.
