@@ -81,7 +81,7 @@ Look for the same mistake elsewhere (the investigator's list + a `grep` of the p
 
 ## h) Done
 Only with evidence, following skill `verification-before-completion`: `pnpm lint`, `pnpm --filter frontend typecheck`,
-`pnpm test` just ran and passed, and the reproduction test passes (root `CLAUDE.md`, "Thế nào là xong"). Paste the
+`pnpm test` just ran and passed, and the reproduction test passes (root `CLAUDE.md`, "Definition of done"). Paste the
 outputs into `fix.md`, Verification.
 Before the PR: `python3 .specify/scripts/red_check.py --base <base branch>` must PASS (record, then the failing
 reproduction test, then the fix; CI job `red-check` checks it again).

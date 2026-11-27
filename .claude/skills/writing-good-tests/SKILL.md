@@ -1,6 +1,6 @@
 ---
 name: writing-good-tests
-description: Dùng khi viết test mới, sửa test, thêm mock hoặc review test có sẵn. Buộc mỗi test nêu được lỗi nó bắt, kết quả mong đợi là giá trị cố định hoặc tính tay, và chạy trên code thật thay vì mock.
+description: Use when writing a new test, changing a test, adding a mock or reviewing existing tests. Makes every test state the bug it catches, use an expected value that is a fixed literal or computed by hand, and run on the real code instead of mocks.
 ---
 # Writing Good Tests
 

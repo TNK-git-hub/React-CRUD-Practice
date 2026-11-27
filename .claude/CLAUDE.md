@@ -48,7 +48,7 @@ Where this file and the root `CLAUDE.md` disagree on code, tests, CI or git, the
 tools/speckit-level4/       local preset replacing the speckit.specify, speckit.clarify and speckit.plan commands
 .github/                    workflows/ci.yml (jobs: ci = pnpm ci:local, spec-check, red-check = red_check.py on PRs)
 docs/requirements/          source requirement documents (BA, customer), in English
-docs/examples/              worked example of a delta spec (the target level of detail): _(none yet: điền khi bootstrap hệ thống mới)_
+docs/examples/              worked example of a delta spec (the target level of detail): _(none yet: fill in when bootstrapping a new system)_
 specs/
   _system/                  edge-case-catalog.md (shared); glossary.md, domain-model.md, nfr.md, roadmap.md, traceability.md (created per app by spec-bootstrap)
   capabilities/<domain>/    LIVING SPEC, shared by the domain: states.md, rules.md, history.md (Removed IDs) — no spec.md here
@@ -64,7 +64,7 @@ Two kinds of `spec.md`, told apart by location:
 - `specs/capabilities/<domain>/<feature>/spec.md`: what one feature of the system DOES now. Never contains the words
   ADDED/MODIFIED/REMOVED/RENAMED/MOVED. There is no `spec.md` at domain level.
 - `specs/changes/NNN-<name>/spec.md`: everything this change adds/modifies/removes, at full detail, following
-  `.specify/templates/overrides/spec-template.md` (worked example: `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_).
+  `.specify/templates/overrides/spec-template.md` (worked example: `docs/examples/` _(none yet: fill in when bootstrapping a new system)_).
   Frontmatter `kind: delta`, `capabilities: ["<domain>/<feature>", …]`, `primary`, `status`; sections Overview,
   Success Criteria, Scope, Requirements (`### <domain>/<feature>` → `#### ADDED <ID>` / `MODIFIED <ID>` /
   `REMOVED <ID>` / `RENAMED <ID>` / `MOVED <ID>`, each with details, `**Permissions:**`, nested scenarios),
@@ -105,7 +105,7 @@ requirement, and declares any other feature it finds the behavior in. `/speckit-
 
 | Code | Domain |
 | --- | --- |
-| _(none yet)_ | điền khi bootstrap hệ thống mới (`/spec-bootstrap` replaces this row) |
+| _(none yet)_ | fill in when bootstrapping a new system (`/spec-bootstrap` replaces this row) |
 
 - An ID that was removed (recorded in the domain's `history.md`) is never reissued, in any feature of the domain.
 - The name (or description) of every test starts with its scenario ID, e.g. `ABC-003-S2 ...`, whatever the test framework.
@@ -178,7 +178,7 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 - The agent areas (code, public / e2e / hidden test folders, packages, test-file pattern) are defined once, in
   `.claude/harness.json` (checked by `.specify/scripts/harness_config.py`; `guard.mjs`, `run.sh`, `collect.sh`,
   `dispatch.sh`, `approval.py` and `spec_check.py` read it, and `test_no_hardcoded_paths.py` fails on a copy written into
-  them). Changing the folder layout = edit that file + the prose of the root `CLAUDE.md` ("Quyền ghi") and the agent
+  them). Changing the folder layout = edit that file + the prose of the root `CLAUDE.md` ("Write permissions") and the agent
   prompts. A missing or invalid file blocks every write (`guard.mjs` fails closed).
 - Approvals are the user's: only `approval.py approve`, run by the user in their own terminal, writes
   `approval.json` and `.approved/` (of a change or a bug). No agent, the main session included, writes or edits them
@@ -223,7 +223,7 @@ them again (and their entries in `.specify/integrations/claude.manifest.json`) a
 
 ## Language
 
-- All files are written in English: harness files (skills, templates, constitution, catalog, scripts),
+- Every file in this repo is written in English: harness files (skills, templates, constitution, catalog, scripts),
   `docs/requirements/`, `specs/_system/`, `specs/capabilities/` and `specs/changes/` (spec, plan, tasks,
   checklists). Requirement sentences read "The system MUST …".
 - Requirement sources in another language are translated to English before they go into `docs/requirements/`.
