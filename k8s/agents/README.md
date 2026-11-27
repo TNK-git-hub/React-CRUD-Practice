@@ -1,164 +1,164 @@
-# Agent chạy headless trong pod (kind)
+# Agents running headless in a pod (kind)
 
-Claude tổng (session local) giao task cho các agent chạy song song, mỗi agent một pod. Task **không viết cứng**:
-mỗi lần giao là một file markdown, truyền vào lúc chạy.
+The main session (the local session) dispatches tasks to agents that run in parallel, one pod per agent. Tasks are **not hard-coded**:
+each dispatch is a markdown file, passed in at run time.
 
 ```
-Claude tổng: chia feature thành task (mỗi task một nhóm file riêng) → tasks/<id>.md
+main session: splits a feature into tasks (each task its own group of files) → tasks/<id>.md
   → dispatch.sh <id> tasks/<id>.md|- --title "..." [--mode full|code-only] [--change NNN-<feature> [--tasks T001,...] | --bug <id>]
-                                                       (chạy song song được; --change: làm theo spec, xem "Làm theo spec";
-                                                        --bug: bước f-g của luồng bug, xem "Sửa bug")
-      pod: clone base branch (CLAUDE.md, mục Branches) → pnpm install, rồi (mode full, mỗi bước một session claude -p --agent <vai> mới):
-        1. PLAN    code-planner + test-planner (chỉ đọc)            → /tmp/plan (ngoài repo)
-        2. RED     test-writer → gate: chỉ đổi test/public, test mới phải FAIL → commit "test: ..."
-        3. GREEN   code-writer → gate: chỉ đổi src, không dò môi trường test, pnpm ci:local (≤2 vòng sửa) → commit
-        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic + security-reviewer → cần sửa thì quay lại 2/3 (≤2 vòng)
-                   security CHANGES: test-writer viết test chứng minh từng lỗ hổng HIGH/MEDIUM, code-writer sửa;
-                   security có SPEC_PROBLEM (quyền trong spec sai/thiếu) → dừng review, PR draft, quay lại spec harness
-        5. EXPORT  pod không có token ghi GitHub: in branch ra log (git bundle + meta + PR body, giữa hai dòng ARTIFACT)
-      (mode code-only: chỉ bước 3 rồi 5)
+                                                       (may run in parallel; --change: follow a spec, see "Working from a spec";
+                                                        --bug: steps f-g of the bug flow, see "Fixing a bug")
+      pod: clone the base branch (CLAUDE.md, section Branches) → pnpm install, then (mode full, each step a new claude -p --agent <role> session):
+        1. PLAN    code-planner + test-planner (read-only)          → /tmp/plan (outside the repo)
+        2. RED     test-writer → gate: only test/public changed, the new tests must FAIL → commit "test: ..."
+        3. GREEN   code-writer → gate: only src changed, no probing of the test environment, pnpm ci:local (≤2 fix rounds) → commit
+        4. REVIEW  mutation score (Stryker) + code-reviewer + test-critic + security-reviewer → changes needed: back to 2/3 (≤2 rounds)
+                   security CHANGES: test-writer writes a test proving each HIGH/MEDIUM vulnerability, code-writer fixes it;
+                   security with SPEC_PROBLEM (permissions in the spec wrong/missing) → review stops, draft PR, back to the spec harness
+        5. EXPORT  the pod has no GitHub write token: it prints the branch in the log (git bundle + meta + PR body, between two ARTIFACT lines)
+      (mode code-only: only steps 3 and 5)
       → pod: "RESULT: SUCCESS artifact=ready" | "RESULT: FAILED reason=...[ artifact=ready]"
-  → collect.sh (dispatch.sh tự gọi) trên máy này: kiểm artifact, push branch, mở PR (FAILED sau commit đầu: PR draft)
+  → collect.sh (called by dispatch.sh) on this machine: checks the artifact, pushes the branch, opens the PR (FAILED after the first commit: draft PR)
       → "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=... pr=<url>"
-  → dispatch.sh chạy hidden test (test/private, chỉ có trên máy này) trên branch PR → "PRIVATE: PASS|FAIL|SKIPPED"
-  → watch-pr.sh <pr>                                   (GitHub Actions chạy ci.yml trên runner ARC)
-      → "CHECKS: PASS" | "CHECKS: FAIL" (+ log step lỗi) | "CHECKS: TIMEOUT"
-  → fail thì viết task sửa kèm log, giao lại; pass thì tổng hợp cho người dùng
+  → dispatch.sh runs the hidden tests (test/private, only on this machine) on the PR branch → "PRIVATE: PASS|FAIL|SKIPPED"
+  → watch-pr.sh <pr>                                   (GitHub Actions runs ci.yml on the ARC runner)
+      → "CHECKS: PASS" | "CHECKS: FAIL" (+ logs of the failed steps) | "CHECKS: TIMEOUT"
+  → on failure, write a fix task with the log and re-dispatch; on success, sum up for the user
 ```
 
-## Chống reward hacking: ai chặn cái gì
-| Rủi ro | Chặn bởi |
+## Against reward hacking: what blocks what
+| Risk | Blocked by |
 |---|---|
-| code-writer sửa test / test-writer sửa code | `guard.mjs` (theo `agent_type`), `--allowedTools` theo vai, và **gate trong `run.sh`**: sau mỗi bước, mọi file đổi so với SHA của commit trước bước đó phải nằm trong vùng của vai (allow-list). Gate chạy sau khi agent thoát nên không lách được bằng Bash hay chạy code |
-| Viết lại lịch sử git để xoá commit test | Gate kiểm tra commit trước bước vẫn là tổ tiên của `HEAD` |
-| Code dò môi trường test (`VITEST`, `NODE_ENV === 'test'`) | Gate grep diff `src` |
-| Test viết sau, khớp theo code | Bước RED: test mới phải fail trên code cũ trước khi code-writer chạy; PR có 2 commit test → code |
-| Thứ tự RED → GREEN bị đảo hay làm giả trong lịch sử git (cả branch của pod lẫn branch làm tay) | CI job `red-check` (`.specify/scripts/red_check.py --base origin/<base>`) kiểm lại trên lịch sử của PR: commit đầu tiên đụng vùng test chỉ chứa test, các test nó thêm/sửa fail tại chính commit đó (chạy trong worktree tạm), không commit nào sửa `src` đứng trước nó; hồ sơ `bugs/<id>/` chỉ được ở commit riêng trước đó |
-| Test yếu | Mutation score ≥ `MUTATION_MIN` trên file src đã đổi + test-critic |
-| Xoá test có sẵn cho dễ pass | test-writer không tự xoá được file; nó ghi `DELETE: <path>` và `run.sh` chỉ xoá file trong `test/public` do chính branch tạo ra (không có ở `BASE_SHA`) |
-| Test viết sai, code-writer bị kẹt (hoặc kêu "test sai" để né) | code-writer ghi `TEST_WRONG: <file>:<line> <lý do>`; test-critic làm trọng tài theo spec, tối đa 1 lần/task. `TESTS_WRONG` → code hiện tại được commit (`wip`), test-writer chỉ sửa các assert bị phán sai; `CODE_WRONG` → code-writer sửa tiếp kèm lập luận. Gate vùng ghi của từng vai không đổi |
-| Critic đổi ý giữa các vòng | Từ vòng 2, critic nhận review vòng trước + trả lời của test-writer, chỉ được chặn bằng mục cũ chưa xử lý hoặc lỗi mới đáng kể |
-| Code học tủ test public | Hidden test `test/private` chạy trên máy local sau khi có PR; chỉ in số lượng, không đưa nội dung cho agent. Test private đã cách ly (`_stale/`, xem "Test private lỗi thời") không được chép vào worktree, nên không chạy |
-| Prompt injection reviewer | VERDICT chỉ có thể làm luồng dừng lại hoặc quay lại sửa; các gate trên vẫn quyết định |
-| Lỗ hổng bảo mật / thiếu kiểm quyền ở backend | security-reviewer (chỉ đọc, constitution Principle II) trong mỗi vòng REVIEW; cần cả `security=APPROVE` mới duyệt. Finding HIGH/MEDIUM → test chứng minh lỗ hổng (test-writer) rồi sửa code (code-writer); `SPEC_PROBLEM` về quyền → dừng, PR draft |
-| Agent sửa spec cho khớp code/test (`--change`) | Checksum toàn bộ `specs/` lấy trước bước PLAN; mọi gate `assert_only` fail nếu có file trong `specs/` đổi (kể cả file spec chưa commit được gửi qua ConfigMap) |
-| Agent sửa hồ sơ bug hay test tái hiện cho dễ pass (`--bug`) | Test tái hiện nằm trong gate root-cause người dùng đã duyệt (`approval.py`, hash). Pod chạy `approval.py verify --bug` lúc đầu và trước khi mở PR; checksum `bugs/<id>/` + test tái hiện trong mọi gate `assert_only`; `DELETE:` không xoá được test tái hiện |
-| Secret trong pod bị agent đọc hay dùng | Pod chỉ có token Claude (`CLAUDE_CODE_OAUTH_TOKEN`), không có token ghi GitHub (có `GH_TOKEN` thì `run.sh` FAIL): clone ẩn danh (repo public) hoặc `GH_READ_TOKEN` chỉ đọc qua credential helper, không nằm trong URL hay `.git/config` (`run.sh` kiểm). Push và mở PR làm ở máy này (`collect.sh`, chỉ coi artifact là dữ liệu, marker cuối của job quyết định — `ARTIFACT NONE` thì không PR —, mọi file đổi phải nằm trong vùng của agent, không force push). Lệnh do script chạy (pnpm install / ci:local, vitest, stryker, `node -e`, `approval.py`) chạy không có token Claude (`noenv`) |
-| Giới hạn còn lại về secret | Lệnh agent tự chạy qua Bash vẫn thừa hưởng token Claude (`claude` cần nó). Mạng đi ra từ pod chưa bị lọc (agent có thể gửi dữ liệu ra ngoài) |
-| Bỏ sót scenario của spec (`--change`) | Gate scenario ở REVIEW: mỗi scenario ID của các task được giao phải có `describe`/`it`/`test` trong `test/public` mà tên bắt đầu bằng ID đó, thiếu thì không duyệt và test-writer phải viết thêm |
+| code-writer edits tests / test-writer edits code | `guard.mjs` (by `agent_type`), `--allowedTools` per role, and **the gates in `run.sh`**: after each step, every file changed since the SHA of the commit before that step must be in the role's area (allow-list). The gate runs after the agent has exited, so it cannot be bypassed with Bash or by running code |
+| Rewriting git history to drop the test commit | The gate checks that the commit before the step is still an ancestor of `HEAD` |
+| Code that probes the test environment (`VITEST`, `NODE_ENV === 'test'`) | The gate greps the `src` diff |
+| Tests written afterwards, fitted to the code | RED step: the new tests must fail on the old code before code-writer runs; the PR has 2 commits, test → code |
+| The RED → GREEN order reversed or faked in the git history (pod branches and hand-made branches alike) | CI job `red-check` (`.specify/scripts/red_check.py --base origin/<base>`) checks it again on the PR's history: the first commit that touches the test area holds only tests, the tests it adds/changes fail at that very commit (run in a temporary worktree), no commit that changes `src` comes before it; a bug record `bugs/<id>/` may only be in its own commit before it |
+| Weak tests | Mutation score ≥ `MUTATION_MIN` on the changed src files + test-critic |
+| Deleting existing tests to pass more easily | test-writer cannot delete files itself; it writes `DELETE: <path>` and `run.sh` only deletes files in `test/public` created by the branch itself (not present at `BASE_SHA`) |
+| A wrong test, code-writer stuck (or claiming "the test is wrong" to dodge it) | code-writer writes `TEST_WRONG: <file>:<line> <reason>`; test-critic arbitrates from the spec, at most once per task. `TESTS_WRONG` → the current code is committed (`wip`), test-writer fixes only the assertions judged wrong; `CODE_WRONG` → code-writer goes on fixing, with the reasoning. The per-role area gates do not change |
+| The critic changing its mind between rounds | From round 2, the critic gets the previous round's review + the test-writer's answer, and may block only with an old item not yet addressed or a significant new problem |
+| Code tailored to the public tests | Hidden tests `test/private` run on the local machine once there is a PR; only counts are printed, no content goes to the agents. Quarantined hidden tests (`_stale/`, see "Stale hidden tests") are not copied into the worktree, so they do not run |
+| Prompt injection into a reviewer | A VERDICT can only stop the flow or send it back for fixes; the gates above still decide |
+| Security holes / missing permission checks in the backend | security-reviewer (read-only, constitution Principle II) in every REVIEW round; approval also needs `security=APPROVE`. A HIGH/MEDIUM finding → a test proving the vulnerability (test-writer), then the code fix (code-writer); a `SPEC_PROBLEM` about permissions → stop, draft PR |
+| An agent edits the spec to fit the code/tests (`--change`) | Checksum of the whole `specs/` taken before the PLAN step; every `assert_only` gate fails if a file in `specs/` changed (including uncommitted spec files sent through the ConfigMap) |
+| An agent edits the bug record or the reproduction test to pass more easily (`--bug`) | The reproduction test is part of the root-cause gate the user approved (`approval.py`, hash). The pod runs `approval.py verify --bug` at the start and before opening the PR; checksum of `bugs/<id>/` + the reproduction test in every `assert_only` gate; `DELETE:` cannot delete the reproduction test |
+| Secrets in the pod read or used by an agent | The pod has only the Claude token (`CLAUDE_CODE_OAUTH_TOKEN`), no GitHub write token (with `GH_TOKEN`, `run.sh` FAILS): anonymous clone (public repo) or a read-only `GH_READ_TOKEN` through a credential helper, never in the URL or `.git/config` (`run.sh` checks). Push and PR happen on this machine (`collect.sh`, which treats the artifact as data only; the job's last marker decides — `ARTIFACT NONE` means no PR —; every changed file must be in the agent areas; no force push). Commands the script runs (pnpm install / ci:local, vitest, stryker, `node -e`, `approval.py`) run without the Claude token (`noenv`) |
+| Remaining limits on secrets | Commands an agent runs itself through Bash still inherit the Claude token (`claude` needs it). Outbound network from the pod is not filtered yet (an agent could send data out) |
+| Missing a scenario of the spec (`--change`) | The scenario gate at REVIEW: every scenario ID of the assigned tasks must have a `describe`/`it`/`test` in `test/public` whose name starts with that ID; if one is missing, no approval, and test-writer must add it |
 
-Quy trình cho Claude tổng nằm trong skill `.claude/skills/dispatch-agents/SKILL.md`.
+The procedure for the main session is in the skill `.claude/skills/dispatch-agents/SKILL.md`.
 
-**Vùng của agent** (code, test public / e2e / private, tên package, mẫu tên file test) định nghĩa một lần trong
-`.claude/harness.json`. `run.sh` đọc nó ngay sau khi clone (`SRC_RE` = `pod.codeWritable`, `TEST_RE` =
-`pod.testWritable`; lỗi thì FAIL), `collect.sh` kiểm lại branch theo `pod.agentAreas` của bản config tại `base_sha`
-(`git show <base_sha>:.claude/harness.json | harness_config.py … --config -`, tức đúng bản pod đã dùng, không phải
-working tree của máy này; không đọc được thì FAILED, không push), `dispatch.sh` lấy vùng test
-private và regex test tái hiện từ đó (`python3 .specify/scripts/harness_config.py get <key> --regex|--list`).
-Đổi cấu trúc thư mục = sửa file đó + phần văn xuôi trong `CLAUDE.md` và prompt agent.
+**Agent areas** (code, public / e2e / private tests, package names, test-file pattern) are defined once, in
+`.claude/harness.json`. `run.sh` reads it right after the clone (`SRC_RE` = `pod.codeWritable`, `TEST_RE` =
+`pod.testWritable`; on an error it FAILS), `collect.sh` checks the branch again against `pod.agentAreas` of the config at `base_sha`
+(`git show <base_sha>:.claude/harness.json | harness_config.py … --config -`, i.e. exactly the version the pod used, not the
+working tree of this machine; if it cannot be read: FAILED, no push), `dispatch.sh` takes the hidden test areas
+and the reproduction-test regex from it (`python3 .specify/scripts/harness_config.py get <key> --regex|--list`).
+Changing the folder layout = edit that file + the prose in `CLAUDE.md` and the agent prompts.
 
-| File | Làm gì |
+| File | What it does |
 |---|---|
-| `run.sh` | Script chạy trong pod (ConfigMap `agent-script`, `dispatch.sh` tự cập nhật) |
-| `job-template.yaml` | Template một Job; `dispatch.sh` điền `JOB_ID`, `BASE_BRANCH`, `MODE`, deadline. Chỉnh `REVIEW_ROUNDS`, `MUTATION_MIN` ở đây |
-| `dispatch.sh` | Tạo ConfigMap task + Job, theo dõi log vào `logs/`, gọi `collect.sh`, chạy hidden test, in `PRIVATE` và `RESULT` |
-| `collect.sh` | Trên máy này: lấy artifact của job từ log, kiểm (chỉ coi là dữ liệu), push branch (không force), mở PR bằng `gh` |
-| `watch-pr.sh` | Đợi check của PR, in log step lỗi nếu fail |
-| `tasks/EXAMPLE.md` | Mẫu file task |
+| `run.sh` | The script that runs in the pod (ConfigMap `agent-script`, updated by `dispatch.sh`) |
+| `job-template.yaml` | Template of one Job; `dispatch.sh` fills in `JOB_ID`, `BASE_BRANCH`, `MODE`, the deadline. Set `REVIEW_ROUNDS`, `MUTATION_MIN` here |
+| `dispatch.sh` | Creates the task ConfigMap + Job, follows the log into `logs/`, calls `collect.sh`, runs the hidden tests, prints `PRIVATE` and `RESULT` |
+| `collect.sh` | On this machine: takes the job's artifact from the log, checks it (as data only), pushes the branch (no force), opens the PR with `gh` |
+| `watch-pr.sh` | Waits for the PR's checks, prints the logs of the failed steps on failure |
+| `tasks/EXAMPLE.md` | Sample task file |
 
-## Vì sao mỗi bước chạy `--agent <vai>`
-Pod clone repo nên có cả `.claude/` (guard, hook). Chạy `claude -p` thường thì bị coi là session chính và bị chặn sửa
-`src/`, `test/`. Với `--agent <vai>`, hook nhận `agent_type` tương ứng: `test-writer` chỉ sửa được `test/public`,
-`code-writer` chỉ sửa được `src/`, planner/reviewer không ghi được gì. Sau mỗi bước, `run.sh` còn kiểm tra lại bằng
-allow-list theo vai (so với SHA của commit trước bước đó) trước khi đi tiếp, để agent không lách được.
-Mỗi bước là một session mới: các vai chỉ chia sẻ file (plan, commit), không chung ngữ cảnh hội thoại.
+## Why each step runs `--agent <role>`
+The pod clones the repo, so it has `.claude/` too (guard, hooks). A plain `claude -p` counts as the main session and is blocked from editing
+`src/`, `test/`. With `--agent <role>`, the hook gets the matching `agent_type`: `test-writer` can only edit `test/public`,
+`code-writer` can only edit `src/`, planners/reviewers can write nothing. After each step, `run.sh` checks again with the
+per-role allow-list (against the SHA of the commit before that step) before going on, so that the agent cannot get around it.
+Each step is a new session: the roles share only files (plan, commits), no conversation context.
 
-## Cài đặt một lần
+## One-time setup
 ```bash
-claude setup-token                       # copy giá trị sk-ant-oat...
+claude setup-token                       # copy the value sk-ant-oat...
 kind create cluster --name claude-demo
-# Chỉ token Claude: pod không push, không mở PR (collect.sh làm việc đó trên máy này, bằng gh của bạn)
+# Claude token only: the pod does not push or open PRs (collect.sh does that on this machine, with your gh)
 kubectl create secret generic agent-secrets \
   --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<sk-ant-oat...>'
-# Repo này đang PUBLIC: KHÔNG đặt GH_READ_TOKEN (pod clone ẩn danh). Chỉ khi repo chuyển sang private mới thêm:
+# This repo is PUBLIC: do NOT set GH_READ_TOKEN (the pod clones anonymously). Add it only if the repo becomes private:
 #   --from-literal=GH_READ_TOKEN='<github_pat_...>'
-# Token đó cũng nằm trong /proc/1/environ của container (agent đọc được), nên chỉ dùng token fine-grained, CHỈ repo này,
-# CHỈ quyền "Contents: Read-only", không quyền nào khác.
+# That token is also in the container's /proc/1/environ (agents can read it), so use only a fine-grained token, for THIS repo ONLY,
+# with ONLY the permission "Contents: Read-only", nothing else.
 security find-certificate -c MWG -p /Library/Keychains/System.keychain > mwg-ca.pem
 kubectl create configmap mwg-ca --from-file=mwg-ca.crt=mwg-ca.pem
 ```
-CI của PR chạy trên runner cloud của GitHub (`.github/workflows/ci.yml`), không cần cài runner trong kind.
+The PR's CI runs on GitHub's cloud runner (`.github/workflows/ci.yml`); no runner needs to be installed in kind.
 
-**Đã tạo `agent-secrets` có `GH_TOKEN` từ trước: xoá nó khỏi Secret** (`envFrom` nạp mọi key, agent sẽ thấy token ghi).
-Pod có `GH_TOKEN` thì `run.sh` FAIL ngay đầu (không chỉ cảnh báo: `unset` không xoá được biến khỏi `/proc/1/environ`):
+**If you created `agent-secrets` with `GH_TOKEN` earlier: remove it from the Secret** (`envFrom` loads every key, the agents would see the write token).
+With `GH_TOKEN` in the pod, `run.sh` FAILS at the very start (not just a warning: `unset` cannot remove the variable from `/proc/1/environ`):
 ```bash
 kubectl patch secret agent-secrets --type=json -p='[{"op": "remove", "path": "/data/GH_TOKEN"}]'
 ```
-Máy này cần `gh` đã đăng nhập (`gh auth login`) cho `collect.sh`, hidden test và `watch-pr.sh`.
+This machine needs a logged-in `gh` (`gh auth login`) for `collect.sh`, the hidden tests and `watch-pr.sh`.
 
-## Dùng
+## Usage
 ```bash
-# xem trước manifest, không tạo gì trong cluster
+# preview the manifests, create nothing in the cluster
 bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>" --dry-run
 
-# chạy thật — base branch phải đã push: pod clone từ origin. dispatch.sh đợi pod xong rồi gọi collect.sh (mở PR)
+# real run — the base branch must be pushed: the pod clones from origin. dispatch.sh waits for the pod, then calls collect.sh (opens the PR)
 bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>"
 bash k8s/agents/watch-pr.sh <pr-number>
 
-# --no-wait: tự mở PR sau khi job xong (log lấy bằng kubectl logs job/agent-<id>); --dry-run: không push, không mở PR
+# --no-wait: open the PR yourself once the job is done (log read with kubectl logs job/agent-<id>); --dry-run: no push, no PR
 bash k8s/agents/collect.sh example-task [--dry-run]
 ```
 
-### Làm theo spec (`--change`)
-Spec do spec harness (`.claude/CLAUDE.md`) viết, đặt ở `specs/changes/NNN-<feature>/` (cấu trúc: `specs/changes/.gitkeep`).
+### Working from a spec (`--change`)
+Specs are written by the spec harness (`.claude/CLAUDE.md`), in `specs/changes/NNN-<feature>/` (layout: `specs/changes/.gitkeep`).
 ```bash
-# task sinh từ spec ("-"), chỉ làm T002 và T003 của tasks.md
+# task generated from the spec ("-"), only T002 and T003 of tasks.md
 bash k8s/agents/dispatch.sh example-be - --title "<PR title>" \
   --change 001-example-feature --tasks T002,T003 --dry-run
-# hoặc file task viết tay + mục "## Spec" do run.sh nối thêm
+# or a hand-written task file + the "## Spec" section appended by run.sh
 bash k8s/agents/dispatch.sh example-be k8s/agents/tasks/example-be.md --title "..." --change 001-example-feature
 ```
-- `dispatch.sh` nén cả `specs/` ở máy này (trừ `archive/`) vào ConfigMap `task-<id>`: spec **chưa commit vẫn dùng được**.
-  Trong pod, file nào đã có trên base branch thì giữ bản trên branch; file chưa commit được thêm vào `.git/info/exclude`
-  nên không lọt vào PR.
-- `run.sh` nối vào task mục `## Spec`: đường dẫn change, các dòng task được giao, danh sách scenario ID, file nào vai CODE
-  đọc (`spec.md` requirement + ADR + Data Model, `plan.md`, `tasks.md`) và vai TEST đọc (scenario, Edge Cases, NFR
-  Verification, `checklists/edge-cases.md`, `## Test Strategy`). Mọi agent, cả trọng tài, đều nhận mục này.
-- Agent gặp spec sai/thiếu ghi `SPEC_PROBLEM: ...`; các dòng này được gom vào mục "Spec" của PR để quay lại spec harness.
+- `dispatch.sh` packs the whole `specs/` of this machine (except `archive/`) into the ConfigMap `task-<id>`: an **uncommitted spec works too**.
+  In the pod, a file already on the base branch keeps the branch's version; uncommitted files are added to `.git/info/exclude`
+  so they do not get into the PR.
+- `run.sh` appends a `## Spec` section to the task: the change's path, the assigned task lines, the list of scenario IDs, which files the CODE
+  roles read (`spec.md` requirements + ADRs + Data Model, `plan.md`, `tasks.md`) and the TEST roles read (scenarios, Edge Cases, NFR
+  Verification, `checklists/edge-cases.md`, `## Test Strategy`). Every agent, the arbiter included, gets this section.
+- An agent that finds the spec wrong or incomplete writes `SPEC_PROBLEM: ...`; these lines are collected into the "Spec" section of the PR, to go back to the spec harness.
 
-### Test private lỗi thời
-Change có requirement `MODIFIED` / `REMOVED` làm test private cũ của requirement đó sai (`dispatch.sh` sẽ báo
-`PRIVATE: FAIL` oan). Khi duyệt plan, `approval.py approve --gate plan` in số file liên quan. Người dùng tự chạy trong
-terminal (agent không chạy được: `guard.mjs` chặn mọi lệnh có tên script):
+### Stale hidden tests
+A change with `MODIFIED` / `REMOVED` requirements makes the old hidden tests of those requirements wrong (`dispatch.sh` would report
+`PRIVATE: FAIL` wrongly). When the plan is approved, `approval.py approve --gate plan` prints the number of affected files. The user runs, in
+their own terminal (agents cannot run it: `guard.mjs` blocks every command naming the script):
 ```bash
-python3 .specify/scripts/private_tests.py stale --change 004-example          # bảng removed / modified / mixed / unaffected
-python3 .specify/scripts/private_tests.py quarantine --change 004-example --kind removed   # hỏi y/N; --kind modified|all|mixed
-python3 .specify/scripts/private_tests.py restore --change 004-example        # chuyển ngược theo MANIFEST, không ghi đè
+python3 .specify/scripts/private_tests.py stale --change 004-example          # table removed / modified / mixed / unaffected
+python3 .specify/scripts/private_tests.py quarantine --change 004-example --kind removed   # asks y/N; --kind modified|all|mixed
+python3 .specify/scripts/private_tests.py restore --change 004-example        # moves back from the MANIFEST, never overwrites
 ```
-`--kind all` = removed + modified, **không** gồm file mixed (file chứa scenario của nhiều requirement, có cả requirement
-change không đổi): tách tay theo requirement, hoặc `--kind mixed` nếu chấp nhận mất phần không đổi (lệnh in cảnh báo
-kèm các ID đó trước câu hỏi y/N; bảng `stale` có dòng gợi ý này).
-Rồi mở `claude --agent private-test-writer` để viết test mới cho các requirement ADDED / MODIFIED (mỗi requirement
-một file `<REQ-ID>.test.ts`). File cách ly nằm ở `<package>/test/private/_stale/<change>/` kèm `MANIFEST.txt`;
-`run_private` của `dispatch.sh` không chép thư mục `_stale/`.
+`--kind all` = removed + modified, **not** the mixed files (files holding scenarios of several requirements, including requirements
+the change does not touch): split them by hand per requirement, or use `--kind mixed` if losing the untouched part is acceptable (the command prints a warning
+with those IDs before the y/N question; the `stale` table has a hint line about it).
+Then open `claude --agent private-test-writer` to write new tests for the ADDED / MODIFIED requirements (one
+file `<REQ-ID>.test.ts` per requirement). Quarantined files are in `<package>/test/private/_stale/<change>/` with `MANIFEST.txt`;
+`run_private` of `dispatch.sh` does not copy the `_stale/` folder.
 
-### Sửa bug (`--bug`)
-Bước a–e của luồng bug (skill `bug-fix-flow`: phân loại, `report.md`, test tái hiện, điều tra, duyệt root cause) vẫn
-làm tương tác ở máy local. Sau khi người dùng duyệt root cause trong terminal (`approval.py` gate `root-cause`, gồm cả
-test tái hiện ghi ở mục "Reproduction test" của `report.md`), bước f–g giao cho pod:
+### Fixing a bug (`--bug`)
+Steps a–e of the bug flow (skill `bug-fix-flow`: classify, `report.md`, reproduction test, investigate, root-cause approval) are still
+done interactively on the local machine. Once the user has approved the root cause in their terminal (`approval.py` gate `root-cause`, which includes
+the reproduction test named in the "Reproduction test" section of `report.md`), steps f–g go to the pod:
 ```bash
-python3 .specify/scripts/approval.py verify --bug 20261125-example-bug     # phải exit 0
+python3 .specify/scripts/approval.py verify --bug 20261125-example-bug     # must exit 0
 bash k8s/agents/dispatch.sh example-bug - --title "<PR title>" --bug 20261125-example-bug --dry-run
 ```
-- `dispatch.sh` kiểm `verify --bug`, đọc Path / Name / scenario từ `report.md`, nén `bugs/<id>/` + test tái hiện vào
-  `bug.tgz` (ConfigMap `task-<id>`, kèm `bug.txt`, `repro.txt`, `scenario.txt`). Chỉ mode `full`, không đi cùng `--change`.
-- Pod: `verify --bug` lại → commit `docs: bug record <id>` → bỏ PLAN (code plan = mục Root cause đã duyệt) → RED: test
-  tái hiện phải FAIL, gate scenario theo ID của bug → commit `test: reproduce bug <id>` → GREEN → REVIEW (gồm
-  security-reviewer) → `verify --bug` lần nữa → PR có mục "## Bug".
+- `dispatch.sh` checks `verify --bug`, reads Path / Name / scenario from `report.md`, packs `bugs/<id>/` + the reproduction test into
+  `bug.tgz` (ConfigMap `task-<id>`, with `bug.txt`, `repro.txt`, `scenario.txt`). Mode `full` only, never with `--change`.
+- Pod: `verify --bug` again → commit `docs: bug record <id>` → PLAN skipped (code plan = the approved Root cause section) → RED: the
+  reproduction test must FAIL, scenario gate on the bug's ID → commit `test: reproduce bug <id>` → GREEN → REVIEW (with
+  security-reviewer) → `verify --bug` once more → a PR with a "## Bug" section.
 
-## Ghi chú
-- Mỗi lần chạy (và mỗi vòng sửa CI) tính vào giới hạn gói Claude subscription.
-- Đừng đặt `ANTHROPIC_API_KEY` trong pod: nếu có, Claude Code dùng nó thay vì token subscription.
-- Proxy công ty (MWG) ký lại HTTPS, nên cần ConfigMap `mwg-ca` và `NODE_EXTRA_CA_CERTS`.
-- Pod được giữ 10 phút sau khi xong (`ttlSecondsAfterFinished: 600`); log đầy đủ nằm ở `k8s/agents/logs/` (gitignore).
-- Hai task không được sửa cùng file, nếu không các PR sẽ conflict nhau.
+## Notes
+- Every run (and every CI fix round) counts against the Claude subscription plan's limits.
+- Do not set `ANTHROPIC_API_KEY` in the pod: if it is there, Claude Code uses it instead of the subscription token.
+- The company proxy (MWG) re-signs HTTPS, so the ConfigMap `mwg-ca` and `NODE_EXTRA_CA_CERTS` are needed.
+- The pod is kept 10 minutes after it ends (`ttlSecondsAfterFinished: 600`); the full logs are in `k8s/agents/logs/` (gitignored).
+- Two tasks must never change the same file, or their PRs will conflict.

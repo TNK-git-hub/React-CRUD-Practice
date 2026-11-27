@@ -1,23 +1,23 @@
-<!-- Mẫu file task cho dispatch.sh. Claude tổng viết một file như thế này cho mỗi task.
-     Gọi: bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>" --mode code-only
-     Mode full (mặc định) cần mục "Behaviors to test": test-planner/test-writer viết test từ đó TRƯỚC khi có code.
-     Nội dung ví dụ cụ thể: _(none yet: điền khi bootstrap hệ thống mới)_ -->
+<!-- Sample task file for dispatch.sh. The main session writes one file like this for each task.
+     Call: bash k8s/agents/dispatch.sh example-task k8s/agents/tasks/EXAMPLE.md --title "<PR title>" --mode code-only
+     Mode full (default) needs the section "Behaviors to test": test-planner/test-writer write the tests from it BEFORE the code exists.
+     Concrete example content: _(none yet: fill in when bootstrapping a new system)_ -->
 
 ## Goal
-<!-- Một hai câu: hành vi cần có sau task, nhìn từ người dùng. -->
-_(none yet: điền khi bootstrap hệ thống mới)_
+<!-- One or two sentences: the behaviour wanted after the task, as seen by the user. -->
+_(none yet: fill in when bootstrapping a new system)_
 
 ## Behaviors to test
-<!-- Chỉ cho --mode full. Hành vi quan sát được từ bên ngoài: input → output. Mỗi dòng phải fail trên code hiện tại. -->
-- _(none yet: điền khi bootstrap hệ thống mới)_
+<!-- Only for --mode full. Behaviour observable from outside: input → output. Each line must fail on the current code. -->
+- _(none yet: fill in when bootstrapping a new system)_
 
 ## Files you may change
-- _(none yet: điền khi bootstrap hệ thống mới)_
+- _(none yet: fill in when bootstrapping a new system)_
 - Tests: `frontend/test/public/` (test-writer only, --mode full)
 
 ## Out of scope
-- _(none yet: điền khi bootstrap hệ thống mới)_
+- _(none yet: fill in when bootstrapping a new system)_
 
 ## Done when
-- _(none yet: điền khi bootstrap hệ thống mới)_
+- _(none yet: fill in when bootstrapping a new system)_
 - `pnpm ci:local` prints CI PASSED.

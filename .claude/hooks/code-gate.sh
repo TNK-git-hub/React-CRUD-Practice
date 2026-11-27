@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Stop hook của code-writer (chạy như SubagentStop): lint, typecheck, test phải pass mới được báo xong.
+# Stop hook of code-writer (runs as SubagentStop): lint, typecheck and tests must pass before it may report done.
 input=$(cat)
 
-# Đã bị chặn một lần thì cho dừng, tránh lặp vô hạn
+# Already blocked once: let it stop, to avoid an endless loop
 if echo "$input" | grep -q '"stop_hook_active": *true'; then
   exit 0
 fi
 
 cd "$CLAUDE_PROJECT_DIR" || exit 0
 
-# Khung harness chưa có app (chưa có package.json) thì không có gì để test
+# Harness skeleton without an app yet (no package.json): nothing to test
 [ -f package.json ] || exit 0
 
-# Không có file nào thay đổi thì khỏi kiểm tra
+# No file changed: nothing to check
 if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
   exit 0
 fi
@@ -20,7 +20,7 @@ fi
 run() {
   local name=$1; shift
   if ! output=$("$@" 2>&1); then
-    echo "$name đang fail. Sửa cho pass rồi mới được báo hoàn thành:" >&2
+    echo "$name is failing. Make it pass before you report the task as done:" >&2
     echo "$output" | tail -40 >&2
     exit 2
   fi

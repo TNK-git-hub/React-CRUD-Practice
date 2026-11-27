@@ -1,11 +1,11 @@
-# Template cho MỘT agent Job. Không dùng trực tiếp: dispatch.sh thay __JOB_ID__, __BASE_BRANCH__, __MODE__, __DEADLINE__
-# (đã kiểm tra chỉ gồm ký tự an toàn), còn task và tiêu đề PR nằm trong ConfigMap "task-__JOB_ID__".
+# Template for ONE agent Job. Not used directly: dispatch.sh replaces __JOB_ID__, __BASE_BRANCH__, __MODE__, __DEADLINE__
+# (checked to hold only safe characters); the task and the PR title are in the ConfigMap "task-__JOB_ID__".
 #
-# Cần sẵn trong namespace (xem README.md):
+# Needed in the namespace beforehand (see README.md):
 #   Secret    agent-secrets  (CLAUDE_CODE_OAUTH_TOKEN; GH_READ_TOKEN only for a private repo; no GitHub write token:
 #                             the host pushes and opens the PR with collect.sh)
-#   ConfigMap mwg-ca         (CA của proxy công ty)
-#   ConfigMap agent-script   (run.sh; dispatch.sh tự tạo/cập nhật từ k8s/agents/run.sh)
+#   ConfigMap mwg-ca         (CA of the company proxy)
+#   ConfigMap agent-script   (run.sh; dispatch.sh creates / updates it from k8s/agents/run.sh)
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -14,7 +14,7 @@ metadata:
     app: claude-agent-job
     agent-job-id: __JOB_ID__
 spec:
-  ttlSecondsAfterFinished: 600   # giữ pod 10 phút sau khi xong để còn xem log
+  ttlSecondsAfterFinished: 600   # keep the pod 10 minutes after it ends, so the log can still be read
   backoffLimit: 0
   activeDeadlineSeconds: __DEADLINE__   # full: 5400 (plan → red → green → review), code-only: 2400
   template:
@@ -50,9 +50,9 @@ spec:
             - { name: BASE_BRANCH, value: __BASE_BRANCH__ }
             - { name: JOB_ID, value: __JOB_ID__ }
             - { name: MODE, value: __MODE__ }               # full | code-only
-            - { name: MAX_FIX_ATTEMPTS, value: "2" }        # số vòng code-writer sửa khi ci:local fail
-            - { name: REVIEW_ROUNDS, value: "2" }           # số vòng quay lại writer sau review
-            - { name: MUTATION_MIN, value: "70" }           # mutation score tối thiểu (%) trên file src đã đổi
+            - { name: MAX_FIX_ATTEMPTS, value: "2" }        # rounds of code-writer fixes when ci:local fails
+            - { name: REVIEW_ROUNDS, value: "2" }           # rounds back to the writers after review
+            - { name: MUTATION_MIN, value: "70" }           # minimum mutation score (%) on the changed src files
             - { name: NODE_EXTRA_CA_CERTS, value: /usr/local/share/ca-certificates/mwg/mwg-ca.crt }
           resources:
             requests: { cpu: 500m, memory: 512Mi }

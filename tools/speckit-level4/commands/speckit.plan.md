@@ -86,7 +86,7 @@ verbatim in the product's language, in double quotes. The spec of the change mus
    `specs/_system/`, and, by declared feature (`capabilities` lists `<domain>/<feature>`):
    `specs/capabilities/<domain>/<feature>/spec.md` of each declared feature plus the shared `states.md`, `rules.md`,
    `history.md` of their domains. Never the spec.md of an undeclared feature. Load the
-   IMPL_PLAN template (already copied by the script). The worked example `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_
+   IMPL_PLAN template (already copied by the script). The worked example `docs/examples/` _(none yet: fill in when bootstrapping a new system)_
    shows the expected Architecture Decisions and Data Model.
 
 3. **Check the spec before planning**: `[NEEDS CLARIFICATION]` left in the spec, a `_(unassigned)_` row in

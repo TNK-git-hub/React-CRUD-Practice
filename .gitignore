@@ -36,14 +36,14 @@ dist-ssr
 
 crash.log
 
-# Test private: chỉ nằm trên máy, không commit
+# Hidden (private) tests: only on this machine, never committed
 **/test/private/
 
-# Kết quả mutation testing
+# Mutation testing results
 reports/
 .stryker-tmp/
 
-# Môi trường Python cho webapp-testing (Playwright)
+# Python environment for webapp-testing (Playwright)
 .venv/
 
 # Build output / generated files
@@ -51,13 +51,13 @@ reports/
 next-env.d.ts
 *.tsbuildinfo
 
-# Log của agent job (lưu local khi job k8s chạy)
+# Agent job logs (saved locally when a k8s job runs)
 k8s/agents/logs/
 
-# File task do Claude tổng viết khi dispatch (chỉ giữ file mẫu)
+# Task files the main session writes when dispatching (only the sample is kept)
 k8s/agents/tasks/*
 !k8s/agents/tasks/EXAMPLE.md
 
-# Python cache của script spec harness (.specify/scripts, .claude/hooks)
+# Python cache of the harness scripts (.specify/scripts, .claude/hooks)
 __pycache__/
 *.pyc

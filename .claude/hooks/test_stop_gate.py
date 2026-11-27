@@ -163,9 +163,9 @@ class StopGateTest(unittest.TestCase):
         code, err = self.run_gate()
         self.assertEqual(code, 2)
         self.assertTrue(self.pnpm_called())
-        self.assertIn("pnpm test đang fail", err)
-        self.assertIn("KHÔNG sửa, nới, skip hay xoá test để cho pass", err)
-        self.assertIn("chờ người dùng quyết định", err)
+        self.assertIn("pnpm test is failing", err)
+        self.assertIn("Do NOT edit, weaken, skip or delete tests to make them pass", err)
+        self.assertIn("waiting for the user to decide", err)
         self.assertIn("FAIL  backend/test/public/a.test.ts > ABC-001-S1", err)
 
     def test_passing_tests(self) -> None:
@@ -182,7 +182,7 @@ class StopGateTest(unittest.TestCase):
         code, err = self.run_gate()
         self.assertEqual(code, 0)
         self.assertFalse(self.pnpm_called())
-        self.assertIn(f"[stop-gate] bug {BUG} đang chờ người dùng duyệt root cause", err)
+        self.assertIn(f"[stop-gate] bug {BUG} is waiting for the user to approve the root cause", err)
 
     def test_bug_with_matching_gate_runs_tests(self) -> None:
         self.with_app()
@@ -237,7 +237,7 @@ class StopGateTest(unittest.TestCase):
         code, err = self.run_gate()
         self.assertEqual(code, 2, err)
         self.assertTrue(self.pnpm_called())
-        self.assertNotIn("bỏ qua pnpm test", err)
+        self.assertNotIn("skipping pnpm test", err)
 
     def test_bug_with_notes_only_runs_tests(self) -> None:
         self.with_app()

@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Chạy trong pod của một agent Job (mount qua ConfigMap "agent-script").
-# Task KHÔNG viết cứng: đọc từ /task/task.md (ConfigMap "task-<JOB_ID>" do dispatch.sh tạo).
+# Runs in the pod of an agent Job (mounted from the ConfigMap "agent-script").
+# The task is NOT hard-coded: it is read from /task/task.md (ConfigMap "task-<JOB_ID>", created by dispatch.sh).
 #
-# MODE=full (mặc định), mỗi bước là một session `claude -p --agent <vai>` mới, không chung ngữ cảnh:
-#   1. PLAN    code-planner + test-planner (chỉ đọc) → /tmp/plan/*.md (ngoài repo)
-#   2. RED     test-writer viết test → gate: chỉ sửa test/public, test mới phải FAIL → commit "test: ..."
-#   3. GREEN   code-writer viết code → gate: chỉ sửa src, không có code dò môi trường test,
-#              pnpm ci:local pass (tối đa MAX_FIX_ATTEMPTS vòng sửa) → commit
-#              code-writer ghi "TEST_WRONG: ..." → test-critic làm trọng tài (1 lần/task): test sai thì test-writer sửa assert đó
-#   4. REVIEW  mutation score (Stryker, do script chạy) + code-reviewer + test-critic + security-reviewer (chỉ đọc)
-#              → cần sửa thì quay lại bước 2/3 kèm nhận xét, tối đa REVIEW_ROUNDS vòng
+# MODE=full (default), each step is a new `claude -p --agent <role>` session, with no shared context:
+#   1. PLAN    code-planner + test-planner (read-only) → /tmp/plan/*.md (outside the repo)
+#   2. RED     test-writer writes tests → gate: only test/public changed, the new tests must FAIL → commit "test: ..."
+#   3. GREEN   code-writer writes the code → gate: only src changed, no code that probes the test environment,
+#              pnpm ci:local passes (at most MAX_FIX_ATTEMPTS fix rounds) → commit
+#              code-writer writes "TEST_WRONG: ..." → test-critic arbitrates (once per task): if the test is wrong, test-writer fixes that assertion
+#   4. REVIEW  mutation score (Stryker, run by the script) + code-reviewer + test-critic + security-reviewer (read-only)
+#              → changes needed: back to step 2/3 with the comments, at most REVIEW_ROUNDS rounds
 #              security-reviewer CHANGES: test-writer writes a test per HIGH/MEDIUM finding, code-writer fixes it;
 #              a SPEC_PROBLEM line in the security review (permissions) stops the review: draft PR, back to the spec harness
 #   5. EXPORT  PR body; on exit the branch is printed as an artifact (git bundle + meta.json + pr-body.md) in the log.
 #              The pod has no GitHub write token: k8s/agents/collect.sh on the user's machine pushes the branch and
 #              opens the PR (draft when the run FAILED after its first commit)
-# MODE=code-only: luồng cũ, chỉ có bước 3 rồi EXPORT.
+# MODE=code-only: the old flow, only step 3, then EXPORT.
 #
-# Spec (tùy chọn, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): task được nối thêm mục "## Spec" trỏ tới
-# specs/changes/<change>/ (cấu trúc: specs/changes/.gitkeep). Agent CODE đọc
-# spec.md + plan.md + tasks.md, agent TEST đọc scenario + edge case + Test Strategy. Thêm 2 gate:
-#   - không ai được sửa specs/ (checksum, kể cả file spec chưa commit được gửi qua ConfigMap)
-#   - mỗi scenario ID của các task được giao phải có test mang tên bắt đầu bằng ID đó (chặn duyệt ở REVIEW)
+# Spec (optional, dispatch.sh --change NNN-<feature> [--tasks T001,T002]): a "## Spec" section pointing to
+# specs/changes/<change>/ (layout: specs/changes/.gitkeep) is appended to the task. CODE agents read
+# spec.md + plan.md + tasks.md, TEST agents read the scenarios + edge cases + Test Strategy. Two more gates:
+#   - nobody may change specs/ (checksum, including uncommitted spec files sent through the ConfigMap)
+#   - every scenario ID of the assigned tasks must have a test whose name starts with that ID (blocks approval at REVIEW)
 #
 # Bug (optional, dispatch.sh --bug <id>, MODE=full): steps f-g of the bug flow (skill bug-fix-flow), after the user
 # approved the root cause and the reproduction test in their own terminal (steps a-e stay interactive):
@@ -33,13 +33,13 @@
 #   - checksum of bugs/<id>/ + the reproduction test: every gate fails if an agent changed them; the test cannot be
 #     DELETEd; approval.py verify runs again before the PR
 #
-# Gate do script chạy SAU khi agent đã thoát, so với SHA của commit trước bước đó (script giữ SHA, agent không với tới):
-# agent dùng cách nào để ghi file (Edit, Bash, chạy code qua vitest...) thì vẫn bị bắt.
-# Dòng cuối log luôn là "==> RESULT: SUCCESS artifact=ready" hoặc "==> RESULT: FAILED reason=<lý do>[ artifact=ready]"
+# Gates are run by the script AFTER the agent has exited, against the SHA of the commit before that step (the script keeps the SHA, out of the agent's reach):
+# whatever way the agent uses to write files (Edit, Bash, running code through vitest...), it is still caught.
+# The last log line is always "==> RESULT: SUCCESS artifact=ready" or "==> RESULT: FAILED reason=<reason>[ artifact=ready]"
 # (artifact=ready: the ARTIFACT block above it holds the branch; collect.sh turns it into "RESULT: ... pr=<url>").
 set -euo pipefail
 
-# Không sinh file core dump khi process crash: file "core" ở gốc repo sẽ làm gate assert_only fail oan
+# No core dump file when a process crashes: a "core" file at the repo root would make the assert_only gate fail wrongly
 ulimit -c 0
 
 MODE="${MODE:-full}"
@@ -131,13 +131,13 @@ BRANCH_PREFIX="agent/${JOB_ID}"
 [[ -n "${PR_TITLE// }" ]] || fail "empty PR title"
 [[ "$MODE" == full || "$MODE" == code-only ]] || fail "unknown MODE '$MODE'"
 
-# ---------- phân quyền theo vai (allow-list, không phải deny-list) ----------
+# ---------- permissions per role (an allow-list, not a deny-list) ----------
 # Agent areas (SRC_RE, TEST_RE, PACKAGES, SRC_DIRS, TEST_PUBLIC_DIRS, TEST_FILE_RE): read from .claude/harness.json
 # right after the clone (see "Agent areas" below).
-# Code dò môi trường test để trả kết quả giả: không có lý do chính đáng nào để có trong src
+# Code that probes the test environment to return fake results: there is no legitimate reason to have it in src
 ENV_SNIFF_RE='vitest|\bjest\b|__TEST__|NODE_ENV[[:space:]]*[!=]==?[[:space:]]*["'"'"']test'
 
-# Liệt kê lệnh cụ thể, không dùng "pnpm --filter:*" (nó cho cả "pnpm --filter x exec <lệnh bất kỳ>")
+# List exact commands; never "pnpm --filter:*" (it also allows "pnpm --filter x exec <any command>")
 TEST_CMDS=("Bash(pnpm test)" "Bash(pnpm --filter backend test:*)" "Bash(pnpm --filter frontend test:*)")
 GIT_READ=("Bash(git status:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git show:*)")
 # strict type check of the test files (constitution Principle IV), also run by ci:local
@@ -165,7 +165,7 @@ Do not change production code, test config, package.json or .claude. Only mock s
 Each test must name the bug it catches; expected values are fixed literals or computed by hand, never by calling the code under test."
 
 # ---------- helper ----------
-# run_agent <vai> <file output> <prompt> <tools...>: một session mới, output lưu vào file và in ra log
+# run_agent <role> <output file> <prompt> <tools...>: a new session, its output saved to a file and printed in the log
 run_agent() {
   local agent="$1" out="$2" prompt="$3"; shift 3
   log "agent ${agent} starting"
@@ -175,10 +175,10 @@ run_agent() {
   sed 's/^/    | /' "$out"
 }
 
-# File đã đổi so với một SHA (cả file mới chưa track, cả file bị xoá)
+# Files changed since a SHA (new untracked files and deleted files too)
 changed_since() { { git diff --no-renames --name-only "$1"; git ls-files --others --exclude-standard; } | sort -u; }
 
-# Checksum toàn bộ specs/ (cả file đã commit lẫn file spec gửi qua ConfigMap, bị git bỏ qua)
+# Checksum of the whole specs/ (committed files and spec files sent through the ConfigMap, which git ignores)
 spec_sum() { find specs -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'; }
 
 # Bug mode: checksum of the bug record and the reproduction test (both approved by the user, read-only in the pod)
@@ -187,7 +187,7 @@ bug_sum() {
     | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | awk '{print $1}'
 }
 
-# assert_only <sha> <regex> <vai>: mọi file đổi kể từ <sha> phải khớp <regex>
+# assert_only <sha> <regex> <role>: every file changed since <sha> must match <regex>
 assert_only() {
   local sha="$1" re="$2" who="$3" bad
   git merge-base --is-ancestor "$sha" HEAD || fail "${who}: git history was rewritten (commit ${sha:0:8} is gone)"
@@ -217,12 +217,12 @@ assert_no_env_sniff() {
   fi
 }
 
-# Không có gì để commit thì giữ nguyên HEAD (vd sau trọng tài, code đã được commit sẵn)
+# Nothing to commit: keep HEAD as it is (e.g. after arbitration, the code is already committed)
 commit_stage() { git add -A; git diff --cached --quiet || git commit -q -m "$1"; git rev-parse HEAD; }
 
-# test-writer không có quyền xoá file (pod không cho Bash rm): nó ghi dòng "DELETE: <path>" trong câu trả lời,
-# script xoá giúp, nhưng CHỈ file trong test/public do chính branch này tạo ra (không có ở BASE_SHA).
-# Nhờ vậy review có thể đòi xoá test vô nghĩa, mà agent vẫn không xoá được test có sẵn để cho dễ pass.
+# test-writer cannot delete files (the pod allows no Bash rm): it writes a line "DELETE: <path>" in its answer,
+# and the script deletes it, but ONLY a file in test/public created by this branch itself (not present at BASE_SHA).
+# So the review can ask to delete a pointless test, while the agent still cannot delete an existing test to pass more easily.
 apply_test_deletions() {
   local out="$1" p
   while read -r p; do
@@ -242,11 +242,11 @@ apply_test_deletions() {
   done < <({ grep -Eo '^[[:space:]]*DELETE: [^[:space:]]+' "$out" || true; } | sed -E 's/^[[:space:]]*DELETE: //; s/`//g' | sort -u)
 }
 
-# Trọng tài: code-writer khẳng định test sai (dòng "TEST_WRONG:"), CI fail. Tối đa 1 lần mỗi task (mode full).
-# test-critic (chỉ đọc) phán theo spec của task:
-#   TESTS_WRONG -> chốt code hiện tại (commit "wip"), test-writer sửa đúng các assert bị phán sai -> commit; ARB_SHA = mốc mới cho gate
-#   CODE_WRONG / không có phán quyết -> code-writer sửa tiếp, kèm lập luận của trọng tài (ARB_NOTE)
-# Gate vẫn giữ nguyên: code-writer chỉ src, test-writer chỉ test/public; test sau đó còn qua mutation + test-critic ở REVIEW.
+# Arbitration: code-writer claims a test is wrong (a "TEST_WRONG:" line) and CI fails. At most once per task (mode full).
+# test-critic (read-only) decides from the task's spec:
+#   TESTS_WRONG -> commit the current code (commit "wip"), test-writer fixes exactly the assertions judged wrong -> commit; ARB_SHA = the new reference for the gate
+#   CODE_WRONG / no verdict -> code-writer goes on fixing, with the arbiter's reasoning (ARB_NOTE)
+# The gates stay the same: code-writer only src, test-writer only test/public; the tests still go through mutation + test-critic at REVIEW.
 arbitrate() {
   local sha="$1" code_out="$2" v wip
   ARBITRATED=1; ARB_RESULT=CODE_WRONG
@@ -302,8 +302,8 @@ ${RULES_TEST}" "${TOOLS_TEST_WRITER[@]}"
   ARB_SHA="$(commit_stage "test: fix assertions after arbitration")"
 }
 
-# ci_gate <sha> [code-writer output]: gate của code-writer kể từ <sha>, chạy ci:local, fail thì nhờ code-writer sửa.
-# [code-writer output] = câu trả lời của code-writer vừa chạy; có dòng TEST_WRONG thì gọi trọng tài trước khi sửa tiếp.
+# ci_gate <sha> [code-writer output]: the gate of code-writer since <sha>; runs ci:local and, on failure, asks code-writer to fix it.
+# [code-writer output] = the answer of the code-writer that just ran; if it has a TEST_WRONG line, arbitration runs before the next fix.
 ci_gate() {
   local sha="$1" code_out="${2:-}" attempt=0
   while true; do
@@ -320,7 +320,7 @@ ci_gate() {
       arbitrate "$sha" "$code_out"
       if [[ "$ARB_RESULT" == TESTS_WRONG ]]; then
         sha="$ARB_SHA"; code_out=""
-        continue   # chạy lại CI với test đã sửa, không tính vào số vòng sửa code
+        continue   # run CI again with the fixed tests; does not count as a code fix round
       fi
     fi
     (( attempt < MAX_FIX_ATTEMPTS )) || fail "local CI still failing after ${MAX_FIX_ATTEMPTS} fix attempts"
@@ -337,7 +337,7 @@ $(tail -n 150 /tmp/ci.log | strip_colors)" "${TOOLS_CODE_WRITER[@]}"
   done
 }
 
-# Test file mới/đổi kể từ <sha>, chạy theo từng package; in log ra file.
+# Test files new / changed since <sha>, run per package; the log goes to a file.
 # Each package that runs also writes a vitest JSON report to RED_JSON/<pkg>.json and its name to RED_JSON/packages.txt
 # (read by red_state).
 RED_JSON=/tmp/out/red-json
@@ -389,7 +389,7 @@ run_repro_test() {
     --outputFile.json="$RED_JSON/${pkg}.json") >> "$out" 2>&1
 }
 
-# Mutation score trên các dòng src đã thêm/sửa kể từ BASE_SHA (Stryker vẫn chạy cả file, chỉ chấm phần đổi). Đặt MUT_OK (1/0) và ghi báo cáo vào /tmp/out/mutation.txt
+# Mutation score on the src lines added / changed since BASE_SHA (Stryker still runs whole files, only the changed part is scored). Sets MUT_OK (1/0) and writes the report to /tmp/out/mutation.txt
 mutation_gate() {
   local pkg files mutate report="/tmp/out/mutation.txt" ok=1
   : > "$report"
@@ -404,8 +404,8 @@ mutation_gate() {
       tail -n 40 /tmp/out/stryker-$pkg.log | strip_colors >> "$report"
       ok=0; continue
     fi
-    # Dòng đã thêm/sửa kể từ BASE_SHA, mỗi dòng "<file trong pkg> <từ> <đến>" (lấy từ hunk "+c,d" của diff -U0).
-    # Gate chỉ chấm mutant nằm trên các dòng này: mutant sống trong code cũ của file không phải lỗi của task.
+    # Lines added / changed since BASE_SHA, one line "<file in pkg> <from> <to>" each (from the "+c,d" hunks of diff -U0).
+    # The gate scores only mutants on these lines: a surviving mutant in the old code of a file is not the task's fault.
     git diff -U0 --no-renames "$BASE_SHA" -- "$pkg/src" | awk -v pfx="${pkg}/" '
       /^\+\+\+ / { f = substr($2, 3); sub("^" pfx, "", f); next }
       /^@@ / { split(substr($3, 2), a, ","); n = (a[2] == "" ? 1 : a[2]); if (n > 0) print f, a[1], a[1] + n - 1 }
@@ -443,8 +443,8 @@ mutation_gate() {
   MUT_OK="$ok"
 }
 
-# Mỗi scenario ID của task phải có ít nhất một test (describe/it/test) mà tên bắt đầu bằng ID đó, trong test/public.
-# Đặt SCN_OK (1/0) và ghi báo cáo vào /tmp/out/scenarios.txt. Không có spec / không có scenario → luôn OK.
+# Every scenario ID of the task must have at least one test (describe/it/test) whose name starts with that ID, in test/public.
+# Sets SCN_OK (1/0) and writes the report to /tmp/out/scenarios.txt. No spec / no scenarios → always OK.
 scenario_gate() {
   local report=/tmp/out/scenarios.txt id missing=() found=0
   SCN_OK=1
@@ -468,7 +468,7 @@ scenario_gate() {
 
 verdict() { { grep -Eo 'VERDICT: (APPROVE|CHANGES)' "$1" || true; } | tail -n 1 | awk '{print $2}'; }
 
-# ---------- chuẩn bị ----------
+# ---------- setup ----------
 # python3: harness_config.py (the agent areas, every run) and approval.py (--change / --bug) need it
 command -v python3 >/dev/null 2>&1 || fail "python3 not found in the pod image (needed by harness_config.py and approval.py)"
 log "Trusting corporate CA (MWG TLS inspection)"
@@ -519,9 +519,9 @@ git config user.email "claude-k8s-agent@users.noreply.github.com"
 BRANCH="${BRANCH_PREFIX}-$(date +%s)"
 git checkout -b "${BRANCH}"
 BASE_SHA="$(git rev-parse HEAD)"
-noenv pnpm --version   # corepack lấy đúng bản pnpm theo "packageManager" trong package.json
+noenv pnpm --version   # corepack picks the pnpm version of "packageManager" in package.json
 
-# ---------- spec (tùy chọn) ----------
+# ---------- spec (optional) ----------
 CHANGE="$(head -n 1 /task/change.txt 2>/dev/null || true)"
 SPEC_TASKS="$(head -n 1 /task/tasks.txt 2>/dev/null || true)"
 SPEC_SUM=""; SCENARIOS=""
@@ -529,8 +529,8 @@ if [[ -n "$CHANGE" ]]; then
   [[ "$CHANGE" =~ ^[0-9]{3}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid change '$CHANGE'"
   SPEC_DIR="specs/changes/${CHANGE}"
   if [[ -f /task/spec.tgz ]]; then
-    # File đã có trên BASE_BRANCH giữ nguyên (--skip-old-files); file chưa commit thì lấy bản dispatch.sh gửi
-    # và cho vào .git/info/exclude: agent đọc được nhưng không lọt vào commit / PR.
+    # Files already on BASE_BRANCH stay as they are (--skip-old-files); for uncommitted files, the copy sent by dispatch.sh is used
+    # and added to .git/info/exclude: agents can read them but they do not get into a commit / the PR.
     tar -xzf /task/spec.tgz --skip-old-files --warning=no-unknown-keyword
     git ls-files --others --exclude-standard specs/ | sed 's|^|/|' >> .git/info/exclude
     if git ls-files --error-unmatch "${SPEC_DIR}/spec.md" >/dev/null 2>&1; then
@@ -540,7 +540,7 @@ if [[ -n "$CHANGE" ]]; then
     fi
   fi
   [[ -f "${SPEC_DIR}/spec.md" && -f "${SPEC_DIR}/tasks.md" ]] || fail "change '${CHANGE}': ${SPEC_DIR}/spec.md or tasks.md missing"
-  # Dòng task trong tasks.md: "- [ ] T012 [P] [US1] ... — Scenarios: ABC-001-S1, ABC-001-S2"
+  # Task line in tasks.md: "- [ ] T012 [P] [US1] ... — Scenarios: ABC-001-S1, ABC-001-S2"
   TASK_LINES="$(grep -E '^[[:space:]]*- \[[ xX]\] T[0-9]+' "${SPEC_DIR}/tasks.md" || true)"
   if [[ -n "$SPEC_TASKS" ]]; then
     sel=""
@@ -642,7 +642,7 @@ ARBITRATED=0; ARB_RESULT=""; ARB_SHA=""; ARB_NOTE=""
 : > /tmp/out/security-review.txt; SEC_SPEC_PROBLEM=0
 
 if [[ "$MODE" == code-only ]]; then
-  # ---------- luồng cũ: chỉ code-writer ----------
+  # ---------- the old flow: code-writer only ----------
   stage "GREEN (code-only): code-writer"
   run_agent code-writer /tmp/out/code.txt "${TASK}
 
@@ -694,7 +694,7 @@ ${TASK}" "${TOOLS_PLANNER[@]}"
   log "RED gate: PASSED (reproduction test committed as ${TEST_SHA:0:8})"
   else
   stage "RED: test-writer writes failing tests"
-  # Ở bước RED test phải fail -> tắt stop-gate (nó đòi pnpm test pass). Gate RED bên dưới vẫn do script kiểm.
+  # In the RED step the tests must fail -> stop-gate is off (it requires pnpm test to pass). The RED gate below is still checked by the script.
   export SKIP_STOP_GATE=1
   run_agent test-writer /tmp/out/test.txt "Write the tests for this task BEFORE the production code exists.
 The new tests MUST FAIL on the current code (that is expected: the code-writer will implement the change afterwards).
@@ -755,7 +755,7 @@ ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
   CRITIC_HISTORY=""; SEC_HISTORY=""
   while true; do
     stage "REVIEW round $((round + 1)): mutation + code-reviewer + test-critic + security-reviewer"
-    # Mỗi vòng critic là session mới: đưa nhận xét vòng trước + trả lời của test-writer để critic không đổi ý / đòi thứ không làm được
+    # Each critic round is a new session: give it the previous round's review + the test-writer's answer, so the critic does not change its mind / ask for what cannot be done
     if (( round > 0 )); then
       CRITIC_HISTORY="## Previous round
 This is review round $((round + 1)). Your previous review and the test-writer's answer are below.
@@ -836,7 +836,7 @@ End your answer with exactly one line: \`VERDICT: APPROVE\` (your verdict is PAS
     SEC_V="$(verdict /tmp/out/security-review.txt)"
     cp /tmp/out/test-review.txt /tmp/out/test-review-prev.txt
     cp /tmp/out/security-review.txt /tmp/out/security-review-prev.txt
-    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"; SEC_V="${SEC_V:-CHANGES}"   # không có VERDICT thì coi như chưa duyệt
+    CODE_V="${CODE_V:-CHANGES}"; TEST_V="${TEST_V:-CHANGES}"; SEC_V="${SEC_V:-CHANGES}"   # no VERDICT counts as not approved
     {
       echo "### Round $((round + 1)): code-reviewer=${CODE_V}, test-critic=${TEST_V}, security=${SEC_V}, mutation=$([[ $MUT_OK == 1 ]] && echo OK || echo LOW), scenarios=$([[ $SCN_OK == 1 ]] && echo OK || echo MISSING)"
     } >> /tmp/out/review.txt
@@ -927,7 +927,7 @@ $(cat /tmp/out/security-review.txt)
 ## Rules
 ${RULES_CODE}" "${TOOLS_CODE_WRITER[@]}"
     fi
-    # tests mới có thể làm CI fail: code-writer sửa trong gate này
+    # new tests may make CI fail: code-writer fixes that in this gate
     ci_gate "$STAGE_SHA" "$([[ "$CODE_V" == CHANGES || "$SEC_V" == CHANGES ]] && echo /tmp/out/code-fix.txt || true)"
     if [[ -n "$(changed_since "$STAGE_SHA")" ]]; then
       CODE_SHA="$(commit_stage "fix: address review (round ${round})")"

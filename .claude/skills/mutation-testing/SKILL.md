@@ -1,6 +1,6 @@
 ---
 name: mutation-testing
-description: Dùng để kiểm tra test có thực sự bắt được bug không, bằng Stryker. Dùng khi review chất lượng test, khi cần mutation score, hoặc khi phân tích mutant sống sót và equivalent mutant.
+description: Use to check whether tests really catch bugs, with Stryker. Use when reviewing test quality, when a mutation score is needed, or when analysing surviving mutants and equivalent mutants.
 allowed-tools: Read, Grep, Glob, Bash(pnpm exec stryker:*)
 ---
 # Mutation Test Runner
@@ -118,11 +118,11 @@ mutmut show 42
 - go-mutesting: https://github.com/zimmski/go-mutesting
 - Mutation testing theory: https://en.wikipedia.org/wiki/Mutation_testing
 
-## Phân tích kết quả
+## Analysing the results
 
-Sau khi Stryker chạy xong, phân tích mutant sống sót theo `workflows/analyzing-results.md`, dùng kèm:
-- `references/equivalent-mutants.md`: chứng minh một mutant là equivalent, không được đoán
-- `references/severity-classification.md`: xếp mức ưu tiên theo việc đoạn code đó làm gì, không theo loại mutation
-- `references/report-template.md`: định dạng báo cáo
+After Stryker has run, analyse the surviving mutants following `workflows/analyzing-results.md`, together with:
+- `references/equivalent-mutants.md`: prove that a mutant is equivalent; never guess
+- `references/severity-classification.md`: rank the priority by what that code does, not by the mutation type
+- `references/report-template.md`: the report format
 
-Các file này viết cho mewt/muton. Ở repo này, đầu vào là báo cáo JSON của Stryker trong `reports/mutation/`.
+These files were written for mewt/muton. In this repo, the input is Stryker's JSON report in `reports/mutation/`.

@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-# Giao MỘT task cho một agent chạy headless trong pod (kind cluster), đợi xong, in kết quả.
+# Hands ONE task to an agent running headless in a pod (kind cluster), waits for it to end, prints the result.
 #
-# Usage (từ gốc repo):
+# Usage (from the repo root):
 #   bash k8s/agents/dispatch.sh <job-id> <task-file|-> --title "<PR title>" [--mode full|code-only] [--base <branch>]
 #                               [--change NNN-<feature> [--tasks T001,T002] | --bug <YYYYMMDD>-<slug>]
 #                               [--no-wait] [--no-private] [--dry-run]
 #
-#   <job-id>     chữ thường, số, dấu "-" (vd: example-task). Branch sẽ là agent/<job-id>-<timestamp>.
-#   <task-file>  file markdown mô tả task (mục tiêu, file được sửa, tiêu chí xong). Xem tasks/EXAMPLE.md.
-#                "-" (chỉ khi có --change hoặc --bug): task sinh tự động từ spec / hồ sơ bug.
-#   --change     làm theo spec của spec harness: specs/changes/NNN-<feature>/ (spec.md, plan.md, tasks.md, checklists/).
-#                Cả thư mục specs/ ở máy này được gửi vào pod, nên spec chưa commit vẫn dùng được (không lọt vào PR).
-#   --tasks      chỉ làm các task này trong tasks.md (mặc định: mọi task). Scenario của chúng phải có test.
+#   <job-id>     lower-case letters, digits, "-" (e.g. example-task). The branch will be agent/<job-id>-<timestamp>.
+#   <task-file>  a markdown file describing the task (goal, files that may change, done criteria). See tasks/EXAMPLE.md.
+#                "-" (only with --change or --bug): the task is generated from the spec / the bug record.
+#   --change     follow a spec of the spec harness: specs/changes/NNN-<feature>/ (spec.md, plan.md, tasks.md, checklists/).
+#                The whole specs/ folder of this machine is sent to the pod, so an uncommitted spec works too (it does not get into the PR).
+#   --tasks      do only these tasks of tasks.md (default: every task). Their scenarios must have tests.
 #   --bug        steps f-g of the bug flow (skill bug-fix-flow) for bugs/<id>/: needs a root-cause approval that still
 #                matches (approval.py verify --bug <id>, which also covers the reproduction test). Mode full only, not
 #                with --change / --tasks. The pod skips PLAN, checks that the reproduction test fails, then GREEN + REVIEW.
-#   --mode      full (mặc định): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
-#                code-only: chỉ code-writer rồi mở PR (việc nhỏ, không cần test mới).
-#   --base       branch để clone và mở PR vào (mặc định: dòng "Base branch" của CLAUDE.md). Phải đã push lên origin.
-#   --no-wait    tạo Job rồi thoát ngay, không theo dõi log.
-#   --no-private không chạy hidden test (test/private, chỉ có trên máy này) trên branch của PR.
-#   --dry-run    chỉ kiểm tra đầu vào và in manifest, KHÔNG tạo gì trong cluster.
+#   --mode      full (default): plan → test-writer (RED) → code-writer (GREEN) → mutation + review → PR.
+#                code-only: only code-writer, then the PR (small jobs that need no new tests).
+#   --base       the branch to clone and open the PR into (default: the "Base branch" line of CLAUDE.md). It must be pushed to origin.
+#   --no-wait    create the Job and exit at once, without following the log.
+#   --no-private do not run the hidden tests (test/private, only on this machine) on the PR's branch.
+#   --dry-run    only check the input and print the manifests; create NOTHING in the cluster.
 #
-# Muốn chạy song song: gọi nhiều lệnh cùng lúc (mỗi task một job-id khác nhau).
-# Khi có PR (SUCCESS, hoặc FAILED kèm PR draft): in thêm "PRIVATE: PASS|FAIL|SKIPPED" (chỉ số lượng, không in nội dung test để không lộ cho agent).
-# Dòng cuối luôn là "RESULT: SUCCESS pr=<url>" hoặc "RESULT: FAILED reason=<lý do>"; exit 0 chỉ khi SUCCESS.
+# To run in parallel: call several commands at once (one job-id per task).
+# When there is a PR (SUCCESS, or FAILED with a draft PR): also prints "PRIVATE: PASS|FAIL|SKIPPED" (counts only, no test content, so nothing leaks to the agents).
+# The last line is always "RESULT: SUCCESS pr=<url>" or "RESULT: FAILED reason=<reason>"; exit 0 only on SUCCESS.
 set -euo pipefail
 
 usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
@@ -51,24 +51,24 @@ done
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIR="$ROOT/k8s/agents"
 
-# Base branch mặc định: dòng "- Base branch: `<tên>`" trong mục Branches của CLAUDE.md (không viết cứng ở đây).
-# --base ghi đè, nhưng in WARNING khi khác CLAUDE.md (PR sẽ vào branch khác branch mà spec harness dùng).
+# Default base branch: the line "- Base branch: `<name>`" in section Branches of CLAUDE.md (not hard-coded here).
+# --base overrides it, but prints a WARNING when it differs from CLAUDE.md (the PR would go into another branch than the one the spec harness uses).
 CLAUDE_BASE="$(sed -nE 's/^- Base branch: `([^`]+)`.*/\1/p' "$ROOT/CLAUDE.md" 2>/dev/null || true)"
 [[ "$CLAUDE_BASE" != *$'\n'* ]] || fail "CLAUDE.md has more than one '- Base branch:' line"
 if [[ -z "$BASE" ]]; then
   [[ -n "$CLAUDE_BASE" ]] || fail "no base branch: CLAUDE.md has no line '- Base branch: \`<name>\`' (or pass --base)"
   BASE="$CLAUDE_BASE"
 elif [[ "$BASE" != "$CLAUDE_BASE" ]]; then
-  echo "WARNING: --base '$BASE' differs from the Base branch in CLAUDE.md ('${CLAUDE_BASE:-<none>}'): the pod clones '$BASE' and opens the PR into '$BASE'."
+  echo "WARNING: --base '$BASE' differs from the Base branch in CLAUDE.md ('${CLAUDE_BASE:-<none>}'): the pod clones '$BASE' and the PR is opened into '$BASE'."
 fi
 
-# --- kiểm tra đầu vào ---
+# --- check the input ---
 [[ "$JOB_ID" =~ ^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$ ]] || fail "invalid job-id '$JOB_ID' (a-z, 0-9, '-', max 42 chars)"
 [[ "$BASE" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "invalid base branch '$BASE'"
 [[ -n "${TITLE// }" ]] || fail "missing --title"
 case "$MODE" in full) DEADLINE=5400 ;; code-only) DEADLINE=2400 ;; *) fail "invalid --mode '$MODE' (full|code-only)" ;; esac
 
-# --- spec (tùy chọn) ---
+# --- spec (optional) ---
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 SPEC_ARGS=()
 if [[ -n "$CHANGE" ]]; then
@@ -79,10 +79,10 @@ if [[ -n "$CHANGE" ]]; then
   for t in ${SPEC_TASKS//,/ }; do
     grep -qE "^[[:space:]]*- \[[ xX]\] ${t}([^0-9]|\$)" "$CDIR/tasks.md" || fail "task $t not found in specs/changes/$CHANGE/tasks.md"
   done
-  # plan + tasks phải được chính người dùng duyệt (approval.py approve trong terminal) và không đổi từ lúc duyệt
+  # plan + tasks must be approved by the user themselves (approval.py approve in their terminal) and unchanged since the approval
   python3 "$ROOT/.specify/scripts/approval.py" verify --change "$CHANGE" --gate plan --root "$ROOT" >&2 \
     || fail "plan not approved or changed since approval: run approval.py verify --change $CHANGE"
-  # specs/archive không cần cho agent; bỏ file rác của macOS
+  # specs/archive is not needed by the agents; leave out macOS junk files
   COPYFILE_DISABLE=1 tar -C "$ROOT" --exclude '.DS_Store' --exclude 'specs/archive' -czf "$TMP/spec.tgz" specs
   [[ "$(wc -c < "$TMP/spec.tgz")" -lt 900000 ]] || fail "specs/ is too big for a ConfigMap (max ~1 MiB)"
   SPEC_ARGS=(--from-file=spec.tgz="$TMP/spec.tgz" --from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS")
@@ -90,7 +90,7 @@ elif [[ -n "$SPEC_TASKS" ]]; then
   fail "--tasks needs --change"
 fi
 
-# --- bug (tùy chọn): steps f-g of the bug flow, after the user approved the root cause in their terminal ---
+# --- bug (optional): steps f-g of the bug flow, after the user approved the root cause in their terminal ---
 BUG_ARGS=()
 if [[ -n "$BUG" ]]; then
   [[ "$BUG" =~ ^[0-9]{8}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || fail "invalid --bug '$BUG' (<YYYYMMDD>-<slug>)"
@@ -170,7 +170,7 @@ render() {
     "$DIR/job-template.yaml"
 }
 if [[ "$DRY" == 1 ]]; then
-  # spec.tgz (nhị phân) không in ra: chỉ liệt kê nội dung
+  # spec.tgz (binary) is not printed: only its content is listed
   kubectl create configmap "task-$JOB_ID" --from-file=task.md="$TASK_FILE" --from-literal=title.txt="$TITLE" \
     ${CHANGE:+--from-literal=change.txt="$CHANGE" --from-literal=tasks.txt="$SPEC_TASKS"} \
     ${BUG:+--from-literal=bug.txt="$BUG" --from-literal=repro.txt="$REPRO" --from-literal=scenario.txt="$SCENARIO"} \
@@ -190,7 +190,7 @@ if git -C "$ROOT" rev-parse --verify -q "$BASE" >/dev/null && git -C "$ROOT" rev
   [[ "$ahead" == 0 ]] || echo "WARN: local '$BASE' is $ahead commit(s) ahead of origin; the pod clones origin/$BASE"
 fi
 
-# --- tạo/cập nhật ConfigMap script + task, rồi Job ---
+# --- create / update the script + task ConfigMaps, then the Job ---
 kubectl create configmap agent-script --from-file=run.sh="$DIR/run.sh" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 kubectl delete job "agent-$JOB_ID" --ignore-not-found --wait=true >/dev/null
 kubectl delete configmap "task-$JOB_ID" --ignore-not-found >/dev/null
@@ -206,11 +206,11 @@ if [[ "$WAIT" != 1 ]]; then
   exit 0
 fi
 
-# --- theo dõi log ---
+# --- follow the log ---
 mkdir -p "$DIR/logs"
 LOG="$DIR/logs/$JOB_ID-$(date +%Y-%m-%dT%H-%M-%S).log"
 pod=""; phase=""
-for _ in $(seq 1 300); do   # đợi tối đa 10 phút cho pod chạy (kéo image)
+for _ in $(seq 1 300); do   # wait at most 10 minutes for the pod to run (image pull)
   pod="$(kubectl get pods -l job-name="agent-$JOB_ID" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   phase="$(kubectl get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null || true)"
   [[ "$phase" == Running || "$phase" == Succeeded || "$phase" == Failed ]] && break
@@ -235,12 +235,12 @@ if [[ "$line" == *" artifact=ready"* ]]; then
   cline="$(grep -E '^RESULT: ' <<<"$cout" | tail -n 1)"
   line="${cline:-RESULT: FAILED reason=collect.sh printed no result (pod: ${line#RESULT: })}"
 fi
-# --- hidden test: test/private chỉ có trên máy này (gitignore), agent trong pod không bao giờ thấy ---
-# Chạy trên branch của PR trong một git worktree tạm, từng package riêng (package này fail không làm package kia bị bỏ qua).
-# Chỉ in số lượng: file không load được / test fail / test pass / lỗi type. Không in tên test hay nội dung;
-# log đầy đủ (vitest + tsc) ở logs/ cho người dùng.
-# private_summary <vitest-json>: in "files N, load errors N, tests N fail / N pass"; exit 1 nếu có load error hoặc test fail.
-# "load error" = file không có kết quả test nào (lỗi cú pháp, import không tìm thấy module, lỗi ở top level).
+# --- hidden tests: test/private exists only on this machine (gitignored); the agents in the pod never see it ---
+# Run on the PR's branch in a temporary git worktree, one package at a time (a failing package does not make the other one skipped).
+# Prints only counts: files that do not load / failing tests / passing tests / type errors. Never test names or content;
+# the full log (vitest + tsc) is in logs/ for the user.
+# private_summary <vitest-json>: prints "files N, load errors N, tests N fail / N pass"; exit 1 on a load error or a failing test.
+# "load error" = a file with no test result at all (syntax error, import of a module that cannot be found, an error at the top level).
 private_summary() {
   node -e '
     const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -295,7 +295,7 @@ run_private() {
     else
       sum="no vitest report (vitest crashed)"; ok=0
     fi
-    # Lỗi type: vitest không typecheck, nên import sai tên hay sai kiểu chỉ lộ ra ở đây
+    # Type errors: vitest does not typecheck, so an import with a wrong name or type only shows up here
     echo "## $pkg: typecheck:private" >> "$plog"
     if (cd "$wt/$pkg" && pnpm typecheck:private) > "$tlog" 2>&1; then
       sum="$sum, type errors 0"
@@ -315,7 +315,7 @@ run_private() {
   fi
   git -C "$ROOT" worktree remove --force "$wt"
 }
-# Có PR là chạy, kể cả PR draft (FAILED vì review không qua): người dùng cần biết code có đúng không để quyết định
+# Runs whenever there is a PR, a draft PR too (FAILED because the review did not pass): the user needs to know whether the code is right to decide
 PR_IN_LINE="$(sed -nE 's/.*[[:space:]]pr=([^[:space:]]+).*/\1/p' <<<"$line")"
 if [[ -n "$PR_IN_LINE" && "$PRIVATE" == 1 ]]; then
   run_private "$PR_IN_LINE" || echo "PRIVATE: SKIPPED (error while running hidden tests)"
