@@ -13,7 +13,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
     "@tanstack/react-query-devtools": "^5.104.2",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -24,7 +24,7 @@
     "@types/react-dom": "^19.2.7",
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3"
   }
