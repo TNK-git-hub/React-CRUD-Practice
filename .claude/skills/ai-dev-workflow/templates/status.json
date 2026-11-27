@@ -1,0 +1,19 @@
+{
+  "id": "YYYYMMDD-slug",
+  "type": "feature",
+  "workType": "code",
+  "phase": "REQUIRE",
+  "path": "context/features/YYYYMMDD-slug",
+  "branch": "feat/YYYYMMDD-slug",
+  "mode": "subagent",
+  "gates": {
+    "spec": { "state": "pending", "sha256": null, "at": null },
+    "plan": { "state": "pending", "sha256": null, "at": null },
+    "risk": { "state": "n/a", "kinds": [], "at": null }
+  },
+  "diffBase": null,
+  "loops": { "tddAttempts": 0, "reviewRounds": 0 },
+  "evidence": [],
+  "prUrl": null,
+  "updatedAt": null
+}

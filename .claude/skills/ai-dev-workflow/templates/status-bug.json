@@ -1,0 +1,15 @@
+{
+  "id": "YYYYMMDD-slug",
+  "type": "bug",
+  "phase": "BUGFIX",
+  "path": "context/bugs/YYYYMMDD-slug",
+  "branch": "fix/YYYYMMDD-slug",
+  "mode": "subagent",
+  "gates": {
+    "rootCause": { "state": "pending", "summary": null, "at": null }
+  },
+  "diffBase": null,
+  "loops": { "bugFixAttempts": 0, "reviewRounds": 0 },
+  "evidence": [],
+  "updatedAt": null
+}
