@@ -1,6 +1,6 @@
 ---
 name: dispatch-agents
-description: Use when the user wants to hand a feature/bug to agents that run headless in a pod (kind) so they change the code, run CI and open a PR themselves, then watch the GitHub Actions results. Splits the work into tasks, calls k8s/agents/dispatch.sh, watches with k8s/agents/watch-pr.sh, re-dispatches on failure, sums up the results.
+description: Use when the user wants to hand a feature/bug to agents that run headless in a pod (kind) so they change the code and run CI, get their branch pushed and the PR opened from this machine (collect.sh), then watch the GitHub Actions results. Splits the work into tasks, calls k8s/agents/dispatch.sh, watches with k8s/agents/watch-pr.sh, re-dispatches on failure, sums up the results.
 ---
 # Dispatching work to agents in a pod
 

@@ -90,7 +90,8 @@ reproduction test, then the fix; CI job `red-check` checks it again).
 Steps a–e stay interactive. Once `python3 .specify/scripts/approval.py verify --bug <id>` exits 0, steps f–g can run in
 a pod instead (skill dispatch-agents): `bash k8s/agents/dispatch.sh <job-id> - --title "<title>" --bug <id>`. The pod
 gets `bugs/<id>/` and the reproduction test, checks the approval again, commits the record, checks that the test
-fails, then runs GREEN and REVIEW and opens a PR. Step h (verification) is the PR's CI and your own check of it.
+fails, then runs GREEN and REVIEW; `collect.sh` on this machine pushes its branch and opens the PR. Step h (verification) is
+the PR's CI and your own check of it.
 
 ## New chat
 `bugs/<id>/` is the whole record: `report.md`, `investigation.md`, `fix.md`. To go on in a new chat, the user opens one

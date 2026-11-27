@@ -203,7 +203,8 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 - Never invent limits, numbers or permissions: mark unclear points `[NEEDS CLARIFICATION]`.
 - Delete data exactly as the policy in `specs/_system/nfr.md` says; no policy yet → write `[NEEDS CLARIFICATION]`, do not pick one.
 - The stack is the existing one of this repo (root `CLAUDE.md`: Next.js 16, NestJS, TypeORM, PostgreSQL, Redis, Vitest); a `plan.md` never changes it without the user's approval.
-- Push only when the user asks (root `CLAUDE.md`); agent pods push their own `agent/*` branches.
+- Push only when the user asks (root `CLAUDE.md`). Agent pods never push: they print their `agent/*` branch as an artifact,
+  and `k8s/agents/collect.sh` on the host checks it again, pushes the branch and opens the PR.
 - Never hand-edit `.claude/skills/speckit-*` or core templates: put changes in `tools/speckit-level4/` or `.specify/templates/overrides/`.
 
 ## Harness status

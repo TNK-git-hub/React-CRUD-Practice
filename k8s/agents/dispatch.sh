@@ -59,7 +59,7 @@ if [[ -z "$BASE" ]]; then
   [[ -n "$CLAUDE_BASE" ]] || fail "no base branch: CLAUDE.md has no line '- Base branch: \`<name>\`' (or pass --base)"
   BASE="$CLAUDE_BASE"
 elif [[ "$BASE" != "$CLAUDE_BASE" ]]; then
-  echo "WARNING: --base '$BASE' differs from the Base branch in CLAUDE.md ('${CLAUDE_BASE:-<none>}'): the pod clones '$BASE' and opens the PR into '$BASE'."
+  echo "WARNING: --base '$BASE' differs from the Base branch in CLAUDE.md ('${CLAUDE_BASE:-<none>}'): the pod clones '$BASE' and the PR is opened into '$BASE'."
 fi
 
 # --- check the input ---

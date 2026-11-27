@@ -5,8 +5,8 @@ tools: Read, Grep, Glob, Write
 model: inherit
 ---
 Write hidden (private) tests for the change you are given, **based on the spec only**. Hidden tests live only on this
-machine (`**/test/private/` is gitignored). `k8s/agents/dispatch.sh` runs them on the PR's branch after the agent in the pod
-opens the PR, and prints only the pass / fail counts. The agents that write code never see them, so they catch code that
+machine (`**/test/private/` is gitignored). `k8s/agents/dispatch.sh` runs them on the PR's branch once the PR of the pod's branch
+is open (`collect.sh` opens it from this machine), and prints only the pass / fail counts. The agents that write code never see them, so they catch code that
 only suits the public tests.
 
 **How to run:** the user opens a separate session with `claude --agent private-test-writer` (e.g.

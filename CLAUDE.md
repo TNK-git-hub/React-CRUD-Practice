@@ -31,7 +31,7 @@ Before writing frontend code, read `frontend/AGENTS.md`: this Next.js version di
 - Never ask one writer to fix the other writer's part (e.g. asking `test-writer` to change a test to match wrong code).
 - Before assigning `test-writer` / `code-writer` work on a change: the main session runs `python3 .specify/scripts/approval.py verify --change <change>`. On an error (not approved, or spec / plan / tasks changed since the approval) stop and tell the user; only the user approves again, with that script's `approve` command in their own terminal.
 - Editing a harness file (`.claude/`, `CLAUDE.md`, `package.json`, test config, `.github/`, `ci/`, `k8s/`) always needs the user's go-ahead first.
-- Dispatching work to agents that run in a pod (kind), open their own PR and watch GitHub Actions: use the skill `dispatch-agents` (`k8s/agents/README.md`).
+- Dispatching work to agents that run in a pod (kind), getting their PR opened (by `k8s/agents/collect.sh` on this machine) and watching GitHub Actions: use the skill `dispatch-agents` (`k8s/agents/README.md`).
 
 ## Bug-fix workflow
 - The user reports a bug, a test fails unexpectedly, or the app behaves wrongly: follow the skill `bug-fix-flow`. No fix before the user has agreed to the root cause.
