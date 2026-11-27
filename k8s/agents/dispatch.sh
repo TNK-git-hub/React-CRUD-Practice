@@ -238,18 +238,50 @@ fi
 # --- hidden tests: test/private exists only on this machine (gitignored); the agents in the pod never see it ---
 # Run on the PR's branch in a temporary git worktree, one package at a time (a failing package does not make the other one skipped).
 # Prints only counts: files that do not load / failing tests / passing tests / type errors. Never test names or content;
-# the full log (vitest + tsc) is in logs/ for the user.
-# private_summary <vitest-json>: prints "files N, load errors N, tests N fail / N pass"; exit 1 on a load error or a failing test.
-# "load error" = a file with no test result at all (syntax error, import of a module that cannot be found, an error at the top level).
-private_summary() {
-  node -e '
-    const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-    const files = r.testResults || [];
-    const loadErr = files.filter((f) => f.status === "failed" && (f.assertionResults || []).length === 0).length;
-    console.log(`files ${files.length}, load errors ${loadErr}, tests ${r.numFailedTests} fail / ${r.numPassedTests} pass`);
-    process.exit(loadErr || r.numFailedTests ? 1 : 0);
-  ' "$1"
+# the full log (test runner + typecheck) is in logs/ for the user. How to run them: the stack profile of
+# .claude/harness.json (stack.commands.install, private, privateTypecheck; the report read by stack_adapter.py).
+# >>> private_package (self-contained: .specify/scripts/test_dispatch_private.py extracts this block and sources it)
+# private_package <root with .claude/harness.json> <worktree> <package> <folder inside the package> <log>: runs the hidden
+# tests of that folder in <worktree>/<package> with stack.commands.private, then stack.commands.privateTypecheck when it is
+# set; appends their output to <log>; prints one line of counts, "files N, load errors N, tests N fail / N pass" (from
+# stack_adapter.py summary) plus ", type errors N"; returns 1 when a test failed, a file did not load, the report is
+# missing or the typecheck failed. "load error" (vitest) = a file with no test result at all (syntax error, import of a
+# module that cannot be found, an error at the top level); pytest: every error of the JUnit report.
+private_package() {
+  local root="$1" wt="$2" pkg="$3" sub="$4" plog="$5" runner ext report out sum ok=0 tlog nerr pattern a
+  local hc=(python3 "$root/.specify/scripts/harness_config.py") cmd=() tc=()
+  runner="$("${hc[@]}" get stack.runner --root "$root")" || { echo "harness.json missing or invalid"; return 1; }
+  ext=json; [[ "$runner" == pytest ]] && ext=xml
+  report="$wt/private-$pkg.$ext"
+  out="$("${hc[@]}" argv private --set "dir=$sub" --set "report=$report" --root "$root")" \
+    || { echo "harness.json missing or invalid"; return 1; }
+  while IFS= read -r a; do cmd+=("$a"); done <<<"$out"
+  echo "## $pkg: $runner" >> "$plog"
+  (cd "$wt/$pkg" && "${cmd[@]}") >> "$plog" 2>&1 || true
+  if [[ -s "$report" ]]; then
+    sum="$(python3 "$root/.specify/scripts/stack_adapter.py" summary --report "$report" --root "$root" 2>>"$plog")" || ok=1
+  else
+    sum="no $runner report ($runner crashed)"; ok=1
+  fi
+  # Type errors: vitest does not typecheck, so an import with a wrong name or type only shows up here (exit 3: none set)
+  if out="$("${hc[@]}" argv privateTypecheck --root "$root" 2>/dev/null)"; then
+    while IFS= read -r a; do tc+=("$a"); done <<<"$out"
+    pattern="$("${hc[@]}" get stack.commands.privateTypecheck.errorPattern --root "$root")"
+    tlog="$wt/private-$pkg-tsc.log"
+    echo "## $pkg: ${tc[*]}" >> "$plog"
+    if (cd "$wt/$pkg" && "${tc[@]}") > "$tlog" 2>&1; then
+      sum="$sum, type errors 0"
+    else
+      nerr="$(grep -cE "$pattern" "$tlog" || true)"
+      if [[ "${nerr:-0}" -gt 0 ]]; then sum="$sum, type errors $nerr"; else sum="$sum, typecheck failed (no TS errors parsed)"; fi
+      ok=1
+    fi
+    cat "$tlog" >> "$plog"
+  fi
+  echo "$sum"
+  return "$ok"
 }
+# <<< private_package
 # >>> copy_private_tests (self-contained: the harness check extracts this block and sources it)
 # copy_private_tests <from root> <to root> <hidden test folder>...: copies each folder WITHOUT its _stale/ (tests
 # quarantined by private_tests.py), so vitest and typecheck:private in the worktree never see them.
@@ -263,12 +295,15 @@ copy_private_tests() {
 }
 # <<< copy_private_tests
 run_private() {
-  local pr_url="$1" branch wt plog pkg sub d private_dirs have=0 json tlog sum nerr ok=1 joined parts=()
+  local pr_url="$1" branch wt plog pkg sub d private_dirs test_file_re install_argv a have=0 sum ok=1 joined parts=() install=()
   # hidden test folders (areas.testPrivate of .claude/harness.json), each "<package>/<folder in the package>"
   private_dirs="$(python3 "$ROOT/.specify/scripts/harness_config.py" get areas.testPrivate --list --root "$ROOT")" \
     || { echo "PRIVATE: SKIPPED (harness.json missing or invalid)"; return 0; }
-  for d in $private_dirs; do   # quarantined tests (_stale/) do not count
-    [[ -n "$(find "$ROOT/$d" -path "$ROOT/$d/_stale" -prune -o -name '*.test.ts*' -print 2>/dev/null | head -n 1)" ]] && have=1
+  test_file_re="$(python3 "$ROOT/.specify/scripts/harness_config.py" get testFile --regex --root "$ROOT")" \
+    || { echo "PRIVATE: SKIPPED (harness.json missing or invalid)"; return 0; }
+  for d in $private_dirs; do   # a file whose name matches stack.testFile; quarantined tests (_stale/) do not count
+    [[ -n "$(find "$ROOT/$d" -path "$ROOT/$d/_stale" -prune -o -type f -print 2>/dev/null | sed 's#.*/##' \
+      | grep -E "$test_file_re" | head -n 1)" ]] && have=1
   done
   [[ "$have" == 1 ]] || { echo "PRIVATE: SKIPPED (no hidden tests on this machine)"; return 0; }
   branch="$(gh pr view "$pr_url" --json headRefName -q .headRefName)" || { echo "PRIVATE: SKIPPED (cannot read PR branch)"; return 0; }
@@ -279,32 +314,19 @@ run_private() {
   git -C "$ROOT" worktree add -q --detach "$wt" FETCH_HEAD
   # shellcheck disable=SC2086
   copy_private_tests "$ROOT" "$wt" $private_dirs
-  if ! (cd "$wt" && pnpm install --frozen-lockfile --prefer-offline) > "$plog" 2>&1; then
-    echo "PRIVATE: SKIPPED (pnpm install failed, see ${plog#"$ROOT"/})"
-    git -C "$ROOT" worktree remove --force "$wt"; return 0
+  : > "$plog"
+  # stack.commands.install (null: no install step); exit 3 of `argv` = not set
+  if install_argv="$(python3 "$ROOT/.specify/scripts/harness_config.py" argv install --root "$ROOT" 2>/dev/null)"; then
+    while IFS= read -r a; do install+=("$a"); done <<<"$install_argv"
+    if ! (cd "$wt" && "${install[@]}") > "$plog" 2>&1; then
+      echo "PRIVATE: SKIPPED (${install[0]} ${install[1]:-} failed, see ${plog#"$ROOT"/})"
+      git -C "$ROOT" worktree remove --force "$wt"; return 0
+    fi
   fi
   for d in $private_dirs; do
     pkg="${d%%/*}"; sub="${d#*/}"
     [[ -d "$wt/$d" ]] || continue
-    json="$wt/private-$pkg.json"; tlog="$wt/private-$pkg-tsc.log"
-    echo "## $pkg: vitest" >> "$plog"
-    (cd "$wt/$pkg" && pnpm exec vitest run "$sub" --passWithNoTests \
-      --reporter=default --reporter=json --outputFile.json="$json") >> "$plog" 2>&1 || true
-    if [[ -s "$json" ]]; then
-      sum="$(private_summary "$json")" || ok=0
-    else
-      sum="no vitest report (vitest crashed)"; ok=0
-    fi
-    # Type errors: vitest does not typecheck, so an import with a wrong name or type only shows up here
-    echo "## $pkg: typecheck:private" >> "$plog"
-    if (cd "$wt/$pkg" && pnpm typecheck:private) > "$tlog" 2>&1; then
-      sum="$sum, type errors 0"
-    else
-      nerr="$(grep -cE 'error TS[0-9]+' "$tlog" || true)"
-      if [[ "${nerr:-0}" -gt 0 ]]; then sum="$sum, type errors $nerr"; else sum="$sum, typecheck failed (no TS errors parsed)"; fi
-      ok=0
-    fi
-    cat "$tlog" >> "$plog"
+    sum="$(private_package "$ROOT" "$wt" "$pkg" "$sub" "$plog")" || ok=0
     parts+=("$pkg: $sum")
   done
   printf -v joined '%s; ' "${parts[@]}"; joined="${joined%; }"
