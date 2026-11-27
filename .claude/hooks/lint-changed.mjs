@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PostToolUse hook: lint đúng file vừa sửa (chỉ frontend có eslint).
-// Có lỗi -> exit 2 để lỗi được gửi lại cho agent tự sửa. Warning không chặn.
+// PostToolUse hook: lints exactly the file just edited (only the frontend has eslint).
+// Errors -> exit 2, so they are sent back to the agent to fix. Warnings do not block.
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 

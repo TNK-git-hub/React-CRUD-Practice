@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 input=$(cat)
 
-# Bước RED trong pod (k8s/agents/run.sh): test mới phải fail theo thiết kế, script tự kiểm gate riêng
+# RED step in the pod (k8s/agents/run.sh): new tests must fail by design; the script checks its own gate
 if [ "${SKIP_STOP_GATE:-}" = "1" ]; then
   exit 0
 fi
 
-# Đã bị chặn một lần thì cho dừng, tránh lặp vô hạn
+# Already blocked once: let it stop, to avoid an endless loop
 if echo "$input" | grep -q '"stop_hook_active": *true'; then
   exit 0
 fi
 
 cd "$CLAUDE_PROJECT_DIR" || exit 0
 
-# Khung harness chưa có app (chưa có package.json) thì không có gì để test
+# Harness skeleton without an app yet (no package.json): nothing to test
 [ -f package.json ] || exit 0
 
-# Không có file nào thay đổi thì khỏi chạy test
+# No file changed: no need to run the tests
 if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
   exit 0
 fi

@@ -11,7 +11,7 @@ source: ["[docs/requirements/<file>#<section>]", "roadmap [NNN]"]
 INSTRUCTIONS FOR THE AGENT (delete this block once filled in)
 
 This is the DELTA SPEC of one change: everything the change adds / modifies / removes, at full detail.
-Worked example: `docs/examples/` _(none yet: điền khi bootstrap hệ thống mới)_. Write it in English; quote user-facing product text
+Worked example: `docs/examples/` _(none yet: fill in when bootstrapping a new system)_. Write it in English; quote user-facing product text
 (UI labels, messages, emails) verbatim in the product's language, in double quotes.
 
 Who fills which section:

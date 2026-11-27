@@ -1,26 +1,26 @@
 #!/usr/bin/env node
-// PreToolUse hook: phân quyền ghi file theo agent (agent_type trong input của hook).
-//   session chính (không có agent_type) -> điều phối: không sửa src/ hay test/
-//   code-writer  -> chỉ sửa backend/src, frontend/src, frontend/public
-//   test-writer  -> chỉ sửa <package>/test/public, frontend/test/e2e
-//   spec-writer, planner -> chỉ sửa specs/changes/, .specify/feature.json (spec harness)
+// PreToolUse hook: write permissions per agent (agent_type in the hook input).
+//   main session (no agent_type) -> orchestrates: does not edit src/ or test/
+//   code-writer  -> edits only backend/src, frontend/src, frontend/public
+//   test-writer  -> edits only <package>/test/public, frontend/test/e2e
+//   spec-writer, planner -> edit only specs/changes/, .specify/feature.json (spec harness)
 //   spec-writer additionally: append rows to specs/_system/{traceability,glossary,domain-model}.md
-//   private-test-writer -> chỉ dùng Read/Grep/Glob/Write; chỉ đọc specs/; chỉ tạo file .ts/.tsx trong
-//                          <package>/test/private; không đọc src/, test/public/; không Bash (đường dẫn kiểm cả sau symlink)
-//   agent khác   -> không ghi gì
-// Bash: subagent (mọi agent_type) không ghi file bằng Bash, chỉ bằng Edit/Write (luật theo agent ở trên). Ngoại lệ hẹp
-//   theo agent: lệnh mà skill của agent đó bảo chạy (BASH_WRITE_EXCEPTIONS), test-writer xoá đúng một file test,
-//   code-writer rm / git mv / git restore -- đúng file trong vùng src. Subagent không chạy script spec-archive.
-//   Session chính: Bash ghi vào specs/ -> hỏi người dùng.
-// approval.json và .approved/ (lần duyệt khoá bằng hash): không ai ghi, kể cả session chính; không ai chạy
-//   `approval.py approve` qua Claude (chỉ người dùng, trong terminal riêng); `approval.py verify` thì ai cũng chạy được.
-//   `private_tests.py` (test private lỗi thời): không ai chạy qua Claude, kể cả session chính.
-// Không ai được đọc <package>/test/private và .env (kể cả private-test-writer: settings.json cũng deny Read).
-// Ngoài private-test-writer, không ai được ghi <package>/test/private.
-// Không ai (kể cả session chính) chạy test:private / typecheck:private / tsconfig.private qua Claude (output lộ test);
-// lệnh test / typecheck chỉ được theo allow-list chặt (STRICT_TEST bên dưới).
-// File harness (.claude/, CLAUDE.md, config test, package.json) -> hỏi người dùng.
-// exit 2 = chặn, stderr được gửi lại cho agent.
+//   private-test-writer -> uses only Read/Grep/Glob/Write; reads only specs/; only creates .ts/.tsx files in
+//                          <package>/test/private; does not read src/, test/public/; no Bash (paths checked after symlinks too)
+//   other agents -> write nothing
+// Bash: subagents (every agent_type) never write files with Bash, only with Edit/Write (the per-agent rules above). Narrow
+//   per-agent exceptions: commands the agent's skill tells it to run (BASH_WRITE_EXCEPTIONS), test-writer deletes exactly one test file,
+//   code-writer rm / git mv / git restore -- exact files in the src area. Subagents do not run the spec-archive script.
+//   Main session: a Bash write into specs/ -> ask the user.
+// approval.json and .approved/ (an approval locked by hash): nobody writes them, the main session included; nobody runs
+//   `approval.py approve` through Claude (only the user, in their own terminal); anybody may run `approval.py verify`.
+//   `private_tests.py` (stale hidden tests): nobody runs it through Claude, the main session included.
+// Nobody may read <package>/test/private and .env (private-test-writer included: settings.json also denies Read).
+// Except private-test-writer, nobody may write <package>/test/private.
+// Nobody (the main session included) runs test:private / typecheck:private / tsconfig.private through Claude (the output shows the tests);
+// test / typecheck commands only follow a strict allow-list (STRICT_TEST below).
+// Harness files (.claude/, CLAUDE.md, test config, package.json) -> ask the user.
+// exit 2 = block, stderr is sent back to the agent.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -50,11 +50,11 @@ const root = process.env.CLAUDE_PROJECT_DIR || cwd;
 const agent = agent_type || "main";
 const who = agent === "main" ? "Main session" : agent;
 
-// File system không phân biệt hoa thường (mặc định của macOS, Windows): "backend/test/Private" là cùng thư mục với
-// "backend/test/private", và `PNPM` chạy được pnpm. Khi đó mọi so khớp đường dẫn và lệnh Bash làm trên chữ thường (fold).
-// Dò thật trên gốc project (APFS có thể format phân biệt hoa thường); không dò được thì đoán theo platform như allow_paths.py.
-// GUARD_CASE_INSENSITIVE=1 chỉ ÉP BẬT fold (để CI Linux kiểm nhánh này), không tắt được.
-// Mọi regex so với đường dẫn hay lệnh phải viết chữ thường, hoặc có cờ i nếu buộc phải chứa chữ hoa (vd CLAUDE.md).
+// Case-insensitive file system (the default on macOS, Windows): "backend/test/Private" is the same folder as
+// "backend/test/private", and `PNPM` runs pnpm. Then every match on paths and Bash commands is done in lower case (fold).
+// Probed for real on the project root (APFS can be formatted case-sensitive); if it cannot be probed, guess by platform as allow_paths.py does.
+// GUARD_CASE_INSENSITIVE=1 can only FORCE fold ON (so Linux CI checks this branch), never off.
+// Every regex matched against a path or command must be written in lower case, or carry the i flag if it must hold capitals (e.g. CLAUDE.md).
 const CASE_INSENSITIVE_FS =
   process.env.GUARD_CASE_INSENSITIVE === "1" ||
   (() => {
@@ -65,12 +65,12 @@ const CASE_INSENSITIVE_FS =
       const b = fs.statSync(flipped);
       return a.dev === b.dev && a.ino === b.ino;
     } catch {
-      return false; // tên đảo hoa thường không tồn tại -> phân biệt hoa thường
+      return false; // the case-flipped name does not exist -> case-sensitive
     }
   })();
 const fold = (s) => (CASE_INSENSITIVE_FS ? s.toLowerCase() : s);
 
-// Đường dẫn tương đối so với gốc project, vd "backend/test/private/a.test.ts". relRaw: giữ nguyên hoa thường; rel: đã fold.
+// Path relative to the project root, e.g. "backend/test/private/a.test.ts". relRaw: case kept; rel: folded.
 const relRaw = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).join("/");
 const rel = (p) => fold(relRaw(p));
 
@@ -128,8 +128,8 @@ const PKG_TEST_DIRS = [...new Set(areasOf("testPublic").map((a) => a.slice(a.ind
 const TEST_FILE = CFG ? CFG.testFile.replace(/\$$/, "") : "(?!)"; // without its "$", to append \s*$
 // Paths and commands are compared folded (see fold above): the regexes are built from folded areas too
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
-// Lần duyệt khoá bằng hash (.specify/scripts/approval.py): approval.json và bản sao trong .approved/ chỉ approval.py ghi,
-// khi người dùng chạy approve trong terminal của họ. Không agent nào (kể cả session chính) ghi hay chạy approve.
+// Approvals locked by hash (.specify/scripts/approval.py): approval.json and its copies in .approved/ are written only by approval.py,
+// when the user runs approve in their own terminal. No agent (the main session included) writes them or runs approve.
 const APPROVAL = /(^|\/)(approval\.json$|\.approved(\/|$))/;
 const APPROVAL_REF = /(^|[\s/'"=<>])(approval\.json|\.approved)(?=$|[\s/'"<>;&|)`])/;
 const PRIVATE = /(^|\/)test\/private(\/|$)/;
@@ -139,19 +139,19 @@ const SRC = new RegExp(`^(${alt(SRC_AREAS.map(fold))})(\\/|$)`);
 const SPEC_WRITABLE = /^(specs\/changes\/|\.specify\/feature\.json$)/;
 // spec-writer (/speckit-specify) may also append rows to these three files; the allow_paths.py rule in its frontmatter allows exactly the same three.
 const SPEC_SYSTEM_APPEND = /^specs\/_system\/(traceability|glossary|domain-model)\.md$/;
-// k8s/agents/tasks/ không phải harness: Claude tổng viết file task ở đó (skill dispatch-agents)
-// Cờ i: có CLAUDE.md (chữ hoa) mà vẫn phải khớp sau fold
+// k8s/agents/tasks/ is not harness: the main session writes task files there (skill dispatch-agents)
+// i flag: it holds CLAUDE.md (capitals) and must still match after fold
 const HARNESS = /^(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/tasks\/)|CLAUDE\.md$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)|(^|\/)(package\.json|(vitest|stryker)\.config\.[cm]?[jt]s)$/i;
 
-// ---------- private-test-writer: viết hidden test chỉ từ spec ----------
+// ---------- private-test-writer: writes hidden tests from the spec only ----------
 const PTW = "private-test-writer";
 const PTW_TOOLS = ["Read", "Grep", "Glob", "Write"];
 const PTW_READABLE = /^specs(\/|$)/;
 // compared on the unfolded path (exact lowercase on disk, see ptwPathOk): built from the areas as written
 const PTW_WRITABLE = new RegExp(`^(${alt(PRIVATE_AREAS)})\\/[\\w./-]+\\.tsx?$`);
 
-// Như rel() nhưng theo symlink: realpath của tổ tiên gần nhất đang tồn tại + phần chưa tồn tại (file sắp tạo).
-// Symlink hỏng (realpath lỗi) -> null, nơi gọi chặn.
+// Like rel() but following symlinks: realpath of the nearest existing ancestor + the part that does not exist yet (a file about to be created).
+// Broken symlink (realpath fails) -> null, the caller blocks.
 const lexists = (q) => {
   try {
     fs.lstatSync(q);
@@ -178,9 +178,9 @@ const realRel = (p) => {
   const r = realRelWith(p, fs.realpathSync);
   return r === null ? null : fold(r);
 };
-// Đúng cả theo đường dẫn chữ lẫn sau khi theo symlink.
-// exactCase: so trên đường dẫn CHƯA fold, phần đã tồn tại lấy đúng hoa thường trên đĩa (realpathSync.native):
-// PTW chỉ được ghi đúng "test/private" chữ thường, kể cả khi trên đĩa đã có "test/Private" (vitest / run_private có thể bỏ sót).
+// True both on the literal path and after following symlinks.
+// exactCase: matched on the path NOT folded, the existing part taken with its exact case on disk (realpathSync.native):
+// PTW may only write exactly "test/private" in lower case, even when "test/Private" already exists on disk (vitest / run_private could miss it).
 const ptwPathOk = (p, re, { exactCase = false } = {}) => {
   const lit = exactCase ? relRaw(p) : rel(p);
   const real = exactCase ? realRelWith(p, fs.realpathSync.native) : realRel(p);
@@ -196,13 +196,13 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   if (CONFIG_ERR) block(CONFIG_MSG);
   const target = input.file_path || input.notebook_path || "";
   if (agent === PTW) {
-    // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
+    // PTW_WRITABLE is matched on the path not folded (exact lower case); the other block rules still match the folded path
     if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
     block(`${PTW} may only create .ts/.tsx files in ${PRIVATE_AREAS.map((a) => `${a}/`).join(" or ")} (may not write ${target ? rel(target) : "(no file_path)"}).`);
   }
   if (!target) allow();
   const r = rel(target);
-  if (r.startsWith("../")) allow(); // ngoài project (vd scratchpad)
+  if (r.startsWith("../")) allow(); // outside the project (e.g. scratchpad)
 
   if (ENV.test(r)) block("Nobody may edit .env files.");
   if (PRIVATE.test(r)) block("Nobody may edit test/private.");
@@ -219,8 +219,8 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
     if (agent === "main" || agent === "code-writer") ask(`${who} wants to edit the harness file ${r}.`);
     block(`${who} may not edit the harness file ${r}.`);
   }
-  // Spec harness: spec-writer / planner chỉ ghi spec của change đang làm.
-  // Hook allow_paths.py trong frontmatter của chúng siết thêm (vd planner chỉ được Edit vài mục của spec.md).
+  // Spec harness: spec-writer / planner only write the spec of the change in progress.
+  // The allow_paths.py hook in their frontmatter narrows it further (e.g. the planner may only Edit a few sections of spec.md).
   if ((agent === "spec-writer" || agent === "planner") && SPEC_WRITABLE.test(r)) allow();
   if (agent === "spec-writer" && SPEC_SYSTEM_APPEND.test(r)) allow();
   if (agent === "main") allow();
@@ -231,10 +231,10 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
 if (["Read", "Grep", "Glob"].includes(tool)) {
   const target = input.file_path || input.path || "";
   if (agent === PTW) {
-    // allow-list: chỉ specs/ => src/, test/public/, test/private/ và mọi chỗ khác đều bị chặn
+    // allow-list: only specs/ => src/, test/public/, test/private/ and every other place are blocked
     if (!target) block(`${PTW} must pass a path inside specs/ (e.g. "specs/changes/NNN-<name>").`);
     if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} may only read specs/ (may not read ${rel(target)}).`);
-    // glob không được thoát ra ngoài path đã kiểm tra
+    // a glob must not escape the path checked above
     const globs = [tool === "Glob" ? input.pattern : "", input.glob].map((g) => String(g || ""));
     if (globs.some((g) => g.includes("..") || path.isAbsolute(g) || g.startsWith("~"))) {
       block(`${PTW}: a glob may not contain "..", an absolute path or "~".`);
@@ -252,7 +252,7 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
 // code (python3 - <<EOF, node -e, bash -c …) are reminders, not a lock: the real locks are approval.py's TTY check,
 // the hashes CI checks (spec_check / approval.json) and the gates of k8s/agents/run.sh.
 if (tool === "Bash") {
-  // fold: `cat …/Private/…` và `PNPM test a` không lọt qua các regex chữ thường bên dưới
+  // fold: `cat …/Private/…` and `PNPM test a` do not slip past the lower-case regexes below
   const rawCmd = String(input.command || "");
   const cmd = fold(rawCmd);
 
@@ -358,21 +358,21 @@ if (tool === "Bash") {
   const HEREDOC_TEST_MSG = "Code in a heredoc mentions test/ (it may read, run or write tests). Run tests with a command of the allowed form (`pnpm [--filter " + PACKAGES.join("|") + "] test [" + PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ") + "] [-t=<scenario ID>]`); for anything else, ask the user.";
   const HEREDOC_APPROVAL_MSG = "Code in a heredoc may write approval files. Read the approval state with `python3 .specify/scripts/approval.py verify ...`; for anything else, ask the user.";
 
-  // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
-  // Dùng cho mọi kiểm tra bên dưới, trừ kiểm tra đường dẫn test/private (chạy trên lệnh gốc, để `cat "…"` không lọt).
+  // Drop heredoc bodies, quoted strings and harmless redirects: a commit message or a quoted string is not blocked by mistake.
+  // Used for every check below, except the test/private path check (run on the raw command, so that `cat "…"` does not slip through).
   // stripHeredocs drops only the BODY: the rest of the line that opens it (`| python3`, `> path`) stays visible.
   const ops = stripHeredocs(cmd, true)
     .replace(/'[^']*'|"[^"]*"/g, "''")
     .replace(/\d?>&\d/g, "")
     .replace(/[\d&]?>>?\s*\/dev\/null/g, "");
 
-  // Test private: output của vitest / tsc in nguyên code test. Không ai chạy qua Claude, kể cả session chính;
-  // người dùng tự chạy trong terminal riêng. Hook chỉ thấy lệnh gốc, nên `bash k8s/agents/dispatch.sh …` vẫn chạy run_private.
+  // Hidden tests: the output of vitest / tsc prints the test code as is. Nobody runs them through Claude, the main session included;
+  // the user runs them in their own terminal. The hook only sees the raw command, so `bash k8s/agents/dispatch.sh …` still runs run_private.
   if (/test:private|typecheck:private|tsconfig\.private/.test(ops)) {
     block("Do not run hidden (private) tests through Claude (the output shows the content of the tests). The user runs `pnpm test:private` / `pnpm typecheck:private` in their own terminal.");
   }
   if (/test\/private/.test(pcmd)) block(fromCode(/test\/private/) ? HEREDOC_TEST_MSG : "Reading or running test/private through Claude is not allowed.");
-  // Duyệt: chỉ người dùng (kể cả khi chuỗi nằm trong nháy hay sau `script`, `bash -c`). approval.py verify thì được.
+  // Approval: only the user (even when the string is in quotes or after `script`, `bash -c`). approval.py verify is allowed.
   if (/approval\.py\s+approve\b/.test(cmd)) {
     block("Only the user runs this command, in their own terminal: `python3 .specify/scripts/approval.py approve …`. Agents may only run `approval.py verify`.");
   }
@@ -385,10 +385,10 @@ if (tool === "Bash") {
     block("Only the user runs this command, in their own terminal: `python3 .specify/scripts/private_tests.py stale|quarantine|restore --change <change>`.");
   }
 
-  // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
-  // vitest lọc file theo chuỗi con của đường dẫn (`pnpm test a` chạy cả test private có chữ "a"), nên tham số chỉ được là
-  // đường dẫn bắt đầu bằng test/public/ (có thể có tiền tố backend/ frontend/) hoặc flag (giá trị không có "/", "..").
-  // Đoạn lệnh của pnpm/npx/… có chuỗi trong nháy hay "$" cũng phải khớp mẫu (chặn `pnpm "test:pri"vate`, `pnpm $X`).
+  // Test / typecheck commands: a strict allow-list; no match means block (it never falls through to "no write, so allow").
+  // vitest filters files by a substring of the path (`pnpm test a` also runs hidden tests with an "a" in them), so an argument may only be
+  // a path starting with test/public/ (optionally prefixed with backend/ frontend/) or a flag (a value without "/", "..").
+  // A pnpm/npx/… command segment with a quoted string or "$" must match the pattern too (blocks `pnpm "test:pri"vate`, `pnpm $X`).
   const JS_TOOL = /^(pnpm|pnpx|npx|npm|yarn|bunx?|vitest|tsc)$/;
   const PKG_ALT = alt(PACKAGES.map(fold));
   const ARG = String.raw`(--|--?[\w.-]+(=(?![^\s]*\.\.)[\w.:,@+*-]+)?|((${PKG_ALT})\/)?(${alt(PKG_TEST_DIRS.map(fold))})\/[\w./-]*)`;
@@ -411,9 +411,9 @@ if (tool === "Bash") {
   }
   if (segments.length === 1 && testSegments === 1) allow();
 
-  // ---- Lệnh ghi file bằng Bash ----
-  // Như ops, nhưng bỏ nháy quanh chuỗi chỉ gồm ký tự an toàn ("specs/a" -> specs/a, 'rm' -> rm): để đọc được tên lệnh
-  // và đường dẫn trong nháy. Chuỗi có khoảng trắng, > ; | & $ ` vẫn thành '' như ops.
+  // ---- Commands that write files with Bash ----
+  // Like ops, but quotes around strings of safe characters only are removed ("specs/a" -> specs/a, 'rm' -> rm): so command names
+  // and paths in quotes can be read. Strings with spaces, > ; | & $ ` still become '' as in ops.
   const opsU = stripHeredocs(cmd, true)
     .replace(/'([\w./:@+=,-]*)'|"([\w./:@+=,-]*)"/g, "$1$2")
     .replace(/'[^']*'|"[^"]*"/g, "''")
@@ -423,20 +423,20 @@ if (tool === "Bash") {
   const PREFIX = /^((\w+=\S*|time|command|exec|nice|nohup|sudo|env)\s+)+/;
   const WRITE_PROG = /^(rm|rmdir|mv|cp|tee|touch|mkdir|chmod|truncate|ln|install|rsync|dd|patch|eval)$/;
   const GIT_WRITE = /^(checkout|switch|restore|add|commit|rm|mv|clean|reset|stash|apply|am|cherry-pick|revert|merge|rebase|pull)$/;
-  const GIT_INDEX_ONLY = /^(add|commit)$/; // không đổi file trong working tree
+  const GIT_INDEX_ONLY = /^(add|commit)$/; // does not change files in the working tree
   const INTERP = /^(node|python[\d.]*|perl|ruby|bash|sh|zsh|dash)$/;
   const FIND_WRITE = /^-(delete|exec|execdir|ok|okdir|fprint|fprint0|fprintf|fls)$/;
   const PNPM_WRITE = /^(add|install|i|remove|rm|uninstall|un|update|up|upgrade)$/;
-  // git branch / tag / config / worktree là lệnh ghi, trừ các dạng chỉ đọc này (r = tham số sau tên lệnh con)
+  // git branch / tag / config / worktree are write commands, except these read-only forms (r = the arguments after the subcommand)
   const GIT_READ_FORM = {
     branch: (r) => r.length === 0 || (r.length === 1 && r[0] === "--show-current") || r.every((a) => /^(--list|-a|-r|--all|--remotes)$/.test(a)),
     tag: (r) => r.length >= 1 && /^(--list|-l)$/.test(r[0]) && r.slice(1).every((a) => !a.startsWith("-")),
     config: (r) => (r.length === 2 && r[0] === "--get" && !r[1].startsWith("-")) || (r.length === 1 && /^(--list|-l)$/.test(r[0])),
     worktree: () => false,
   };
-  const FIX_FLAG = (a) => a === "--fix" || a.startsWith("--fix="); // --fix-dry-run không ghi
+  const FIX_FLAG = (a) => a === "--fix" || a.startsWith("--fix="); // --fix-dry-run does not write
   const words = (seg) => seg.replace(PREFIX, "").split(/\s+/).filter(Boolean);
-  // Lý do một đoạn lệnh là lệnh ghi, hoặc null. indexOnly=false: git add / commit không tính (chỉ đổi index / lịch sử).
+  // Why a command segment is a write command, or null. indexOnly=false: git add / commit do not count (they change only the index / history).
   const bashWrite = (seg, indexOnly = true) => {
     if (seg.includes(">")) return "redirect > / >>";
     const w = words(seg);
@@ -460,9 +460,9 @@ if (tool === "Bash") {
     }
     if (prog === "eslint" && args.some(FIX_FLAG)) return "eslint --fix";
     if (prog === "prettier" && args.some((a) => a === "--write" || a === "-w")) return "prettier --write";
-    // pnpm exec x / pnpm dlx x / npx x: xét lệnh x
+    // pnpm exec x / pnpm dlx x / npx x: check the command x
     if (/^(pnpm|npm|yarn)$/.test(prog)) {
-      // `pnpm lint --fix`, `pnpm lint -- --fix`: script chuyển --fix / --write cho eslint / prettier
+      // `pnpm lint --fix`, `pnpm lint -- --fix`: the script passes --fix / --write on to eslint / prettier
       if (args.some((a) => FIX_FLAG(a) || a === "--write")) return `${prog} … --fix / --write`;
       const i = args.findIndex((a) => a === "exec" || a === "dlx");
       if (i >= 0) return bashWrite(args.slice(i + 1).join(" "), indexOnly);
@@ -476,7 +476,7 @@ if (tool === "Bash") {
       }
       return null;
     }
-    // npx [cờ của npx] x …: xét `x …` cùng mọi cờ của x
+    // npx [npx flags] x …: check `x …` with all of x's flags
     if (/^(npx|pnpx|bunx)$/.test(prog)) {
       const j = args.findIndex((a) => !a.startsWith("-"));
       return j >= 0 ? bashWrite(args.slice(j).join(" "), indexOnly) : null;
@@ -490,11 +490,11 @@ if (tool === "Bash") {
     }
     return null;
   };
-  // Ngoại lệ: lệnh ghi mà skill của agent bảo chạy, đúng mẫu.
-  //   spec-writer (speckit-specify bước 3, 5): git checkout -b NNN-<kebab>; mkdir -p specs/changes/NNN-<kebab>[/checklists]
-  //   planner (speckit-checklist bước 6: "Create FEATURE_DIR/checklists/"): mkdir -p specs/changes/NNN-<kebab>/checklists
-  // Đường dẫn có thể tuyệt đối (check-prerequisites.sh trả FEATURE_DIR tuyệt đối), phải nằm đúng chỗ sau khi resolve.
-  // cmd đã fold, nên đường dẫn trong lệnh resolve theo root / cwd đã fold (rel() dùng root chưa fold: /Users/… ≠ /users/…)
+  // Exceptions: write commands that the agent's skill tells it to run, in the exact form.
+  //   spec-writer (speckit-specify steps 3, 5): git checkout -b NNN-<kebab>; mkdir -p specs/changes/NNN-<kebab>[/checklists]
+  //   planner (speckit-checklist step 6: "Create FEATURE_DIR/checklists/"): mkdir -p specs/changes/NNN-<kebab>/checklists
+  // The path may be absolute (check-prerequisites.sh returns an absolute FEATURE_DIR); it must be in the right place after resolving.
+  // cmd is folded, so paths in the command resolve against the folded root / cwd (rel() uses the root not folded: /Users/… ≠ /users/…)
   const relCmd = (p) => path.relative(fold(root), path.resolve(fold(cwd), p)).split(path.sep).join("/");
   const CHANGE = String.raw`\d{3}-[a-z0-9]+(-[a-z0-9]+)*`;
   const mkdirIn = (re) => (w) => w.length === 3 && w[0] === "mkdir" && w[1] === "-p" && !w[2].includes("..") && re.test(relCmd(w[2]));
@@ -509,21 +509,21 @@ if (tool === "Bash") {
   // harness.json missing or invalid: no Bash write at all (fail-closed, like Edit / Write above)
   if (CONFIG_ERR && segsU.some((s) => bashWrite(s))) block(CONFIG_MSG);
 
-  // Ghi vào approval.json / .approved/ bằng Bash: chặn với mọi agent, kể cả session chính (git add / commit vẫn được)
+  // A Bash write to approval.json / .approved/: blocked for every agent, the main session included (git add / commit are still allowed)
   if (APPROVAL_REF.test(pcmd) && segsU.some((s) => bashWrite(s, false))) {
     block(fromCode(APPROVAL_REF)
       ? HEREDOC_APPROVAL_MSG
       : `${who} may not write approval.json or .approved/ with Bash: only the user writes them, with approval.py approve in their own terminal.`);
   }
 
-  // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
+  // test-writer may delete exactly ONE test file in its area (e.g. a pointless test, after review), not chained with other commands
   const TEST_RM = new RegExp(
     String.raw`^\s*(git\s+)?rm\s+(-f\s+)?(${alt(TEST_WRITABLE_AREAS.map(fold))})\/[\w./-]+${TEST_FILE}\s*$`,
   );
   if (agent === "test-writer" && TEST_RM.test(cmd) && !cmd.includes("..")) allow();
 
-  // code-writer, cũng chỉ một lệnh, không nối lệnh khác, không glob, không "..", mọi đường dẫn trong vùng src:
-  //   rm [-f] <một file>; git mv <file> <file>; git restore|checkout -- <file...> (hoàn tác một lần sửa hỏng, bug flow)
+  // code-writer, also one command only, not chained with other commands, no glob, no "..", every path in the src area:
+  //   rm [-f] <one file>; git mv <file> <file>; git restore|checkout -- <file...> (undo a broken edit, bug flow)
   const SRC_FILE = new RegExp(`^(${alt(SRC_AREAS.map(fold))})\\/[^/]`);
   const srcFile = (p) => !/[*?[\]{}~]/.test(p) && !p.includes("..") && SRC_FILE.test(relCmd(p));
   if (agent === "code-writer" && segsU.length === 1 && !segsU[0].includes(">")) {
@@ -535,11 +535,11 @@ if (tool === "Bash") {
     if (ok) allow();
   }
 
-  // Subagent: không ghi file bằng Bash (allow-list như Edit/Write); chỉ các ngoại lệ ở trên.
+  // Subagents: no file writes with Bash (an allow-list, as for Edit/Write); only the exceptions above.
   const SPEC_ARCHIVE = ".claude/skills/spec-archive/scripts/change.py";
   if (agent !== "main") {
     for (const seg of segsU) {
-      // change.py ghi specs/capabilities/: chỉ session chính chạy (qua /spec-archive)
+      // change.py writes specs/capabilities/: only the main session runs it (through /spec-archive)
       if (words(seg).some((t) => relCmd(t) === SPEC_ARCHIVE)) block(`${who} may not run ${SPEC_ARCHIVE} (main session only, through /spec-archive).`);
       const why = bashWrite(seg);
       if (why && !(BASH_WRITE_EXCEPTIONS[agent] || []).some((ok) => ok(words(seg)))) {
@@ -548,7 +548,7 @@ if (tool === "Bash") {
     }
   }
 
-  // Session chính ghi vào specs/ bằng Bash -> hỏi (sau các luật chặn test/ và src/ bên dưới)
+  // Main session writes into specs/ with Bash -> ask (after the test/ and src/ block rules below)
   const mentionsSpecs = pcmd.split(/[\s'"=<>|;&()`]+/).some((t) => t && /^specs(\/|$)/.test(relCmd(t)));
   const mainSpecsWrite = agent === "main" && mentionsSpecs && segsU.some((s) => bashWrite(s, false));
 
@@ -561,7 +561,7 @@ if (tool === "Bash") {
     block(`${who} may not edit production code with Bash. Only code-writer may edit it.`);
   }
   if (mainSpecsWrite) ask("The main session wants to write to specs/ with Bash.");
-  // Cờ i: CLAUDE.md phải khớp cả sau fold
+  // i flag: CLAUDE.md must match after fold too
   if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/i.test(pcmd)) {
     if (agent === "main") ask("The main session wants to edit a harness file with Bash.");
     block(`${who} may not edit harness files.`);

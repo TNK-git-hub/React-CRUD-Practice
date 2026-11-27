@@ -49,7 +49,7 @@ Before writing frontend code, read `frontend/AGENTS.md`: this Next.js version di
 - CODE agents read `spec.md` (requirement details, `## Architecture Decisions`, `## Data Model`), `plan.md`, `tasks.md`. TEST agents read the scenarios, `## Edge Cases & Error Handling`, the NFR Verification column of `spec.md`, `checklists/edge-cases.md`, `## Test Strategy` of `plan.md`.
 - No agent edits `specs/`. Spec wrong or incomplete: write `SPEC_PROBLEM: <file> <section> <reason>`, go back to the spec harness.
 - The name of every test starts with a scenario ID, e.g. `it('ABC-003-S2 ...')`.
-- Dispatching to agents in a pod: `dispatch.sh ... --change NNN-<feature> [--tasks T001,T002]` (`k8s/agents/README.md`, section "Làm theo spec").
+- Dispatching to agents in a pod: `dispatch.sh ... --change NNN-<feature> [--tasks T001,T002]` (`k8s/agents/README.md`, section "Working from a spec").
 
 ## CI
 - `pnpm ci:local`: install → lint, typecheck, build frontend → build backend → `pnpm test`. It must print `CI PASSED`.

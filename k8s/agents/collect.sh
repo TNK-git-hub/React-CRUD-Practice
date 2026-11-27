@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Mở PR cho MỘT agent Job, trên máy người dùng: pod không có token ghi GitHub (xem run.sh, bước EXPORT).
+# Opens the PR for ONE agent Job, on the user's machine: the pod has no GitHub write token (see run.sh, step EXPORT).
 #
-# Usage (từ gốc repo):
+# Usage (from the repo root):
 #   bash k8s/agents/collect.sh <job-id> [--log <file>] [--base <branch>] [--dry-run]
 #
-#   <job-id>   như dispatch.sh. Không có --log: lấy log bằng `kubectl logs job/agent-<job-id>`.
-#   --log      log đã lưu (dispatch.sh truyền file trong logs/).
-#   --base     base branch đã dispatch (mặc định: dòng "Base branch" của CLAUDE.md); meta.json phải khớp một trong hai.
-#   --dry-run  làm mọi bước trừ push và gh pr create, in các lệnh sẽ chạy.
+#   <job-id>   as for dispatch.sh. Without --log: the log is read with `kubectl logs job/agent-<job-id>`.
+#   --log      a saved log (dispatch.sh passes the file in logs/).
+#   --base     the base branch dispatched to (default: the "Base branch" line of CLAUDE.md); meta.json must match one of the two.
+#   --dry-run  does every step except push and gh pr create, and prints the commands it would run.
 #
-# Marker CUỐI của job-id quyết định (của job khác: bỏ qua): khối BEGIN..END, hoặc "ARTIFACT NONE" -> FAILED, không PR.
-# base64 -d; tar chỉ có branch.bundle, meta.json, pr-body.md; kiểm meta; fetch bundle; mọi file đổi phải nằm trong vùng
-# của agent (AGENT_AREAS); git push origin <branch> (không force: đã có trên origin -> FAILED); gh pr create (--draft).
-# Nội dung artifact do pod (agent) tạo ra: chỉ dùng như dữ liệu. Không eval, không chạy file nào trong đó; branch, title,
-# base kiểm bằng regex chặt trước khi đưa vào lệnh (luôn là đối số riêng, không qua shell).
-# Dòng cuối: "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=<lý do>[ pr=<url>]" (định dạng cũ của dispatch.sh)
-#            | "RESULT: DRY-RUN ..." với --dry-run.
+# The LAST marker of the job-id decides (markers of other jobs are ignored): a BEGIN..END block, or "ARTIFACT NONE" -> FAILED, no PR.
+# base64 -d; tar holds only branch.bundle, meta.json, pr-body.md; checks meta; fetches the bundle; every changed file must be in the
+# agent areas (AGENT_AREAS); git push origin <branch> (no force: already on origin -> FAILED); gh pr create (--draft).
+# The artifact content is made by the pod (an agent): used as data only. No eval, no file in it is run; branch, title,
+# base are checked with strict regexes before they go into a command (always as separate arguments, never through a shell).
+# Last line: "RESULT: SUCCESS pr=<url>" | "RESULT: FAILED reason=<reason>[ pr=<url>]" (the old format of dispatch.sh)
+#            | "RESULT: DRY-RUN ..." with --dry-run.
 set -euo pipefail
 
 usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
