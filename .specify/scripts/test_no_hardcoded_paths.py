@@ -32,6 +32,7 @@ SCRIPTS = (
     ".specify/scripts/spec_check.py",
     ".specify/scripts/private_tests.py",
     ".specify/scripts/red_check.py",
+    ".specify/scripts/stack_adapter.py",
 )
 # (script, regex the line must match, reason). Keep this list short: every entry is a place to edit by hand when the
 # folder layout changes.

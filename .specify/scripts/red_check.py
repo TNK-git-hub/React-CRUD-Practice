@@ -3,9 +3,10 @@
 
     python3 .specify/scripts/red_check.py --base <ref> [--head HEAD] [--root R]
 
-Areas: .claude/harness.json AT THE BASE COMMIT (`git show <base>:.claude/harness.json`, read by harness_config.py), so
-a branch cannot widen its own areas: src = areas.src; test = pod.testWritable (the tests that run here);
-interactive.testWritable (test + e2e) = what the RED commit may hold; test file = testFile.
+Areas and stack: .claude/harness.json AT THE BASE COMMIT (`git show <base>:.claude/harness.json`, read by
+harness_config.py), so a branch can neither widen its own areas nor change how its tests are run: src = areas.src;
+test = pod.testWritable (the tests that run here); interactive.testWritable (test + e2e) = what the RED commit may hold;
+test file = stack.testFile; install / run / report = stack.commands.install, stack.commands.runFiles, stack.runner.
 
 Commits: `git rev-list --reverse <base>..<head>`. A merge commit in that range is reported, and then only the
 first-parent line is checked, without the merge commits themselves (what came in through a merge is not this branch's
@@ -20,17 +21,22 @@ work). Per commit, the files it adds / modifies / deletes (no rename detection: 
         files). Its e2e files are listed as "not executed";
      b. a commit before the RED commit touches src;
      c. the test files of the test area that the RED commit adds / modifies, run at the RED commit per package:
-        `cd <pkg> && pnpm exec vitest run <files relative to pkg> --reporter=default --reporter=json
-        --outputFile.json=<tmp>` (the files of run_new_tests in k8s/agents/run.sh). Read from the JSON report only:
-        a package without a report (or whose report lists no test file) -> FAIL "could not run"; no test file in
-        status "failed" in any package -> FAIL "new tests already pass before the code change". A file that fails to
-        load counts as failed (importing a module that does not exist yet is a valid RED).
+        `cd <pkg> && <stack.commands.runFiles>` with {files} = the files relative to pkg and {report} = a temporary
+        report (ts-pnpm-vitest: `pnpm exec vitest run <files> --reporter=default --reporter=json
+        --outputFile.json=<tmp>`, the files of run_new_tests in k8s/agents/run.sh). Read from the report only
+        (stack_adapter.parse_report): a package without a report (or whose report lists no test file) -> FAIL
+        "could not run"; no failed file in any package (stack_adapter.is_red) -> FAIL "new tests already pass before
+        the code change", or, when some tests could not run at all, FAIL "new tests do not run". What counts as a
+        failed file is the runner's: vitest, a file in status "failed" (a file that fails to load counts: importing a
+        module that does not exist yet is a valid RED); pytest, a failing assertion or a collection error of
+        ModuleNotFoundError / ImportError, never another load error (SyntaxError, NameError, a setup error).
      Commits after the RED commit (code, review rounds that add tests, ...) do not change the result.
   a and b are checked first: when one fails the tests are not run.
 
-Tests run in a temporary git worktree at the RED commit (removed afterwards), after
-`pnpm install --frozen-lockfile --prefer-offline` in it, without the Claude token in their environment. Unittests
-replace the install + vitest step through the `runner` parameter of check() (no CLI option).
+Tests run in a temporary git worktree at the RED commit (removed afterwards), after stack.commands.install in it
+(ts-pnpm-vitest: `pnpm install --frozen-lockfile --prefer-offline`; null: no install step), without the Claude token
+in their environment. Unittests replace the install + run step through the `runner` parameter of check() (no CLI
+option).
 
 Output: the commits, the RED commit (short sha + subject), its test files, per package pass / fail (counts only),
 then PASS or FAIL and the reason. Exit codes: 0 PASS; 1 FAIL; 2 usage error (unknown ref, harness.json missing or
@@ -40,7 +46,6 @@ invalid at the base, not a git repository).
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import shutil
@@ -52,6 +57,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harness_config as hc  # noqa: E402
+import stack_adapter as sa  # noqa: E402
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 BUG_RECORD_RE = re.compile(r"^bugs/[^/]+/")
@@ -82,6 +88,7 @@ class Areas:
     red: list  # interactive.testWritable: what the RED commit may hold
     test_file: re.Pattern
     packages: list
+    stack: dict  # the stack profile at the base commit
 
     @staticmethod
     def _in(path: str, areas: list) -> bool:
@@ -125,7 +132,7 @@ def load_areas(root: Path, base_sha: str) -> Areas:
         raise UsageError(f"at the base commit {base_sha[:8]}: {e}") from e
     return Areas(src=hc.get(cfg, "areas.src"), test=hc.get(cfg, "pod.testWritable"),
                  red=hc.get(cfg, "interactive.testWritable"), test_file=re.compile(hc.get(cfg, "testFile")),
-                 packages=hc.get(cfg, "packages"))
+                 packages=hc.get(cfg, "packages"), stack=cfg["stack"])
 
 
 def list_commits(root: Path, base_sha: str, head_sha: str) -> tuple:
@@ -156,65 +163,70 @@ def kinds(c: Commit, areas: Areas) -> str:
     return ",".join(k) or "empty"
 
 
-def read_report(path: Path) -> tuple:
-    """(state, counts) from a vitest JSON report: state fail (a test file in status "failed", load errors included),
-    pass, or not-run (no report, unreadable, or no test file in it)."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return "not-run", "no JSON report"
-    results = data.get("testResults") if isinstance(data, dict) else None
-    if not isinstance(results, list) or not results:
-        return "not-run", "the JSON report lists no test file"
-    failed = sum(1 for r in results if isinstance(r, dict) and r.get("status") == "failed")
-    counts = (f"files {failed} failed / {len(results)}; tests {data.get('numFailedTests', '?')} failed, "
-              f"{data.get('numPassedTests', '?')} passed")
-    return ("fail" if failed else "pass"), counts
-
-
-def vitest(wt: Path, pkg: str, files: list, report: Path, env: dict) -> str:
-    """The default runner: vitest of the package, console + JSON report. Returns the console output."""
-    cmd = ["pnpm", "exec", "vitest", "run", *files, "--reporter=default", "--reporter=json",
-           f"--outputFile.json={report}"]
-    try:
-        r = subprocess.run(cmd, cwd=wt / pkg, env=env, capture_output=True, text=True)
-    except OSError as e:
-        return f"cannot start pnpm: {e}"
-    return r.stdout + r.stderr
+def read_report(runner: str, path: Path) -> tuple:
+    """(state, counts) from a report of `runner` (stack_adapter.parse_report): state fail (stack_adapter.is_red: a
+    failed file), load-error (not RED, but some tests could not run at all: pytest only, a vitest load error is a
+    failed file), pass, or not-run (no report, unreadable, or no test file in it)."""
+    report = sa.parse_report(runner, path)
+    if report is None:
+        return "not-run", f"no {sa.REPORT_SHORT[runner]}"
+    if not report["files"]:
+        return "not-run", f"the {sa.REPORT_SHORT[runner]} lists no test file"
+    failed = report["failed"]
+    passed = report["passed"]
+    counts = (f"files {report['failedFiles']} failed / {report['files']}; tests {'?' if failed is None else failed} "
+              f"failed, {'?' if passed is None else passed} passed")
+    if runner != "vitest":
+        counts += f"; load errors {report['loadErrors']}"
+    if sa.is_red(report):
+        return "fail", counts
+    return ("load-error" if report["loadErrors"] else "pass"), counts
 
 
 def tail(text: str, n: int) -> str:
     return "\n".join("    " + line for line in ANSI_RE.sub("", text).splitlines()[-n:])
 
 
-def run_tests(root: Path, red: Commit, by_pkg: dict, runner, out) -> tuple:
-    """Run the RED commit's test files in a temporary worktree. Returns ({pkg: pass|fail|not-run}, error or "")."""
+def profile_runner(stack: dict):
+    """The default runner: stack.commands.runFiles in the package folder (stack_adapter.run_files)."""
+    def run(wt: Path, pkg: str, files: list, report: Path, env: dict) -> str:
+        return sa.run_files(stack, wt / pkg, files, report, env)
+    return run
+
+
+def run_tests(root: Path, red: Commit, by_pkg: dict, stack: dict, runner, out) -> tuple:
+    """Run the RED commit's test files in a temporary worktree.
+    Returns ({pkg: pass|fail|load-error|not-run}, error or "")."""
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_OAUTH_TOKEN"}
     tmp = Path(tempfile.mkdtemp(prefix="red-check-"))
     wt = tmp / "wt"
     results = {}
+    kind = stack["runner"]
     try:
         git(root, "worktree", "add", "--detach", "--quiet", str(wt), red.sha)
         if runner is None:
-            runner = vitest
-            print("installing dependencies in the worktree: pnpm install --frozen-lockfile --prefer-offline", file=out)
-            try:
-                r = subprocess.run(["pnpm", "install", "--frozen-lockfile", "--prefer-offline"], cwd=wt, env=env,
-                                   capture_output=True, text=True)
-            except OSError as e:
-                return results, f"cannot start pnpm ({e}): install Node and pnpm"
-            if r.returncode != 0:
-                return results, f"pnpm install failed at the RED commit:\n{tail(r.stdout + r.stderr, 20)}"
+            runner = profile_runner(stack)
+            install = hc.command_argv(stack, "install")
+            if install:
+                print(f"installing dependencies in the worktree: {' '.join(install)}", file=out)
+                try:
+                    r = subprocess.run(install, cwd=wt, env=env, capture_output=True, text=True)
+                except OSError as e:
+                    return results, f"cannot start {install[0]} ({e}): install it"
+                if r.returncode != 0:
+                    return results, f"{' '.join(install[:2])} failed at the RED commit:\n{tail(r.stdout + r.stderr, 20)}"
         for pkg, files in by_pkg.items():
-            report = tmp / f"report-{pkg}.json"
+            report = tmp / f"report-{pkg}{sa.REPORT_SUFFIX[kind]}"
             output = runner(wt, pkg, files, report, env)
-            state, counts = read_report(report)
+            state, counts = read_report(kind, report)
             results[pkg] = state
             if state == "not-run":
                 print(f"{pkg}: {len(files)} file(s): COULD NOT RUN ({counts})\n{tail(output, 15)}", file=out)
             else:
-                verdict = "all pass" if state == "pass" else "some fail"
+                verdict = {"pass": "all pass", "fail": "some fail", "load-error": "load errors only (not RED)"}[state]
                 print(f"{pkg}: {len(files)} file(s): {verdict} - {counts}", file=out)
+                if state == "load-error":
+                    print(tail(output, 15), file=out)
         return results, ""
     finally:
         subprocess.run(["git", "-C", str(root), "worktree", "remove", "--force", str(wt)], capture_output=True)
@@ -223,8 +235,9 @@ def run_tests(root: Path, red: Commit, by_pkg: dict, runner, out) -> tuple:
 
 
 def check(root: Path, base: str, head: str, runner=None, out=None) -> int:
-    """runner(worktree, package, files relative to the package, JSON report path, env) -> console output: replaces
-    pnpm install + vitest (unittests only); it must write the report like vitest's JSON reporter, or no report."""
+    """runner(worktree, package, files relative to the package, report path, env) -> console output: replaces
+    stack.commands.install + runFiles (unittests only); it must write the report in the format of the base commit's
+    stack.runner (vitest JSON / pytest JUnit XML), or no report."""
     out = out or sys.stdout
     base_sha = resolve(root, base, "base")
     head_sha = resolve(root, head, "head")
@@ -283,14 +296,19 @@ def check(root: Path, base: str, head: str, runner=None, out=None) -> int:
     for p in tests:
         pkg = p.split("/", 1)[0]
         by_pkg.setdefault(pkg, []).append(p[len(pkg) + 1:])
-    results, err = run_tests(root, red, by_pkg, runner, out)
+    results, err = run_tests(root, red, by_pkg, areas.stack, runner, out)
     if err:
         return verdict(False, f"could not run the new tests: {err}")
     not_run = [p for p, r in results.items() if r == "not-run"]
     if not_run:
         return verdict(False, f"could not run the new tests of {', '.join(not_run)} at the RED commit {red.short} "
-                              "(no vitest JSON report)")
-    if all(r == "pass" for r in results.values()):
+                              f"(no {sa.REPORT_LABEL[areas.stack['runner']]})")
+    if not any(r == "fail" for r in results.values()):
+        load = [p for p, r in results.items() if r == "load-error"]
+        if load:
+            return verdict(False, f"new tests do not run in {', '.join(load)} (RED commit {red.short}): a load error "
+                                  "that is not a missing module / name (e.g. SyntaxError, NameError, a setup error) is "
+                                  "not RED; RED is a failing assertion or an import of what does not exist yet")
         return verdict(False, f"new tests already pass before the code change (RED commit {red.short})")
     return verdict(True, f"RED commit {red.short} has failing tests before the code change; "
                          "no src change before it")

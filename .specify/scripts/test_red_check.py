@@ -22,6 +22,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import red_check  # noqa: E402
+import test_stack_adapter as tsa  # noqa: E402  (pytest helpers: require_pytest, python3_shim, write_project)
 
 REPO = Path(__file__).resolve().parents[2]
 TS_STACK = json.loads((REPO / ".claude/stacks/ts-pnpm-vitest.json").read_text(encoding="utf-8"))
@@ -400,6 +401,83 @@ class DefaultPathTest(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("pnpm install failed at the RED commit", out)
         self.assertEqual([c["args"][0] for c in calls], ["install"])
+
+
+PY_STACK = json.loads((REPO / ".claude/stacks/python-pytest.json").read_text(encoding="utf-8"))
+PY_CONFIG = {**CONFIG, "stack": PY_STACK}
+
+
+class PytestPathTest(unittest.TestCase):
+    """The python-pytest profile at the base commit, real pytest (no runner): no install step (install null), the
+    profile's runFiles in the package, RED from the JUnit XML report (stack_adapter)."""
+
+    def setUp(self) -> None:
+        tsa.require_pytest(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmp.name).resolve()
+        self.repo = Repo(tmp, config=PY_CONFIG)
+        self.repo.runner = None
+        # the package's pytest project belongs to the base: src/app/price.py exists before the branch
+        self.repo.git("checkout", "-q", "base")
+        project = tmp / "project"
+        tsa.write_project(project / "api")
+        self.repo.commit("chore: python package", {str(p.relative_to(project)): p.read_text()
+                                                   for p in sorted(project.rglob("*")) if p.is_file()})
+        self.repo.git("branch", "-f", "feature", "base")
+        self.repo.git("checkout", "-q", "feature")
+        self.env = tsa.python3_shim(tmp)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def run_case(self, test_body: str) -> tuple:
+        self.repo.commit("test: add", {"api/test/public/abc_003_test.py": test_body})
+        self.repo.commit("feat: code", {"api/src/app/price.py": "def cap(x):\n    return min(x, 3)\n"})
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"PATH": self.env["PATH"]}), redirect_stdout(out), redirect_stderr(out):
+            code = red_check.main(["--base", "base", "--root", str(self.repo.root)])
+        return code, out.getvalue()
+
+    def test_assertion_failure_is_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["assertion"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("api: 1 file(s): some fail - files 1 failed / 1; tests 1 failed, 0 passed; load errors 0", out)
+        self.assertIn("PASS: RED commit", out)
+        self.assertNotIn("installing dependencies", out)  # install is null in the python-pytest profile
+
+    def test_missing_module_is_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["missing-module"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("PASS: RED commit", out)
+
+    def test_cannot_import_name_is_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["missing-name"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("PASS: RED commit", out)
+
+    def test_syntax_error_is_not_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["syntax-error"])
+        self.assertEqual(code, 1, out)
+        self.assertIn("api: 1 file(s): load errors only (not RED)", out)
+        self.assertIn("FAIL: new tests do not run in api", out)
+
+    def test_setup_error_is_not_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["setup-error"])
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAIL: new tests do not run in api", out)
+
+    def test_passing_tests_are_not_red(self) -> None:
+        code, out = self.run_case(tsa.TEST_BODIES["pass"])
+        self.assertEqual(code, 1, out)
+        self.assertIn("FAIL: new tests already pass before the code change", out)
+
+    def test_test_file_pattern_comes_from_the_base_profile(self) -> None:
+        # a vitest-named file is not a test file of the python-pytest profile: src changed, no new tests
+        self.repo.commit("test: add", {"api/test/public/abc_003.test.ts": "it('x', () => {});\n"})
+        self.repo.commit("feat: code", {"api/src/app/price.py": "def cap(x):\n    return x\n"})
+        code, out = self.repo.check()
+        self.assertEqual(code, 0, out)
+        self.assertIn("code-only: no new tests", out)
 
 
 if __name__ == "__main__":
