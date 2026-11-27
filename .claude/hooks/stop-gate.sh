@@ -35,14 +35,14 @@ if [ -n "$PY" ] && [ -f .specify/scripts/approval.py ]; then
   for id in $bug_ids; do
     "$PY" .specify/scripts/approval.py verify --bug "$id" --root "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
     if [ "$?" -eq 1 ]; then
-      echo "[stop-gate] bug $id đang chờ người dùng duyệt root cause (hồ sơ đã đủ, approval.py verify --bug $id chưa khớp): bỏ qua pnpm test." >&2
+      echo "[stop-gate] bug $id is waiting for the user to approve the root cause (the record is complete, approval.py verify --bug $id does not match yet): skipping pnpm test." >&2
       exit 0
     fi
   done
 fi
 
 if ! output=$(pnpm test 2>&1); then
-  echo "pnpm test đang fail. Nếu bạn đang chờ người dùng quyết định (vd sau 3 lần sửa thất bại), nói rõ như vậy rồi dừng. KHÔNG sửa, nới, skip hay xoá test để cho pass. Output:" >&2
+  echo "pnpm test is failing. If you are waiting for the user to decide (e.g. after 3 failed fix attempts), say so and stop. Do NOT edit, weaken, skip or delete tests to make them pass. Output:" >&2
   echo "$output" | tail -40 >&2
   exit 2
 fi

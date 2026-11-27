@@ -20,5 +20,5 @@ const r = spawnSync("pnpm", ["exec", "eslint", "--quiet", path.relative(frontend
   encoding: "utf8",
 });
 if (r.status === 0) process.exit(0);
-process.stderr.write(`eslint báo lỗi ở ${rel}, sửa trước khi làm tiếp:\n${(r.stdout || "") + (r.stderr || "")}`.slice(0, 4000));
+process.stderr.write(`eslint reports errors in ${rel}; fix them before going on:\n${(r.stdout || "") + (r.stderr || "")}`.slice(0, 4000));
 process.exit(2);

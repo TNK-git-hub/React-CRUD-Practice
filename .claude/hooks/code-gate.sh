@@ -20,7 +20,7 @@ fi
 run() {
   local name=$1; shift
   if ! output=$("$@" 2>&1); then
-    echo "$name đang fail. Sửa cho pass rồi mới được báo hoàn thành:" >&2
+    echo "$name is failing. Make it pass before you report the task as done:" >&2
     echo "$output" | tail -40 >&2
     exit 2
   fi

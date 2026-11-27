@@ -48,7 +48,7 @@ for await (const chunk of process.stdin) raw += chunk;
 const { tool_name: tool, tool_input: input = {}, cwd = process.cwd(), agent_type } = JSON.parse(raw || "{}");
 const root = process.env.CLAUDE_PROJECT_DIR || cwd;
 const agent = agent_type || "main";
-const who = agent === "main" ? "Session chính" : agent;
+const who = agent === "main" ? "Main session" : agent;
 
 // File system không phân biệt hoa thường (mặc định của macOS, Windows): "backend/test/Private" là cùng thư mục với
 // "backend/test/private", và `PNPM` chạy được pnpm. Khi đó mọi so khớp đường dẫn và lệnh Bash làm trên chữ thường (fold).
@@ -188,7 +188,7 @@ const ptwPathOk = (p, re, { exactCase = false } = {}) => {
 };
 
 if (agent === PTW && !PTW_TOOLS.includes(tool)) {
-  block(`${PTW} chỉ được dùng ${PTW_TOOLS.join(", ")} (không chạy test, không Bash).`);
+  block(`${PTW} may only use ${PTW_TOOLS.join(", ")} (no running tests, no Bash).`);
 }
 
 // ---------- Edit / Write ----------
@@ -198,33 +198,33 @@ if (["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(tool)) {
   if (agent === PTW) {
     // PTW_WRITABLE so trên đường dẫn chưa fold (đúng chữ thường); các luật chặn khác vẫn so trên đường dẫn đã fold
     if (target && ptwPathOk(target, PTW_WRITABLE, { exactCase: true })) allow();
-    block(`${PTW} chỉ được tạo file .ts/.tsx trong ${PRIVATE_AREAS.map((a) => `${a}/`).join(" hoặc ")} (không được ghi ${target ? rel(target) : "(không có file_path)"}).`);
+    block(`${PTW} may only create .ts/.tsx files in ${PRIVATE_AREAS.map((a) => `${a}/`).join(" or ")} (may not write ${target ? rel(target) : "(no file_path)"}).`);
   }
   if (!target) allow();
   const r = rel(target);
   if (r.startsWith("../")) allow(); // ngoài project (vd scratchpad)
 
-  if (ENV.test(r)) block("Không ai được sửa file .env.");
-  if (PRIVATE.test(r)) block("Không ai được sửa test/private.");
-  if (APPROVAL.test(r)) block(`${who} không được sửa ${r}: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
+  if (ENV.test(r)) block("Nobody may edit .env files.");
+  if (PRIVATE.test(r)) block("Nobody may edit test/private.");
+  if (APPROVAL.test(r)) block(`${who} may not edit ${r}: only the user writes it, with approval.py approve in their own terminal.`);
   if (TEST_ANY.test(r)) {
     if (agent === "test-writer" && TEST_WRITABLE.test(r)) allow();
-    block(`${who} không được sửa ${r}. Chỉ test-writer được ghi vào ${TEST_WRITABLE_AREAS.join(", ")}.`);
+    block(`${who} may not edit ${r}. Only test-writer may write to ${TEST_WRITABLE_AREAS.join(", ")}.`);
   }
   if (SRC.test(r)) {
     if (agent === "code-writer") allow();
-    block(`${who} không được sửa ${r}. Chỉ code-writer được sửa code production.`);
+    block(`${who} may not edit ${r}. Only code-writer may edit production code.`);
   }
   if (HARNESS.test(r)) {
-    if (agent === "main" || agent === "code-writer") ask(`${who} muốn sửa file harness ${r}.`);
-    block(`${who} không được sửa file harness ${r}.`);
+    if (agent === "main" || agent === "code-writer") ask(`${who} wants to edit the harness file ${r}.`);
+    block(`${who} may not edit the harness file ${r}.`);
   }
   // Spec harness: spec-writer / planner chỉ ghi spec của change đang làm.
   // Hook allow_paths.py trong frontmatter của chúng siết thêm (vd planner chỉ được Edit vài mục của spec.md).
   if ((agent === "spec-writer" || agent === "planner") && SPEC_WRITABLE.test(r)) allow();
   if (agent === "spec-writer" && SPEC_SYSTEM_APPEND.test(r)) allow();
   if (agent === "main") allow();
-  block(`${who} không được sửa ${r} (ngoài phạm vi của agent này).`);
+  block(`${who} may not edit ${r} (outside this agent's area).`);
 }
 
 // ---------- Read / Grep / Glob ----------
@@ -232,17 +232,17 @@ if (["Read", "Grep", "Glob"].includes(tool)) {
   const target = input.file_path || input.path || "";
   if (agent === PTW) {
     // allow-list: chỉ specs/ => src/, test/public/, test/private/ và mọi chỗ khác đều bị chặn
-    if (!target) block(`${PTW} phải truyền path nằm trong specs/ (vd "specs/changes/NNN-<name>").`);
-    if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} chỉ được đọc specs/ (không được đọc ${rel(target)}).`);
+    if (!target) block(`${PTW} must pass a path inside specs/ (e.g. "specs/changes/NNN-<name>").`);
+    if (!ptwPathOk(target, PTW_READABLE)) block(`${PTW} may only read specs/ (may not read ${rel(target)}).`);
     // glob không được thoát ra ngoài path đã kiểm tra
     const globs = [tool === "Glob" ? input.pattern : "", input.glob].map((g) => String(g || ""));
     if (globs.some((g) => g.includes("..") || path.isAbsolute(g) || g.startsWith("~"))) {
-      block(`${PTW}: glob không được chứa "..", đường dẫn tuyệt đối hay "~".`);
+      block(`${PTW}: a glob may not contain "..", an absolute path or "~".`);
     }
   }
-  if (target && PRIVATE.test(rel(target))) block("Không được đọc test/private.");
+  if (target && PRIVATE.test(rel(target))) block("Reading test/private is not allowed.");
   if (PRIVATE.test(fold(String(input.pattern || ""))) || PRIVATE.test(fold(String(input.glob || "")))) {
-    block("Không được đọc test/private.");
+    block("Reading test/private is not allowed.");
   }
   allow();
 }
@@ -355,8 +355,8 @@ if (tool === "Bash") {
   const pcmd = pathText(false); // data heredoc bodies and paths outside the project removed
   const pcmdBare = pathText(true); // also code heredoc bodies removed: a rule matching pcmd only came from code
   const fromCode = (re) => re.test(pcmd) && !re.test(pcmdBare);
-  const HEREDOC_TEST_MSG = "Code trong heredoc nhắc tới test/ (có thể đọc, chạy hay ghi test). Chạy test bằng lệnh theo mẫu cho phép (`pnpm [--filter " + PACKAGES.join("|") + "] test [" + PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ") + "] [-t=<scenario ID>]`); cần thao tác khác thì hỏi người dùng.";
-  const HEREDOC_APPROVAL_MSG = "Code trong heredoc có thể ghi file duyệt. Đọc trạng thái duyệt bằng `python3 .specify/scripts/approval.py verify ...`; cần thao tác khác thì hỏi người dùng.";
+  const HEREDOC_TEST_MSG = "Code in a heredoc mentions test/ (it may read, run or write tests). Run tests with a command of the allowed form (`pnpm [--filter " + PACKAGES.join("|") + "] test [" + PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ") + "] [-t=<scenario ID>]`); for anything else, ask the user.";
+  const HEREDOC_APPROVAL_MSG = "Code in a heredoc may write approval files. Read the approval state with `python3 .specify/scripts/approval.py verify ...`; for anything else, ask the user.";
 
   // Bỏ nội dung heredoc, chuỗi trong nháy và redirect vô hại: commit message hay chuỗi trong nháy không bị chặn nhầm.
   // Dùng cho mọi kiểm tra bên dưới, trừ kiểm tra đường dẫn test/private (chạy trên lệnh gốc, để `cat "…"` không lọt).
@@ -369,12 +369,12 @@ if (tool === "Bash") {
   // Test private: output của vitest / tsc in nguyên code test. Không ai chạy qua Claude, kể cả session chính;
   // người dùng tự chạy trong terminal riêng. Hook chỉ thấy lệnh gốc, nên `bash k8s/agents/dispatch.sh …` vẫn chạy run_private.
   if (/test:private|typecheck:private|tsconfig\.private/.test(ops)) {
-    block("Không chạy test private qua Claude (output lộ nội dung test). Người dùng tự chạy `pnpm test:private` / `pnpm typecheck:private` trong terminal riêng.");
+    block("Do not run hidden (private) tests through Claude (the output shows the content of the tests). The user runs `pnpm test:private` / `pnpm typecheck:private` in their own terminal.");
   }
-  if (/test\/private/.test(pcmd)) block(fromCode(/test\/private/) ? HEREDOC_TEST_MSG : "Không được đọc hay chạy test/private qua Claude.");
+  if (/test\/private/.test(pcmd)) block(fromCode(/test\/private/) ? HEREDOC_TEST_MSG : "Reading or running test/private through Claude is not allowed.");
   // Duyệt: chỉ người dùng (kể cả khi chuỗi nằm trong nháy hay sau `script`, `bash -c`). approval.py verify thì được.
   if (/approval\.py\s+approve\b/.test(cmd)) {
-    block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/approval.py approve …`. Agent chỉ được chạy `approval.py verify`.");
+    block("Only the user runs this command, in their own terminal: `python3 .specify/scripts/approval.py approve …`. Agents may only run `approval.py verify`.");
   }
   // Hidden tests made stale by a change (private_tests.py reads, moves and lists them): only the user runs it, every
   // agent and the main session included. Blocked when the command RUNS it: the name as a word of its own (not after a
@@ -382,7 +382,7 @@ if (tool === "Bash") {
   // message, git grep, test_private_tests.py, --help) is fine. This rule is only a reminder: the real barrier is the
   // TTY check inside private_tests.py (an agent has no terminal).
   if (/(^|[^a-z0-9_.-])["']?private_tests\.py["']?\s+(stale|quarantine|restore)\b/i.test(cmd)) {
-    block("Chỉ người dùng chạy lệnh này trong terminal riêng: `python3 .specify/scripts/private_tests.py stale|quarantine|restore --change <change>`.");
+    block("Only the user runs this command, in their own terminal: `python3 .specify/scripts/private_tests.py stale|quarantine|restore --change <change>`.");
   }
 
   // Lệnh test / typecheck: allow-list chặt, không khớp là chặn (không rơi xuống "không ghi thì allow").
@@ -405,7 +405,7 @@ if (tool === "Bash") {
       (prog === "node" && /\b(vitest|tsc)\b/.test(seg));
     if (!testLike) continue;
     if (!STRICT_TEST.test(seg)) {
-      block(`Lệnh test / typecheck không đúng mẫu: \`${seg}\`. Chỉ dùng \`pnpm [--filter ${PACKAGES.join("|")}] test|typecheck|typecheck:test|ci:local [${PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ")}] [--flag]\`.`);
+      block(`Test / typecheck command not in the allowed form: \`${seg}\`. Use only \`pnpm [--filter ${PACKAGES.join("|")}] test|typecheck|typecheck:test|ci:local [${PKG_TEST_DIRS.map((d) => `${d}/…`).join(" | ")}] [--flag]\`.`);
     }
     testSegments++;
   }
@@ -443,11 +443,11 @@ if (tool === "Bash") {
     const prog = path.basename(w[0] || "");
     const args = w.slice(1);
     if (!prog) return null;
-    if (prog === "''" || /[$\\]/.test(prog)) return "tên lệnh không đọc được";
+    if (prog === "''" || /[$\\]/.test(prog)) return "unreadable command name";
     if (WRITE_PROG.test(prog)) return prog;
     if ((prog === "sed" || prog === "perl") && args.some((a) => /^-[a-z]*i/.test(a) || a.startsWith("--in-place"))) return `${prog} -i`;
     if (prog === "find" && args.some((a) => FIND_WRITE.test(a))) return "find -delete / -exec / -fprint";
-    if (prog === "xargs" && args.some((a) => WRITE_PROG.test(a) || INTERP.test(a) || /^(git|sed|perl|find)$/.test(a))) return "xargs + lệnh ghi";
+    if (prog === "xargs" && args.some((a) => WRITE_PROG.test(a) || INTERP.test(a) || /^(git|sed|perl|find)$/.test(a))) return "xargs + a write command";
     if (prog === "git") {
       let sub = "", si = -1;
       for (let i = 0; i < args.length; i++) {
@@ -482,7 +482,7 @@ if (tool === "Bash") {
       return j >= 0 ? bashWrite(args.slice(j).join(" "), indexOnly) : null;
     }
     if (INTERP.test(prog)) {
-      if (args.length === 0 || args.includes("-") || args.some((a) => a.startsWith("<"))) return `${prog} đọc code từ stdin`;
+      if (args.length === 0 || args.includes("-") || args.some((a) => a.startsWith("<"))) return `${prog} reads code from stdin`;
       if (prog === "node" && args.some((a) => /^(-e|-p|-pe|-ep|--eval|--print)(=|$)/.test(a))) return "node -e";
       if (/^python/.test(prog) && args.some((a) => /^-[a-z]*c$/i.test(a))) return `${prog} -c`;
       if (/^(perl|ruby)$/.test(prog) && args.some((a) => /^-[a-z]*e/i.test(a))) return `${prog} -e`;
@@ -513,7 +513,7 @@ if (tool === "Bash") {
   if (APPROVAL_REF.test(pcmd) && segsU.some((s) => bashWrite(s, false))) {
     block(fromCode(APPROVAL_REF)
       ? HEREDOC_APPROVAL_MSG
-      : `${who} không được ghi approval.json hay .approved/ bằng Bash: chỉ người dùng ghi, bằng approval.py approve trong terminal riêng.`);
+      : `${who} may not write approval.json or .approved/ with Bash: only the user writes them, with approval.py approve in their own terminal.`);
   }
 
   // test-writer được xoá đúng MỘT file test trong vùng của nó (vd test vô nghĩa theo review), không nối lệnh khác
@@ -540,10 +540,10 @@ if (tool === "Bash") {
   if (agent !== "main") {
     for (const seg of segsU) {
       // change.py ghi specs/capabilities/: chỉ session chính chạy (qua /spec-archive)
-      if (words(seg).some((t) => relCmd(t) === SPEC_ARCHIVE)) block(`${who} không được chạy ${SPEC_ARCHIVE} (chỉ session chính, qua /spec-archive).`);
+      if (words(seg).some((t) => relCmd(t) === SPEC_ARCHIVE)) block(`${who} may not run ${SPEC_ARCHIVE} (main session only, through /spec-archive).`);
       const why = bashWrite(seg);
       if (why && !(BASH_WRITE_EXCEPTIONS[agent] || []).some((ok) => ok(words(seg)))) {
-        block(`${who} không được ghi file bằng Bash (${why}: \`${seg}\`). Ghi file bằng Edit/Write, trong phạm vi của agent này.`);
+        block(`${who} may not write files with Bash (${why}: \`${seg}\`). Write files with Edit/Write, within this agent's area.`);
       }
     }
   }
@@ -556,15 +556,15 @@ if (tool === "Bash") {
   if (!writes.test(ops) && !mainSpecsWrite) allow();
 
   const TEST_DIR_RE = /(^|[\s/'"=])test\//;
-  if (TEST_DIR_RE.test(pcmd)) block(fromCode(TEST_DIR_RE) ? HEREDOC_TEST_MSG : "Không được sửa/tạo/xoá file trong test/ bằng Bash.");
+  if (TEST_DIR_RE.test(pcmd)) block(fromCode(TEST_DIR_RE) ? HEREDOC_TEST_MSG : "Editing / creating / deleting files in test/ with Bash is not allowed.");
   if (new RegExp(`\\b(${alt(SRC_AREAS.map(fold))})\\b`).test(pcmd) && agent !== "code-writer") {
-    block(`${who} không được sửa code production bằng Bash. Chỉ code-writer được sửa.`);
+    block(`${who} may not edit production code with Bash. Only code-writer may edit it.`);
   }
-  if (mainSpecsWrite) ask("Session chính muốn ghi vào specs/ bằng Bash.");
+  if (mainSpecsWrite) ask("The main session wants to write to specs/ with Bash.");
   // Cờ i: CLAUDE.md phải khớp cả sau fold
   if (/(^|[\s'"=])(\.claude\/|\.github\/|ci\/|k8s\/(?!agents\/(tasks|logs)\/)|CLAUDE\.md)/i.test(pcmd)) {
-    if (agent === "main") ask("Session chính muốn sửa file harness bằng Bash.");
-    block(`${who} không được sửa file harness.`);
+    if (agent === "main") ask("The main session wants to edit a harness file with Bash.");
+    block(`${who} may not edit harness files.`);
   }
   allow();
 }
