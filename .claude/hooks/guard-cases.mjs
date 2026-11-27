@@ -37,9 +37,39 @@ fs.symlinkSync(path.join(FAKE, PRIV), path.join(OUTSIDE, "plink")); // symlink o
 // The agent areas come from .claude/harness.json: the fake project gets the repo's own file
 const REAL_CONFIG = fs.readFileSync(path.join(here, "..", "harness.json"), "utf8");
 mk(".claude/harness.json", REAL_CONFIG);
-// Fail-closed: three more fake projects whose harness.json is missing, broken JSON, or does not follow the schema
+// Fail-closed: more fake projects whose harness.json is missing, broken JSON, or does not follow the schema
+// (version 1, no stack, or a stack profile that breaks a rule of harness_config.check_stack)
+const REAL = JSON.parse(REAL_CONFIG);
+const withStack = (change) => {
+  const c = JSON.parse(REAL_CONFIG);
+  change(c.stack, c);
+  return JSON.stringify(c);
+};
+const V1 = JSON.stringify({ version: 1, packages: REAL.packages, areas: REAL.areas, testFile: REAL.stack.testFile });
+const { stack: _dropped, ...NO_STACK } = REAL;
+const BAD_CONFIGS = [
+  ["missing", null],
+  ["broken-json", "{not json"],
+  ["v1-schema", V1],
+  ["v3-schema", JSON.stringify({ ...REAL, version: 3 })],
+  ["no-stack", JSON.stringify(NO_STACK)],
+  ["stack-not-object", JSON.stringify({ ...REAL, stack: "ts-pnpm-vitest" })],
+  ["stack-missing-key", withStack((s) => { delete s.runner; })],
+  ["stack-unknown-key", withStack((s) => { s.extra = 1; })],
+  ["stack-bad-runner", withStack((s) => { s.runner = "jest"; })],
+  ["stack-bad-testFile", withStack((s) => { s.testFile = "("; })],
+  ["stack-bad-appMarker", withStack((s) => { s.appMarker = "../package.json"; })],
+  ["stack-shell-string", withStack((s) => { s.commands.test = "pnpm test"; })],
+  ["stack-shell-argv", withStack((s) => { s.commands.test = ["sh", "-c", "pnpm test"]; })],
+  ["stack-env-wrapper", withStack((s) => { s.commands.gate[0].argv = ["env", "pnpm", "lint"]; })],
+  ["stack-inline-code", withStack((s) => { s.commands.install = ["python3", "-B", "-c", "print(1)"]; })],
+  ["stack-unknown-placeholder", withStack((s) => { s.commands.private = [...s.commands.private, "{secret}"]; })],
+  ["stack-missing-placeholder", withStack((s) => { s.commands.runFiles = s.commands.runFiles.filter((a) => a !== "{files}"); })],
+  ["stack-lint-unknown-package", withStack((s) => { s.commands.lintFile.package = "docs"; })],
+  ["stack-empty-gate", withStack((s) => { s.commands.gate = []; })],
+];
 const BAD_ROOTS = {};
-for (const [name, body] of [["missing", null], ["broken-json", "{not json"], ["bad-schema", JSON.stringify({ ...JSON.parse(REAL_CONFIG), version: 2 })]]) {
+for (const [name, body] of BAD_CONFIGS) {
   const r = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `guard-cfg-${name}-`)));
   fs.mkdirSync(path.join(r, "backend/src"), { recursive: true });
   if (body !== null) {
@@ -48,6 +78,13 @@ for (const [name, body] of [["missing", null], ["broken-json", "{not json"], ["b
   }
   BAD_ROOTS[name] = r;
 }
+// A valid v2 config with the other library profile (.claude/stacks/python-pytest.json): accepted, and the guard takes
+// testFile from that stack (test-writer may rm exactly one *_test.py file, no longer a *.test.ts file)
+const PY_ROOT = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guard-cfg-python-")));
+fs.mkdirSync(path.join(PY_ROOT, ".claude"), { recursive: true });
+fs.mkdirSync(path.join(PY_ROOT, "backend/test/public"), { recursive: true });
+fs.writeFileSync(path.join(PY_ROOT, ".claude/harness.json"), JSON.stringify({
+  ...REAL, stack: JSON.parse(fs.readFileSync(path.join(here, "..", "stacks", "python-pytest.json"), "utf8")) }));
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
@@ -309,6 +346,12 @@ const cases = [
     ["main", "Bash", { command: "ls -la" }, A, `config ${name}: main Bash read-only still allowed`, { root: r }],
     ["code-reviewer", "Read", { file_path: "backend/src/app.ts" }, A, `config ${name}: code-reviewer Read src still allowed`, { root: r }],
   ]),
+  // ---- valid v2 config with the python-pytest stack profile ----
+  ["code-writer", "Write", { file_path: "backend/src/a.py" }, A, "python stack: code-writer Write backend/src", { root: PY_ROOT }],
+  ["test-writer", "Write", { file_path: "backend/test/public/abc_003_test.py" }, A, "python stack: test-writer Write test/public", { root: PY_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/abc_003_test.py" }, A, "python stack: test-writer rm one *_test.py file", { root: PY_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/helper.py" }, B, "python stack: test-writer rm a non-test file", { root: PY_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/a.test.ts" }, B, "python stack: test-writer rm *.test.ts (not this stack's testFile)", { root: PY_ROOT }],
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----
@@ -371,7 +414,7 @@ try {
 } finally {
   fs.rmSync(FAKE, { recursive: true, force: true });
   fs.rmSync(OUTSIDE, { recursive: true, force: true });
-  for (const r of Object.values(BAD_ROOTS)) fs.rmSync(r, { recursive: true, force: true });
+  for (const r of [...Object.values(BAD_ROOTS), PY_ROOT]) fs.rmSync(r, { recursive: true, force: true });
 }
 console.log(`\n${failures ? `FAILED: ${failures} case(s)` : "ALL PASSED"}`);
 process.exit(failures ? 1 : 0);

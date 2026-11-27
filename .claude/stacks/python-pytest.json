@@ -1,0 +1,23 @@
+{
+  "name": "python-pytest",
+  "runner": "pytest",
+  "appMarker": "pyproject.toml",
+  "testFile": "_test\\.py$",
+  "scenarioTestCall": "@pytest\\.mark\\.scenario\\(\\s*['\"]",
+  "reqFromFileName": "^(?P<req>[a-z]{2,5}_\\d{3})(_\\d+)?_test\\.py$",
+  "commands": {
+    "install": null,
+    "test": ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-o", "python_files=*_test.py",
+             "--ignore-glob=*/test/private/*"],
+    "gate": [
+      {"label": "pytest", "argv": ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-o",
+                                   "python_files=*_test.py", "--ignore-glob=*/test/private/*"]}
+    ],
+    "lintFile": null,
+    "runFiles": ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-o", "python_files=*_test.py",
+                 "-o", "junit_family=xunit1", "--continue-on-collection-errors", "--junitxml={report}", "{files}"],
+    "private": ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-o", "python_files=*_test.py",
+                "-o", "junit_family=xunit1", "--continue-on-collection-errors", "--junitxml={report}", "{dir}"],
+    "privateTypecheck": null
+  }
+}

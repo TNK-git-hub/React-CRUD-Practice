@@ -75,16 +75,93 @@ const relRaw = (p) => path.relative(root, path.resolve(cwd, p)).split(path.sep).
 const rel = (p) => fold(relRaw(p));
 
 // ---- Agent areas: .claude/harness.json (the one source of truth; .specify/scripts/harness_config.py reads the same
-// file with the same checks). Missing or invalid -> FAIL-CLOSED: every Edit / Write / MultiEdit / NotebookEdit and every
+// file with the same checks). Schema version 2 only: areas + the stack profile ("stack"; the guard uses its testFile).
+// A version 1 file, a missing stack or an invalid one counts as invalid. Missing or invalid -> FAIL-CLOSED: every Edit / Write / MultiEdit / NotebookEdit and every
 // Bash write is blocked below. Read / Grep / Glob keep the hard test/private rule (PRIVATE), which does not depend on it.
 const HARNESS_CONFIG = ".claude/harness.json";
 const AREA_KEYS = ["src", "testPublic", "testE2e", "testPrivate"];
+// The stack profile (harness.json "stack", a copy of .claude/stacks/<name>.json): the rules of check_stack in
+// harness_config.py. reqFromFileName uses Python's (?P<name>…) syntax, which JS cannot compile: only its form is checked
+// here (harness_config.py compiles it).
+const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const sameKeys = (o, keys) => isObj(o) && Object.keys(o).sort().join() === [...keys].sort().join();
+const STACK_KEYS = ["name", "runner", "appMarker", "testFile", "scenarioTestCall", "reqFromFileName", "commands"];
+const COMMAND_KEYS = ["install", "test", "gate", "lintFile", "runFiles", "private", "privateTypecheck"];
+const PLACEHOLDERS = { install: [], test: [], gate: [], lintFile: ["file"], runFiles: ["files", "report"],
+  private: ["dir", "report"], privateTypecheck: [] };
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh", "mksh", "fish", "csh", "tcsh", "busybox", "env", "eval", "exec",
+  "xargs", "nohup", "sudo", "doas", "time", "nice", "cmd", "powershell", "pwsh"]);
+const INLINE_CODE = new Set(["-c", "-e", "--eval", "--command", "-p", "--print"]);
+const checkRegex = (where, v) => {
+  if (typeof v !== "string" || !v) throw new Error(`${where} must be a regex string`);
+  new RegExp(v); // throws on a bad regex
+};
+const checkText = (where, v) => {
+  if (typeof v !== "string" || !v || /[\n\r\0]/.test(v)) throw new Error(`${where} must be a non-empty string without a newline`);
+};
+const checkArgv = (where, argv, command) => {
+  if (!Array.isArray(argv) || !argv.length) throw new Error(`${where} must be a non-empty argv array, not a shell string`);
+  argv.forEach((a, i) => checkText(`${where}[${i}]`, a));
+  if (!/^[A-Za-z0-9._+/-]+$/.test(argv[0]) || SHELLS.has(argv[0].split("/").pop())) {
+    throw new Error(`${where}: argv[0] '${argv[0]}' must be a program, not a shell or a wrapper`);
+  }
+  for (const a of argv.slice(1)) {
+    if (!a.startsWith("-")) break;
+    if (INLINE_CODE.has(a)) throw new Error(`${where}: option '${a}' runs inline code`);
+  }
+  const allowed = PLACEHOLDERS[command];
+  const seen = {};
+  for (const a of argv) {
+    for (const m of a.matchAll(/\{([^{}]*)\}/g)) {
+      if (!allowed.includes(m[1])) throw new Error(`${where}: unknown placeholder {${m[1]}}`);
+      if (m[1] === "files" && a !== "{files}") throw new Error(`${where}: {files} must be a whole element`);
+      seen[m[1]] = (seen[m[1]] || 0) + 1;
+    }
+  }
+  for (const p of allowed) if (!seen[p]) throw new Error(`${where} must hold the placeholder {${p}}`);
+  if ((seen.files || 0) > 1) throw new Error(`${where}: {files} may appear only once`);
+};
+const checkStack = (s, packages) => {
+  if (!sameKeys(s, STACK_KEYS)) throw new Error(`stack must have exactly the keys ${STACK_KEYS.join(", ")}`);
+  if (typeof s.name !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.name)) throw new Error("stack.name must be a kebab-case name");
+  if (!["vitest", "pytest"].includes(s.runner)) throw new Error("stack.runner must be vitest or pytest");
+  if (typeof s.appMarker !== "string" || !/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(s.appMarker) ||
+      s.appMarker.split("/").some((x) => x === "." || x === "..")) throw new Error("stack.appMarker must be a relative path");
+  checkRegex("stack.testFile", s.testFile);
+  checkRegex("stack.scenarioTestCall", s.scenarioTestCall);
+  if (typeof s.reqFromFileName !== "string" || !s.reqFromFileName.includes("(?P<req>")) {
+    throw new Error("stack.reqFromFileName must be a regex string with the group (?P<req>...)");
+  }
+  const c = s.commands;
+  if (!sameKeys(c, COMMAND_KEYS)) throw new Error(`stack.commands must have exactly the keys ${COMMAND_KEYS.join(", ")}`);
+  if (c.install !== null) checkArgv("stack.commands.install", c.install, "install");
+  checkArgv("stack.commands.test", c.test, "test");
+  if (!Array.isArray(c.gate) || !c.gate.length) throw new Error("stack.commands.gate must be a non-empty list");
+  c.gate.forEach((g, i) => {
+    if (!sameKeys(g, ["label", "argv"])) throw new Error(`stack.commands.gate[${i}] must have exactly the keys label, argv`);
+    checkText(`stack.commands.gate[${i}].label`, g.label);
+    checkArgv(`stack.commands.gate[${i}].argv`, g.argv, "gate");
+  });
+  if (c.lintFile !== null) {
+    if (!sameKeys(c.lintFile, ["package", "match", "argv"])) throw new Error("stack.commands.lintFile must have exactly the keys package, match, argv");
+    if (!packages.includes(c.lintFile.package)) throw new Error("stack.commands.lintFile.package is not one of the packages");
+    checkRegex("stack.commands.lintFile.match", c.lintFile.match);
+    checkArgv("stack.commands.lintFile.argv", c.lintFile.argv, "lintFile");
+  }
+  checkArgv("stack.commands.runFiles", c.runFiles, "runFiles");
+  checkArgv("stack.commands.private", c.private, "private");
+  if (c.privateTypecheck !== null) {
+    if (!sameKeys(c.privateTypecheck, ["argv", "errorPattern"])) throw new Error("stack.commands.privateTypecheck must have exactly the keys argv, errorPattern");
+    checkArgv("stack.commands.privateTypecheck.argv", c.privateTypecheck.argv, "privateTypecheck");
+    checkRegex("stack.commands.privateTypecheck.errorPattern", c.privateTypecheck.errorPattern);
+  }
+};
 const checkConfig = (c) => {
   const isList = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
   if (!c || typeof c !== "object" || Array.isArray(c)) throw new Error("must be a JSON object");
-  const extra = Object.keys(c).filter((k) => !["version", "packages", "areas", "testFile"].includes(k));
+  const extra = Object.keys(c).filter((k) => !["version", "packages", "areas", "stack"].includes(k));
   if (extra.length) throw new Error(`unknown key(s) ${extra.join(", ")}`);
-  if (c.version !== 1) throw new Error("version must be 1");
+  if (c.version !== 2) throw new Error("version must be 2 (schema with the stack profile, see .claude/stacks/)");
   if (!isList(c.packages) || !c.packages.length || !c.packages.every((p) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(p)) ||
       new Set(c.packages).size !== c.packages.length) throw new Error("packages must be a non-empty list of names");
   const a = c.areas;
@@ -103,8 +180,8 @@ const checkConfig = (c) => {
       }
     }
   }
-  if (typeof c.testFile !== "string" || !c.testFile) throw new Error("testFile must be a regex string");
-  new RegExp(c.testFile); // throws on a bad regex
+  if (!("stack" in c)) throw new Error("stack is missing (a copy of a profile of .claude/stacks/)");
+  checkStack(c.stack, c.packages);
 };
 let CFG = null;
 let CONFIG_ERR = "";
@@ -125,7 +202,7 @@ const TEST_WRITABLE_AREAS = areasOf("testPublic", "testE2e"); // interactive.tes
 const PRIVATE_AREAS = areasOf("testPrivate");
 // testPublic inside its package ("test/public"): the path arguments a test command may take
 const PKG_TEST_DIRS = [...new Set(areasOf("testPublic").map((a) => a.slice(a.indexOf("/") + 1)))];
-const TEST_FILE = CFG ? CFG.testFile.replace(/\$$/, "") : "(?!)"; // without its "$", to append \s*$
+const TEST_FILE = CFG ? CFG.stack.testFile.replace(/\$$/, "") : "(?!)"; // without its "$", to append \s*$
 // Paths and commands are compared folded (see fold above): the regexes are built from folded areas too
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 // Approvals locked by hash (.specify/scripts/approval.py): approval.json and its copies in .approved/ are written only by approval.py,

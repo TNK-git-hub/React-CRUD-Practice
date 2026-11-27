@@ -23,12 +23,16 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import red_check  # noqa: E402
 
+REPO = Path(__file__).resolve().parents[2]
+TS_STACK = json.loads((REPO / ".claude/stacks/ts-pnpm-vitest.json").read_text(encoding="utf-8"))
+# lintFile names a package of the repo's own layout; these fixtures use api / web
+TS_STACK["commands"]["lintFile"]["package"] = "web"
 CONFIG = {
-    "version": 1,
+    "version": 2,
     "packages": ["api", "web"],
     "areas": {"src": ["api/src", "web/src", "web/public"], "testPublic": ["api/test/public", "web/test/public"],
               "testE2e": ["web/test/e2e"], "testPrivate": ["api/test/private"]},
-    "testFile": "\\.test\\.tsx?$",
+    "stack": TS_STACK,
 }
 FAIL = "// RED_CHECK: fail\n"
 PASS = "// RED_CHECK: pass\n"

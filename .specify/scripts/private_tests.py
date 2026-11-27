@@ -13,8 +13,11 @@ Where: the hidden test folders are areas.testPrivate of .claude/harness.json; th
 Which change: the MODIFIED / REMOVED requirement IDs of specs/changes/<change>/spec.md (or specs/archive/<change>/
 once archived), read with the heading parser of spec_check.py (`#### MODIFIED <ID>` / `#### REMOVED <ID>`; RENAMED and
 MOVED keep the behaviour, so they do not count).
-A test file -> the requirements of the scenario IDs in its describe / it / test names (the regex of run.sh's
-scenario_gate, harness_config.SCENARIO_TEST_CALL) plus the REQ-ID of its name (`<REQ-ID>[-n].test.ts(x)`). State:
+Test files: the files whose name matches stack.testFile of the stack profile in .claude/harness.json. A test file ->
+the requirements of the scenario IDs in its test calls (stack.scenarioTestCall, the regex of run.sh's scenario_gate:
+describe / it / test names for vitest, @pytest.mark.scenario("<ID>") for pytest) plus the requirement of its name
+(stack.reqFromFileName: `<REQ-ID>[-n].test.ts(x)` for vitest, `<req_id>[_n]_test.py` for pytest; the group "req" is
+upper-cased with "_" -> "-", e.g. abc_003_test.py -> ABC-003). State:
   unaffected  none of them is MODIFIED or REMOVED by the change
   mixed       it touches a MODIFIED / REMOVED requirement AND holds scenarios of more than one requirement
   removed     its only requirement is REMOVED
@@ -37,13 +40,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import harness_config  # noqa: E402  (the hidden test folders, the test-file pattern, the test-call regex)
+import harness_config  # noqa: E402  (the hidden test folders and the stack profile: test files, test calls, file names)
 import spec_check  # noqa: E402  (the delta heading parser)
 
 STALE_DIR = "_stale"
 MANIFEST = "MANIFEST.txt"
-SCENARIO_IN_NAME_RE = re.compile(harness_config.SCENARIO_TEST_CALL + rf"(?P<sid>{spec_check.REQ_ID}-S\d+)(?![0-9])")
-FILE_REQ_RE = re.compile(rf"^(?P<req>{spec_check.REQ_ID})(-\d+)?\.")
 # "all" leaves mixed files alone: they also hold scenarios of requirements the change does not touch
 KINDS = {"removed": ("removed",), "modified": ("modified",), "all": ("removed", "modified"), "mixed": ("mixed",)}
 
@@ -97,9 +98,23 @@ def private_roots(root: Path) -> list[str]:
     return harness_config.get(config(root), "areas.testPrivate")
 
 
+def scenario_re(cfg: dict) -> re.Pattern:
+    """A scenario ID in a test call of the stack (stack.scenarioTestCall + the ID)."""
+    return re.compile(harness_config.get(cfg, "scenarioTestCall") + rf"(?P<sid>{spec_check.REQ_ID}-S\d+)(?![0-9])")
+
+
+def req_from_file_name(cfg: dict, name: str) -> str | None:
+    """The requirement ID of a test file name (stack.reqFromFileName; "req" upper-cased, "_" -> "-"), or None."""
+    m = re.match(harness_config.get(cfg, "stack.reqFromFileName"), name)
+    if not m or not m.group("req"):
+        return None
+    req = m.group("req").upper().replace("_", "-")
+    return req if re.fullmatch(spec_check.REQ_ID, req) else None
+
+
 def test_files(root: Path) -> list[tuple[str, Path]]:
     """(hidden test folder, file) of every test file, `_stale/` skipped."""
-    test_file = re.compile(config(root)["testFile"])
+    test_file = re.compile(harness_config.get(config(root), "testFile"))
     out = []
     for proot in private_roots(root):
         base = root / proot
@@ -114,11 +129,12 @@ def test_files(root: Path) -> list[tuple[str, Path]]:
     return out
 
 
-def file_reqs(f: Path) -> set[str]:
-    reqs = {re.sub(r"-S\d+$", "", m.group("sid")) for m in SCENARIO_IN_NAME_RE.finditer(f.read_text(encoding="utf-8", errors="replace"))}
-    m = FILE_REQ_RE.match(f.name)
-    if m:
-        reqs.add(m.group("req"))
+def file_reqs(f: Path, cfg: dict) -> set[str]:
+    text = f.read_text(encoding="utf-8", errors="replace")
+    reqs = {re.sub(r"-S\d+$", "", m.group("sid")) for m in scenario_re(cfg).finditer(text)}
+    req = req_from_file_name(cfg, f.name)
+    if req:
+        reqs.add(req)
     return reqs
 
 
@@ -126,8 +142,9 @@ def classify(root: Path, change: str) -> list[Entry]:
     ids = delta_ids(root, change)
     changed = ids["MODIFIED"] | ids["REMOVED"]
     entries = []
+    cfg = config(root)
     for proot, f in test_files(root):
-        reqs = file_reqs(f)
+        reqs = file_reqs(f, cfg)
         if not reqs & changed:
             state = "unaffected"
         elif len(reqs) > 1:

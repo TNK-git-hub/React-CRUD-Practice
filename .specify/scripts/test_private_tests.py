@@ -6,6 +6,7 @@ Run: python3 -m unittest discover -s .specify/scripts
 from __future__ import annotations
 
 import io
+import json
 import shutil
 import sys
 import tempfile
@@ -221,6 +222,68 @@ class PrivateTestsTest(unittest.TestCase):
             self.assertEqual(code, 2, argv)
             self.assertIn("must be a terminal", err.getvalue())
         self.assertTrue((self.root / f"{BE}/{CHANGE}/ABC-005.test.ts").is_file())  # nothing moved
+
+
+PY_FILES = {
+    f"{BE}/{CHANGE}/abc_002_test.py": 'import pytest\n\n@pytest.mark.scenario("ABC-002-S1")\ndef test_finds():\n    pass\n',
+    f"{BE}/{CHANGE}/abc_005_2_test.py": "def test_no_marker():\n    pass\n",
+    f"{BE}/{CHANGE}/checkout_test.py": ("@pytest.mark.scenario('ABC-002-S2')\ndef test_a(): pass\n\n"
+                                        "@pytest.mark.scenario( \"ABC-007-S1\" )\ndef test_b(): pass\n"),
+    f"{BE}/{CHANGE}/abc_007_test.py": "@pytest.mark.scenario('ABC-007-S3')\ndef test_c(): pass\n",
+    # not test files of the python-pytest profile (testFile _test\.py$)
+    f"{BE}/{CHANGE}/conftest.py": "@pytest.mark.scenario('ABC-005-S1')\n",
+    f"{BE}/{CHANGE}/test_abc_005.py": "def test_x(): pass\n",
+    f"{BE}/{CHANGE}/ABC-005.test.ts": "it('ABC-005-S1 vitest name', () => {});\n",
+}
+
+
+class PythonStackTest(unittest.TestCase):
+    """The same classification with the python-pytest profile: test files `*_test.py`, scenario IDs in
+    @pytest.mark.scenario("<ID>"), the requirement of a file name `abc_003[_n]_test.py` -> ABC-003."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        cfg = json.loads((REPO / ".claude/harness.json").read_text(encoding="utf-8"))
+        cfg["stack"] = json.loads((REPO / ".claude/stacks/python-pytest.json").read_text(encoding="utf-8"))
+        self.write(".claude/harness.json", json.dumps(cfg))
+        self.write(f"specs/changes/{CHANGE}/spec.md", DELTA)
+        for rel, text in PY_FILES.items():
+            self.write(rel, text)
+        self.cfg = pt.config(self.root)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def write(self, rel: str, text: str) -> None:
+        p = self.root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding="utf-8")
+
+    def test_scenario_ids_from_the_pytest_marker_and_the_file_name(self) -> None:
+        s = {e.path: (e.state, e.reqs) for e in pt.classify(self.root, CHANGE)}
+        self.assertEqual(s, {
+            f"{BE}/{CHANGE}/abc_002_test.py": ("modified", ["ABC-002"]),
+            f"{BE}/{CHANGE}/abc_005_2_test.py": ("removed", ["ABC-005"]),
+            f"{BE}/{CHANGE}/checkout_test.py": ("mixed", ["ABC-002", "ABC-007"]),
+            f"{BE}/{CHANGE}/abc_007_test.py": ("unaffected", ["ABC-007"]),
+        })
+
+    def test_req_from_file_name_python(self) -> None:
+        cases = {"abc_003_test.py": "ABC-003", "abc_003_2_test.py": "ABC-003", "prod_012_test.py": "PROD-012",
+                 "test_abc_003.py": None, "abcdef_003_test.py": None, "abc_03_test.py": None,
+                 "abc_003.py": None, "ABC-003.test.ts": None, "checkout_test.py": None}
+        for name, want in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(pt.req_from_file_name(self.cfg, name), want)
+
+    def test_req_from_file_name_typescript_is_unchanged(self) -> None:
+        ts = pt.config(REPO)
+        cases = {"ABC-003.test.ts": "ABC-003", "ABC-003-2.test.tsx": "ABC-003", "PROD-012.test.ts": "PROD-012",
+                 "abc-003.test.ts": None, "x.test.ts": None, "abc_003_test.py": None}
+        for name, want in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(pt.req_from_file_name(ts, name), want)
 
 
 if __name__ == "__main__":

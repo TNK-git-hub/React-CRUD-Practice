@@ -1,0 +1,27 @@
+{
+  "name": "ts-pnpm-vitest",
+  "runner": "vitest",
+  "appMarker": "package.json",
+  "testFile": "\\.test\\.tsx?$",
+  "scenarioTestCall": "(describe|it|test)(\\.[A-Za-z]+)*(\\([^)]*\\))?\\(\\s*['\"`]",
+  "reqFromFileName": "^(?P<req>[A-Z]{2,5}-\\d{3})(-\\d+)?\\.",
+  "commands": {
+    "install": ["pnpm", "install", "--frozen-lockfile", "--prefer-offline"],
+    "test": ["pnpm", "test"],
+    "gate": [
+      {"label": "pnpm lint", "argv": ["pnpm", "lint"]},
+      {"label": "typecheck frontend", "argv": ["pnpm", "--filter", "frontend", "typecheck"]},
+      {"label": "pnpm test", "argv": ["pnpm", "test"]}
+    ],
+    "lintFile": {
+      "package": "frontend",
+      "match": "\\.(ts|tsx|js|jsx|mjs)$",
+      "argv": ["pnpm", "exec", "eslint", "--quiet", "{file}"]
+    },
+    "runFiles": ["pnpm", "exec", "vitest", "run", "{files}", "--reporter=default", "--reporter=json",
+                 "--outputFile.json={report}"],
+    "private": ["pnpm", "exec", "vitest", "run", "{dir}", "--passWithNoTests", "--reporter=default",
+                "--reporter=json", "--outputFile.json={report}"],
+    "privateTypecheck": {"argv": ["pnpm", "typecheck:private"], "errorPattern": "error TS[0-9]+"}
+  }
+}
