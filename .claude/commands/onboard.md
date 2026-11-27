@@ -3,12 +3,12 @@ description: Create the project constitution (mission, tech stack, roadmap) from
 allowed-tools: Read, Write, Glob, Grep, Bash(git ls-files:*), AskUserQuestion
 ---
 
-Create the project constitution in `.claude/memory/constitution/` from the templates in
+Create the project constitution in `.claude/context/constitution/` from the templates in
 `.claude/template/constitution/`.
 
 ## 1. Check for an existing constitution
 
-If `.claude/memory/constitution/` already holds `mission.md`, `techstack.md`, or
+If `.claude/context/constitution/` already holds `mission.md`, `techstack.md`, or
 `roadmap.md`, ask the user with AskUserQuestion whether to overwrite them, update them,
 or stop. Do not overwrite without an answer.
 
@@ -46,7 +46,6 @@ their trade-offs and let the user pick.
 
 ## 4. Save and report
 
-1. Write the three files to `.claude/memory/constitution/`.
-2. Make sure `.claude/memory/MEMORY.md` has a line for the constitution.
-3. Tell the user: the project type you found, the files you wrote, and any section that
+1. Write the three files to `.claude/context/constitution/`.
+2. Tell the user: the project type you found, the files you wrote, and any section that
    is still open.

@@ -17,13 +17,13 @@ The folder layout follows `docs/BaseHarness.drawio` (the source of truth for str
 ```
 .claude/
   CLAUDE.md
-  memory/
-    MEMORY.md
+  context/
     constitution/        # generated: mission.md, techstack.md, roadmap.md (.gitkeep for now)
   template/
     constitution/        # templates: mission.md, techstack.md, roadmap.md
   commands/
     onboard.md           # /onboard: creates the constitution from the templates
+    drift.md             # /drift: finds spots missed when the harness was changed, asks what to fix
 docs/
   BaseHarness.drawio     # structure and workflow diagram
   requirements/          # the developer puts the customer's requirements here
@@ -38,23 +38,19 @@ phase table with a status column). `/onboard` creates the constitution: it detec
 `docs/requirements/` if it has files), fills the templates, and
 asks the user with AskUserQuestion when information is missing.
 
-## Memory
+## Context
 
-`.claude/memory/` is the single place where all of Claude's project memory is stored,
+`.claude/context/` is the single place where all of Claude's project context is stored,
 including the constitution. It lives in the repository, so it is versioned and reused
 together with the harness.
 
-- `memory/MEMORY.md` — index of all memory files (one line per file).
-- `memory/constitution/` — non-negotiable project principles (mission, tech stack, roadmap),
+- `context/constitution/` — non-negotiable project principles (mission, tech stack, roadmap),
   generated from `template/constitution/`; overrides everything else.
 
 Rules:
-- Save new project knowledge here (not in any other location), one fact/topic per file,
-  and add a line for it in `MEMORY.md`.
-- Update an existing file instead of creating a duplicate; remove memory that is wrong.
+- Save new project knowledge here (not in any other location), one fact/topic per file.
+- Update an existing file instead of creating a duplicate; remove context that is wrong.
 - Change the constitution only when the user explicitly asks.
-
-@memory/MEMORY.md
 
 ## Rules for Claude
 

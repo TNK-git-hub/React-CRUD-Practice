@@ -38,7 +38,7 @@
         <mxCell id="m1BmF_WiUP0McPFphlhO-9" edge="1" parent="1" source="m1BmF_WiUP0McPFphlhO-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;labelPadding=0 4;" target="m1BmF_WiUP0McPFphlhO-8">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="m1BmF_WiUP0McPFphlhO-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="memory/" vertex="1">
+        <mxCell id="m1BmF_WiUP0McPFphlhO-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="context/" vertex="1">
           <mxGeometry height="60" width="120" x="400" y="780" as="geometry" />
         </mxCell>
         <mxCell id="m1BmF_WiUP0McPFphlhO-12" edge="1" parent="1" source="m1BmF_WiUP0McPFphlhO-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;labelPadding=0 4;" target="m1BmF_WiUP0McPFphlhO-11">
@@ -137,6 +137,12 @@
         </mxCell>
         <mxCell id="m1BmF_WiUP0McPFphlhO-46" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" value="/onboard" vertex="1">
           <mxGeometry height="60" width="120" x="520" y="1340" as="geometry" />
+        </mxCell>
+        <mxCell id="drift-cmd-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" value="/drift" vertex="1">
+          <mxGeometry height="60" width="120" x="520" y="1420" as="geometry" />
+        </mxCell>
+        <mxCell id="drift-cmd-edge-1" edge="1" parent="1" source="m1BmF_WiUP0McPFphlhO-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;labelPadding=0 4;" target="drift-cmd-1">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="m1BmF_WiUP0McPFphlhO-48" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Sơ đồ flow làm việc" vertex="1">
           <mxGeometry height="60" width="120" x="1200" y="20" as="geometry" />
