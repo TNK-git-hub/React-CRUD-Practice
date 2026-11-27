@@ -582,6 +582,12 @@ Spec rules:
   e.g. \`it('ABC-003-S2 rejects min greater than max', ...)\`. The pipeline checks this."
 fi
 
+# >>> repro_path (self-contained: .specify/scripts/test_repro_path.py extracts this block and sources it)
+# repro_path_ok <path> <test areas regex> <testFile regex>: the reproduction test is a test file (stack.testFile) under
+# a public test area, without "..". testFile is joined as a group: a top-level "|" in it (\.test\.ts$|\.spec\.ts$)
+# must not escape the area prefix. ERE has no (?:...): a plain group, no caller reads BASH_REMATCH.
+repro_path_ok() { [[ "$1" =~ ${2}[A-Za-z0-9._/-]+(${3}) && "$1" != *..* ]]; }
+# <<< repro_path
 # ---------- bug (optional, dispatch.sh --bug <id>): steps f-g of the bug flow ----------
 BUG="$(head -n 1 /task/bug.txt 2>/dev/null || true)"
 REPRO=""; BUG_SCENARIO=""; BUG_SUM=""; ROOT_CAUSE=""
@@ -591,7 +597,7 @@ if [[ -n "$BUG" ]]; then
   [[ -z "$CHANGE" ]] || fail "bug mode cannot go with a spec change"
   REPRO="$(head -n 1 /task/repro.txt 2>/dev/null || true)"
   BUG_SCENARIO="$(head -n 1 /task/scenario.txt 2>/dev/null || true)"
-  [[ "$REPRO" =~ ${TEST_RE}[A-Za-z0-9._/-]+${TEST_FILE_RE} && "$REPRO" != *..* ]] \
+  repro_path_ok "$REPRO" "$TEST_RE" "$TEST_FILE_RE" \
     || fail "invalid reproduction test path '$REPRO'"
   [[ "$BUG_SCENARIO" =~ ^[A-Z]{2,5}-[0-9]{3}-S[0-9]+$ ]] || fail "invalid bug scenario '$BUG_SCENARIO'"
   [[ -f /task/bug.tgz ]] || fail "bug mode: /task/bug.tgz is missing"

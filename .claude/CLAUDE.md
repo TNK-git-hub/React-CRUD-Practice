@@ -175,11 +175,16 @@ clarify / spec round. `/spec-archive` runs only after the CODE and TEST harnesse
 
 ## Hard rules
 
-- The agent areas (code, public / e2e / hidden test folders, packages, test-file pattern) are defined once, in
+- The agent areas (code, public / e2e / hidden test folders, packages) are defined once, in
   `.claude/harness.json` (checked by `.specify/scripts/harness_config.py`; `guard.mjs`, `run.sh`, `collect.sh`,
   `dispatch.sh`, `approval.py` and `spec_check.py` read it, and `test_no_hardcoded_paths.py` fails on a copy written into
   them). Changing the folder layout = edit that file + the prose of the root `CLAUDE.md` ("Write permissions") and the agent
   prompts. A missing or invalid file blocks every write (`guard.mjs` fails closed).
+- Everything stack-specific (test-file pattern, scenario test call, test / gate / lint / hidden-test commands as argv
+  arrays, report format) is the `stack` object of `.claude/harness.json` (schema version 2): a verbatim copy of one
+  profile of `.claude/stacks/` (`ts-pnpm-vitest` is active; `python-pytest` is the other). The hooks, `red_check.py`,
+  `dispatch.sh` and `private_tests.py` read it; `stack_adapter.py` reads the reports. Switching stack = copy another
+  profile into `stack`; `test_harness_config.py` fails when the copy differs from its profile.
 - Approvals are the user's: only `approval.py approve`, run by the user in their own terminal, writes
   `approval.json` and `.approved/` (of a change or a bug). No agent, the main session included, writes or edits them
   or runs `approval.py approve` (`guard.mjs` blocks it); agents run `approval.py verify` only.

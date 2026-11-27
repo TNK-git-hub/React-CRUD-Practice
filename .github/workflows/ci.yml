@@ -78,7 +78,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The python-pytest stack profile is proven with real pytest (temporary projects, no committed *_test.py).
+      # HARNESS_REQUIRE_PYTEST=1: those tests FAIL instead of being skipped when pytest is missing.
+      - name: Install pytest (pinned, for the python-pytest profile tests)
+        run: python -m pip install pytest==8.3.4
+
       - name: Harness self-tests
+        env:
+          HARNESS_REQUIRE_PYTEST: "1"
         run: |
           python -m unittest discover -s .specify/scripts -v
           python -m unittest discover -s .claude/hooks -v
