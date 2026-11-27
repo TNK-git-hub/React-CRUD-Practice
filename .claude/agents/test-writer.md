@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Use to write tests following an existing test plan, in test/public/, and run them until they pass.
+description: Writes tests from a test plan in the test areas (backend/frontend test/public, frontend/test/e2e). In the RED step new tests must fail because the behaviour is missing; never weaken, skip or delete a test to make it pass.
 tools: Read, Grep, Glob, Write, Edit, Bash
 skills:
   - writing-good-tests
