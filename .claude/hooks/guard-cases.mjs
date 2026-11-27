@@ -85,6 +85,20 @@ fs.mkdirSync(path.join(PY_ROOT, ".claude"), { recursive: true });
 fs.mkdirSync(path.join(PY_ROOT, "backend/test/public"), { recursive: true });
 fs.writeFileSync(path.join(PY_ROOT, ".claude/harness.json"), JSON.stringify({
   ...REAL, stack: JSON.parse(fs.readFileSync(path.join(here, "..", "stacks", "python-pytest.json"), "utf8")) }));
+// Valid v2 configs whose testFile has a top-level "|" (ALT_ROOT) or a "|" inside a group (GROUP_ROOT): the guard joins
+// testFile into its test-writer rm pattern as a group, so an alternative cannot escape the test-area prefix
+const ALT_ROOT = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guard-cfg-alt-")));
+const GROUP_ROOT = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guard-cfg-group-")));
+// ESC_ROOT: testFile ends in an escaped "$" (a literal dollar, not the end anchor): kept, not stripped (stripping it
+// would leave "\" before the group's ")", the joined regex would not compile, and a crashed hook does not block)
+const ESC_ROOT = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "guard-cfg-esc-")));
+for (const [r, testFile] of [[ALT_ROOT, String.raw`\.test\.ts$|\.spec\.ts$`], [GROUP_ROOT, String.raw`\.(test|spec)\.ts$`],
+  [ESC_ROOT, String.raw`\.test\.ts\$`]]) {
+  fs.mkdirSync(path.join(r, ".claude"), { recursive: true });
+  fs.mkdirSync(path.join(r, "backend/src"), { recursive: true });
+  fs.mkdirSync(path.join(r, "backend/test/public"), { recursive: true });
+  fs.writeFileSync(path.join(r, ".claude/harness.json"), withStack((s) => { s.testFile = testFile; }));
+}
 // File system of the temp dir ignores case (default on macOS, Windows)?
 const CASE_INSENSITIVE_FS = fs.existsSync(path.join(FAKE, "SPECS"));
 
@@ -352,6 +366,17 @@ const cases = [
   ["test-writer", "Bash", { command: "rm backend/test/public/abc_003_test.py" }, A, "python stack: test-writer rm one *_test.py file", { root: PY_ROOT }],
   ["test-writer", "Bash", { command: "rm backend/test/public/helper.py" }, B, "python stack: test-writer rm a non-test file", { root: PY_ROOT }],
   ["test-writer", "Bash", { command: "rm backend/test/public/a.test.ts" }, B, "python stack: test-writer rm *.test.ts (not this stack's testFile)", { root: PY_ROOT }],
+  // ---- testFile with a top-level "|": joined as a group, no alternative escapes the test area ----
+  ["test-writer", "Bash", { command: "rm -rf backend/src x.spec.ts" }, B, "testFile a$|b$: test-writer rm -rf src + a name ending in the 2nd alternative", { root: ALT_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/src/a.spec.ts" }, B, "testFile a$|b$: test-writer rm a src file matching the 2nd alternative", { root: ALT_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/src/a.test.ts" }, B, "testFile a$|b$: test-writer rm a src file matching the 1st alternative", { root: ALT_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/a.spec.ts" }, A, "testFile a$|b$: test-writer rm one test file (2nd alternative)", { root: ALT_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/a.test.ts" }, A, "testFile a$|b$: test-writer rm one test file (1st alternative)", { root: ALT_ROOT }],
+  ["code-writer", "Write", { file_path: "backend/src/a.ts" }, A, "testFile a$|b$: config valid (code-writer Write src)", { root: ALT_ROOT }],
+  ["test-writer", "Bash", { command: "rm -rf backend/src x.spec.ts" }, B, "testFile (a|b)$: test-writer rm -rf src + a name ending in .spec.ts", { root: GROUP_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/src/a.spec.ts" }, B, "testFile (a|b)$: test-writer rm a src file", { root: GROUP_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/a.spec.ts" }, A, "testFile (a|b)$: test-writer rm one test file", { root: GROUP_ROOT }],
+  ["test-writer", "Bash", { command: "rm backend/test/public/a.test.ts" }, B, "testFile ending in \\$: no crash, a file without the literal $ is not a test file", { root: ESC_ROOT }],
 ];
 
 // ---- case-insensitive file system: changing case must not get around any rule ----
@@ -414,7 +439,7 @@ try {
 } finally {
   fs.rmSync(FAKE, { recursive: true, force: true });
   fs.rmSync(OUTSIDE, { recursive: true, force: true });
-  for (const r of [...Object.values(BAD_ROOTS), PY_ROOT]) fs.rmSync(r, { recursive: true, force: true });
+  for (const r of [...Object.values(BAD_ROOTS), PY_ROOT, ALT_ROOT, GROUP_ROOT, ESC_ROOT]) fs.rmSync(r, { recursive: true, force: true });
 }
 console.log(`\n${failures ? `FAILED: ${failures} case(s)` : "ALL PASSED"}`);
 process.exit(failures ? 1 : 0);

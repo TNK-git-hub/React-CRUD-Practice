@@ -90,6 +90,12 @@ elif [[ -n "$SPEC_TASKS" ]]; then
   fail "--tasks needs --change"
 fi
 
+# >>> repro_path (self-contained: .specify/scripts/test_repro_path.py extracts this block and sources it)
+# repro_path_ok <path> <test areas regex> <testFile regex>: the reproduction test is a test file (stack.testFile) under
+# a public test area, without "..". testFile is joined as a group: a top-level "|" in it (\.test\.ts$|\.spec\.ts$)
+# must not escape the area prefix. ERE has no (?:...): a plain group, no caller reads BASH_REMATCH.
+repro_path_ok() { [[ "$1" =~ ${2}[A-Za-z0-9._/-]+(${3}) && "$1" != *..* ]]; }
+# <<< repro_path
 # --- bug (optional): steps f-g of the bug flow, after the user approved the root cause in their terminal ---
 BUG_ARGS=()
 if [[ -n "$BUG" ]]; then
@@ -111,7 +117,7 @@ if [[ -n "$BUG" ]]; then
     || fail "harness.json missing or invalid (see harness_config.py above)"
   TEST_FILE_RE="$(python3 "$ROOT/.specify/scripts/harness_config.py" get testFile --regex --root "$ROOT")" \
     || fail "harness.json missing or invalid (see harness_config.py above)"
-  [[ "$REPRO" =~ ${TEST_RE}[A-Za-z0-9._/-]+${TEST_FILE_RE} && "$REPRO" != *..* ]] \
+  repro_path_ok "$REPRO" "$TEST_RE" "$TEST_FILE_RE" \
     || fail "bugs/$BUG/report.md: reproduction test '$REPRO' is not a test file (${TEST_FILE_RE}) under ${TEST_RE}"
   [[ -f "$ROOT/$REPRO" ]] || fail "reproduction test $REPRO not found"
   [[ -n "$SCENARIO" ]] || fail "bugs/$BUG/report.md: no scenario ID on the 'Violated scenario' line"

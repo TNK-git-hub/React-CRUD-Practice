@@ -121,6 +121,11 @@ const checkArgv = (where, argv, command) => {
   for (const p of allowed) if (!seen[p]) throw new Error(`${where} must hold the placeholder {${p}}`);
   if ((seen.files || 0) > 1) throw new Error(`${where}: {files} may appear only once`);
 };
+// stack.testFile as the guard joins it into another regex: without a trailing end anchor "$" (an unescaped one: an
+// escaped "\$" is a literal dollar and stays), so that \s*$ can follow, and as a non-capturing group, so that a
+// top-level "|" in it cannot escape the pattern around it (\.test\.ts$|\.spec\.ts$ would otherwise match any command
+// ending in .spec.ts)
+const testFileGroup = (re) => `(?:${/(^|[^\\])(\\\\)*\$$/.test(re) ? re.slice(0, -1) : re})`;
 const checkStack = (s, packages) => {
   if (!sameKeys(s, STACK_KEYS)) throw new Error(`stack must have exactly the keys ${STACK_KEYS.join(", ")}`);
   if (typeof s.name !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.name)) throw new Error("stack.name must be a kebab-case name");
@@ -128,6 +133,7 @@ const checkStack = (s, packages) => {
   if (typeof s.appMarker !== "string" || !/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(s.appMarker) ||
       s.appMarker.split("/").some((x) => x === "." || x === "..")) throw new Error("stack.appMarker must be a relative path");
   checkRegex("stack.testFile", s.testFile);
+  new RegExp(`x${testFileGroup(s.testFile)}\\s*$`); // the joined form compiles too (else invalid: fail-closed, not a crash)
   checkRegex("stack.scenarioTestCall", s.scenarioTestCall);
   if (typeof s.reqFromFileName !== "string" || !s.reqFromFileName.includes("(?P<req>")) {
     throw new Error("stack.reqFromFileName must be a regex string with the group (?P<req>...)");
@@ -202,7 +208,7 @@ const TEST_WRITABLE_AREAS = areasOf("testPublic", "testE2e"); // interactive.tes
 const PRIVATE_AREAS = areasOf("testPrivate");
 // testPublic inside its package ("test/public"): the path arguments a test command may take
 const PKG_TEST_DIRS = [...new Set(areasOf("testPublic").map((a) => a.slice(a.indexOf("/") + 1)))];
-const TEST_FILE = CFG ? CFG.stack.testFile.replace(/\$$/, "") : "(?!)"; // without its "$", to append \s*$
+const TEST_FILE = CFG ? testFileGroup(CFG.stack.testFile) : "(?!)"; // (?:testFile without its "$"), to append \s*$
 // Paths and commands are compared folded (see fold above): the regexes are built from folded areas too
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 // Approvals locked by hash (.specify/scripts/approval.py): approval.json and its copies in .approved/ are written only by approval.py,
